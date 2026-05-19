@@ -120,9 +120,6 @@ importers:
 
   packages/narrative:
     dependencies:
-      '@depose/bundle':
-        specifier: workspace:*
-        version: link:../bundle
       '@depose/core':
         specifier: workspace:*
         version: link:../core
