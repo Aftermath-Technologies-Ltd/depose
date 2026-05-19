@@ -166,7 +166,7 @@ Whichever is chosen, `package.json:license` and `README.md` license badge get up
 
 **Touches.** New `.github/workflows/release.yml`, `apps/verify/Makefile`, `packages/bundle/src/writer.ts` (verify.txt template).
 
-### C4. Key management: Sigstore keyless by default, fingerprint discipline for air-gapped
+### C4. Key management: Sigstore keyless by default, fingerprint discipline for air-gapped [PARTIAL — air-gapped done; Sigstore producer-side scaffolded]
 
 **Root cause.** `loadOrGenerateKeyPair` auto-generates a key in `~/.depose/keys/`. The recipient has no way to know if the embedded public key is "the right" producer key. There is no fingerprint, no revocation, no rotation, no published key catalog. The `sign-sigstore.ts` skeleton was started and abandoned.
 

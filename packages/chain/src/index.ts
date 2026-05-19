@@ -26,6 +26,12 @@ export {
   type Ed25519SignatureResult,
 } from './sign-ed25519.js';
 
+// Key fingerprint helpers
+export {
+  fingerprintPublicKeyPem,
+  formatFingerprintSshStyle,
+} from './key-fingerprint.js';
+
 // RFC 3161 timestamping
 export {
   requestTimestamps,

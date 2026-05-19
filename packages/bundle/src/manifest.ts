@@ -42,6 +42,15 @@ export interface Manifest {
     tool: 'depose';
     version: string;
     mode: BundleMode;
+    /**
+     * SHA-256 of the producer's signing key (SPKI DER), as lowercase
+     * hex. Set only when mode === 'signed'. Recipients pin this to
+     * an out-of-band-published fingerprint (e.g. a .well-known
+     * page, an attorney's printed handshake, a published catalog)
+     * and the verifier rejects the bundle when --expected-key-
+     * fingerprint disagrees. See docs/key-management.md.
+     */
+    keyFingerprint?: string;
     host: {
       os: string;
       arch: string;
@@ -114,6 +123,7 @@ export function buildManifest(
     sessionEndedAt: string;
     rulesetHash: string;
     rootHash: string;
+    keyFingerprint?: string;
   }
 ): Manifest {
   const destructiveOps = buildDestructiveOpsIndex(events, rules);
@@ -128,6 +138,7 @@ export function buildManifest(
       tool: 'depose',
       version: options.version,
       mode: options.mode,
+      ...(options.keyFingerprint ? { keyFingerprint: options.keyFingerprint } : {}),
       host: {
         os: process.platform,
         arch: process.arch,

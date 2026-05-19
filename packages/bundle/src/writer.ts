@@ -25,7 +25,7 @@ import { buildTimeline, sha256Bytes } from '@depose/core';
 import { buildManifest, serializeManifest, serializeManifestForSigning, type BundleMode, type Manifest, type SignatureBlock, type Rfc3161Token } from './manifest.js';
 import { VERIFIER_DOWNLOAD_URL } from './constants.js';
 import { buildHashChain } from '@depose/chain';
-import { signManifest as signManifestEd25519, type Ed25519KeyPair } from '@depose/chain';
+import { signManifest as signManifestEd25519, fingerprintPublicKeyPem, type Ed25519KeyPair } from '@depose/chain';
 import { requestTimestamps, type Rfc3161Token as ChainRfc3161Token } from '@depose/chain';
 import { renderMarkdown, renderHtml } from '@depose/narrative';
 
@@ -174,6 +174,12 @@ export async function writeBundle(
   }
 
   // ── Step 2: Build manifest ────────────────────────────────────────
+  // In signed mode, embed the signer's key fingerprint so the
+  // recipient can pin against an out-of-band-published identity
+  // via depose-verify --expected-key-fingerprint.
+  const keyFingerprint = mode === 'signed' && keyPair
+    ? fingerprintPublicKeyPem(keyPair.publicKeyPem)
+    : undefined;
   const manifest = buildManifest(chainedEvents, destructiveRules, {
     bundleId,
     producedAt,
@@ -185,6 +191,7 @@ export async function writeBundle(
     sessionEndedAt,
     rulesetHash,
     rootHash,
+    keyFingerprint,
   });
 
   let signatures: SignatureBlock[] = [];
