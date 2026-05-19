@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import type { Event, DestructiveRule } from '@depose/core';
 import { buildTimeline, sha256Bytes } from '@depose/core';
 import { buildManifest, serializeManifest, serializeManifestForSigning, type BundleMode, type Manifest, type SignatureBlock, type Rfc3161Token } from './manifest.js';
+import { VERIFIER_DOWNLOAD_URL } from './constants.js';
 import { buildHashChain } from '@depose/chain';
 import { signManifest as signManifestEd25519, type Ed25519KeyPair } from '@depose/chain';
 import { requestTimestamps, type Rfc3161Token as ChainRfc3161Token } from '@depose/chain';
@@ -378,7 +379,7 @@ function buildVerifyTxt(manifest: Manifest): string {
     `To verify this bundle:`,
     '',
     `  1. Download the depose-verify binary from:`,
-    `     https://github.com/depose/depose/releases/latest`,
+    `     ${VERIFIER_DOWNLOAD_URL}`,
     '',
     `  2. Run:`,
     `     ./depose-verify verify <path-to-this-folder>`,

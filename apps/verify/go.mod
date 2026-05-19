@@ -1,4 +1,4 @@
-module github.com/depose/depose/apps/verify
+module github.com/Aftermath-Technologies-Ltd/depose/apps/verify
 
 go 1.22
 

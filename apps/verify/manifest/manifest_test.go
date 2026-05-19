@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/depose/depose/apps/verify/canonical"
+	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/canonical"
 )
 
 // TestVerifySignature_CRLFPEM exercises the stdlib PEM decoder
