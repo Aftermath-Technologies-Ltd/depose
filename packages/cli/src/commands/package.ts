@@ -21,7 +21,6 @@ import {
   buildTimeline,
   formatTimelineSummary,
   loadDestructiveRules,
-  sha256String,
   generateUlid,
   ulidFromTime,
   sha256,
@@ -91,11 +90,10 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   const keyPair = loadOrGenerateKeyPair(keyDir);
   console.log(`Public key: ${keyPair.publicKeyPem.split('\n')[1]?.slice(0, 20)}...`);
 
-  // Load destructive rules
+  // Load destructive rules (bytes are also retained for the bundle so
+  // the verifier can re-hash them against manifest.rulesetHash).
   const rules = loadDestructiveRules(resolvedRules);
-  const rulesetHash = rules.length > 0
-    ? sha256String(readFileSync(resolvedRules, 'utf-8'))
-    : '';
+  const rulesetBytes = readFileSync(resolvedRules);
 
   // Read and normalize JSONL
   console.log('Normalizing session data...');
@@ -195,7 +193,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       sessionStartedAt: sessionStarted,
       sessionEndedAt: sessionEnded,
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: resolvedOutput,
       keyPair,
       skipTimestamp,

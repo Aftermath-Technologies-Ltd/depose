@@ -20,7 +20,6 @@ import { execSync } from 'node:child_process';
 import {
   normalizeClaudeCodeJsonl,
   loadDestructiveRules,
-  sha256String,
   generateUlid,
 } from '@depose/core';
 import { writeBundle } from '../src/index.js';
@@ -77,7 +76,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
 
     const { depopPath, manifest } = await writeBundle(events, rules, {
@@ -88,7 +87,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -138,7 +137,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
 
     const { manifest, events: chainedEvents } = await writeBundle(events, rules, {
@@ -149,7 +148,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -170,7 +169,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
 
     const { depopPath, manifest } = await writeBundle(events, rules, {
@@ -181,7 +180,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -220,7 +219,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
 
     const { depopPath } = await writeBundle(events, rules, {
@@ -231,7 +230,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -261,7 +260,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
 
     const { depopPath } = await writeBundle(events, rules, {
@@ -272,7 +271,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -307,7 +306,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
     const producedAt = '2025-05-18T16:00:00.000Z';
 
@@ -319,7 +318,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -334,7 +333,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -371,7 +370,7 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
 
     const { depopPath } = await writeBundle(events, rules, {
@@ -382,7 +381,7 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -408,7 +407,7 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
 
     const { depopPath } = await writeBundle(events, rules, {
@@ -419,7 +418,7 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -448,7 +447,7 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
 
     const { depopPath } = await writeBundle(events, rules, {
@@ -459,7 +458,7 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,
@@ -493,7 +492,7 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const keyPair = generateEd25519KeyPair();
 
     // producedAt is 2025-05-18T16:00:00.000Z
@@ -508,7 +507,7 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
       unsigned: false,

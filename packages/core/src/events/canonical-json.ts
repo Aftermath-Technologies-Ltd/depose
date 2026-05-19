@@ -68,3 +68,12 @@ export function sha256(value: unknown): string {
 export function sha256String(input: string): string {
   return createHash('sha256').update(input, 'utf-8').digest('hex');
 }
+
+/**
+ * Compute SHA-256 hex digest of raw bytes. Use this when integrity must
+ * match a specific byte sequence (e.g. a file embedded in a bundle)
+ * rather than a re-encoded UTF-8 string.
+ */
+export function sha256Bytes(input: Buffer | Uint8Array): string {
+  return createHash('sha256').update(input).digest('hex');
+}

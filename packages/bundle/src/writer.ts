@@ -21,7 +21,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Event, DestructiveRule } from '@depose/core';
-import { buildTimeline } from '@depose/core';
+import { buildTimeline, sha256Bytes } from '@depose/core';
 import { buildManifest, serializeManifest, serializeManifestForSigning, hashManifest, type Manifest, type SignatureBlock, type Rfc3161Token } from './manifest.js';
 import { buildHashChain } from '@depose/chain';
 import { signManifest as signManifestEd25519, type Ed25519KeyPair } from '@depose/chain';
@@ -58,8 +58,10 @@ export interface BundleWriterOptions {
   sessionEndedAt: string;
   /** Destructive ruleset (for counting destructive ops) */
   rules: DestructiveRule[];
-  /** Ruleset hash (SHA-256 of ruleset YAML) */
-  rulesetHash: string;
+  /** Original ruleset bytes — written verbatim into the bundle and
+   *  hashed into manifest.rulesetHash. The verifier re-reads the
+   *  embedded file and re-hashes it to enforce ruleset integrity. */
+  rulesetBytes: Buffer;
   /** Output directory (where the .depo directory is written) */
   outputDir: string;
   /** Ed25519 key pair for signing (required for signed bundles) */
@@ -115,12 +117,14 @@ export async function writeBundle(
     sessionStartedAt,
     sessionEndedAt,
     rules: destructiveRules,
-    rulesetHash,
+    rulesetBytes,
     outputDir,
     keyPair,
     skipTimestamp,
     unsigned,
   } = options;
+
+  const rulesetHash = sha256Bytes(rulesetBytes);
 
   const warnings: string[] = [];
   const bundleId = sessionId;
@@ -260,10 +264,12 @@ export async function writeBundle(
     'utf-8'
   );
 
-  // Write rules/ directory
+  // Write rules/ directory.
+  // The original ruleset bytes are written verbatim so a third-party
+  // verifier can re-hash them and compare against manifest.rulesetHash.
   const rulesDir = join(bundleDir, RULES_DIR);
   mkdirSync(rulesDir, { recursive: true });
-  writeFileSync(join(rulesDir, 'destructive.yaml'), rulesetHash, 'utf-8');
+  writeFileSync(join(rulesDir, 'destructive.yaml'), rulesetBytes);
 
   // Build timeline for narrative rendering
   const timeline = buildTimeline(chainedEvents, destructiveRules);
