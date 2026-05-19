@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# produce.sh — Run depose package on the synthetic PocketOS session JSONL
+# produce.sh — Run depose package on the synthetic PocketOS session JSONL.
 #
-# Produces a signed .depo bundle from the simulated Claude Code session
-# where the agent ran `terraform destroy -auto-approve`.
+# By default this runs in `signed` mode and hits FreeTSA over the
+# network. Set DEPOSE_DEV_UNSIGNED=1 to skip the TSA round-trip and
+# emit a dev-unsigned bundle instead (offline / fast iteration).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -11,7 +12,13 @@ SESSION_JSONL="$SCRIPT_DIR/session.synthetic.jsonl"
 OUTPUT_DIR="$SCRIPT_DIR/depose-output"
 DEPOSE="$REPO_ROOT/packages/cli/bin/depose"
 
-echo "Depose: producing signed bundle from PocketOS synthetic session..."
+EXTRA_ARGS=()
+if [[ "${DEPOSE_DEV_UNSIGNED:-}" == "1" ]]; then
+  EXTRA_ARGS+=(--skip-timestamp)
+  echo "Depose: producing DEV-UNSIGNED bundle (DEPOSE_DEV_UNSIGNED=1)..."
+else
+  echo "Depose: producing SIGNED bundle (network required for FreeTSA)..."
+fi
 echo "  Input:  $SESSION_JSONL"
 echo "  Output: $OUTPUT_DIR"
 echo ""
@@ -19,7 +26,7 @@ echo ""
 "$DEPOSE" package \
   --from-claude "$SESSION_JSONL" \
   --output "$OUTPUT_DIR" \
-  --skip-timestamp
+  ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 
 echo ""
 echo "Done. Verify with: depose-verify verify $OUTPUT_DIR/incident-*"

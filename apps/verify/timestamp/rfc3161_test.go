@@ -114,9 +114,13 @@ func TestVerifyManifestProducedAt_NoBackdating(t *testing.T) {
 	if err := VerifyManifestProducedAt("2025-05-18T15:59:59Z", tokens); err != nil {
 		t.Errorf("earlier produced time must pass: %v", err)
 	}
-	// producedAt one second after — must fail (tolerance reduced
-	// from 1s to 0).
-	if err := VerifyManifestProducedAt("2025-05-18T16:00:01Z", tokens); err == nil {
-		t.Errorf("producedAt after TSA time must fail; got nil")
+	// producedAt one second after — within tolerance because TSAs
+	// report whole-second precision.
+	if err := VerifyManifestProducedAt("2025-05-18T16:00:01Z", tokens); err != nil {
+		t.Errorf("producedAt 1s after TSA must pass (truncation tolerance): %v", err)
+	}
+	// producedAt 2+ seconds after — must fail.
+	if err := VerifyManifestProducedAt("2025-05-18T16:00:02Z", tokens); err == nil {
+		t.Errorf("producedAt 2s after TSA must fail; got nil")
 	}
 }
