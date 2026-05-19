@@ -1,0 +1,26 @@
+{
+  "name": "depose",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Depose the agent. Produce the record. A self-contained, hash-chained, signed evidence bundle from local AI coding agent sessions.",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint packages/",
+    "typecheck": "tsc --build --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "@types/node": "^24.0.10",
+    "eslint": "^9.31.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.2",
+    "@typescript-eslint/parser": "^8.59.2",
+    "prettier": "^3.6.2"
+  }
+}

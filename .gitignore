@@ -1,0 +1,27 @@
+node_modules/
+dist/
+*.depo
+depose-output/
+.turbo/
+
+# Go binaries
+depose-shim
+depose-verify-*
+
+# OS
+.DS_Store
+*.swp
+*.swo
+
+# Keys (never commit)
+.depose/keys/
+
+# IDE
+.vscode/
+.idea/
+
+# Test artifacts
+coverage/
+
+# Build plan (local only)
+BUILD_PLAN.md

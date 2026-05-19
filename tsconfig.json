@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/bundle" },
+    { "path": "packages/capture-claude" },
+    { "path": "packages/cli" }
+  ]
+}
