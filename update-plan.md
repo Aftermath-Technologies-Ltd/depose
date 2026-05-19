@@ -232,7 +232,7 @@ These are debt items. None of them adds features. All of them make the codebase 
 
 **Verify.** `pnpm lint` exits 0 with zero warnings on a clean checkout.
 
-### D6. CI Node version pin
+### D6. CI Node version pin [DONE]
 
 **Root cause.** `ci.yml` uses Node 20, `verify-examples.yml` uses Node 22. Production support unclear.
 
