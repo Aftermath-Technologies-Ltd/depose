@@ -149,7 +149,7 @@ Whichever is chosen, `package.json:license` and `README.md` license badge get up
 
 **Touches.** New `packages/bundle/src/constants.ts`, `packages/bundle/src/writer.ts`, `packages/cli/src/commands/main.ts`, all `apps/verify/**/*.go` import paths, new CI step.
 
-### C3. Tagged releases with signed verifier binaries
+### C3. Tagged releases with signed verifier binaries [DONE]
 
 **Root cause.** Users must clone and `make build-local` to get the verifier. A self-signed evidence bundle whose verifier the recipient must compile themselves has no chain of trust. A 5-day GH Actions artifact retention is not a distribution channel.
 
