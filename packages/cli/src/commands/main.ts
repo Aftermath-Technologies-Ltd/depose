@@ -9,11 +9,15 @@
 //   depose install --claude | --shell
 //   depose explain
 //
-// See BUILD_PLAN.md §6 (Phase plan) for scope per phase.
-// Phase 2: `reconstruct` (unsigned) + `package` (signed) implemented.
+// Argument parsing uses `commander`. Previously a hand-rolled
+// parser silently mishandled `--key=value`, treated repeated flags
+// as overwrites, and broke on values that begin with `-`. For a
+// forensics CLI "trust me, I parsed your flag right" is the wrong
+// posture.
 
 import { resolve, join, dirname } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';
+import { Command } from 'commander';
 import {
   normalizeClaudeCodeJsonl,
   parseShellHistory,
@@ -41,176 +45,144 @@ import {
   installShellShims,
   uninstallClaudeHook,
   uninstallShellShims,
-  SHIM_ALLOWLIST,
   DEFAULT_CAPTURE_DIR,
 } from './install.js';
 
-// ── Minimal argument parser (no external deps in Phase 1) ────────────
+// ── Args shape (kebab-case keys, matches what handlers consume) ──────
 
 interface CliArgs {
-  command: string;
   [key: string]: string | boolean | string[] | undefined;
 }
 
-function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { command: '' };
-  let i = 0;
+/**
+ * Convert commander's camelCase options into the kebab-case shape
+ * the existing handlers consume. Commander emits opts with names
+ * derived from the long flag — so `--from-claude` becomes
+ * `opts.fromClaude`. We rebuild a kebab-keyed object so handlers
+ * see `args['from-claude']` as they always did.
+ */
+function camelToKebab(name: string): string {
+  return name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+}
 
-  const firstArg = argv[i];
-  if (firstArg && !firstArg.startsWith('-')) {
-    args.command = firstArg;
-    i++;
+function optsToArgs(opts: Record<string, unknown>): CliArgs {
+  const out: CliArgs = {};
+  for (const [k, v] of Object.entries(opts)) {
+    out[camelToKebab(k)] = v as string | boolean | string[] | undefined;
   }
-
-  while (i < argv.length) {
-    const arg = argv[i];
-    if (arg === undefined) break;
-    if (arg.startsWith('--')) {
-      const key = arg.slice(2);
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        args[key] = next;
-        i += 2;
-      } else {
-        args[key] = true;
-        i++;
-      }
-    } else if (arg.startsWith('-')) {
-      const key = arg.slice(1);
-      const next = argv[i + 1];
-      if (next && !next.startsWith('-')) {
-        args[key] = next;
-        i += 2;
-      } else {
-        args[key] = true;
-        i++;
-      }
-    } else {
-      i++;
-    }
-  }
-
-  return args;
+  return out;
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
 
 export async function main(argv: string[]): Promise<void> {
-  const args = parseArgs(argv);
-  const command = args.command || 'help';
+  const program = new Command();
+  program
+    .name('depose')
+    .description('Depose the agent. Produce the record.')
+    .exitOverride((err) => {
+      // commander throws CommanderError on help/version/parse error.
+      // For help/version it exits 0; for parse errors we want 1 so
+      // the CLI's behavior matches the previous hand-rolled parser.
+      if (err.code === 'commander.helpDisplayed' || err.code === 'commander.version') {
+        return;
+      }
+      process.exit(err.exitCode || 1);
+    })
+    // Make argument parsing strict but explicit:
+    //   --from-claude=foo (key=value) is accepted by commander.
+    //   --rules <path> --rules <path2> — last wins; we don't declare
+    //   repeatable flags because none of our options are repeatable.
+    //   Values starting with `-` work via `--key=value` form, or by
+    //   relying on commander's "next-token-is-the-value" semantics.
+    .allowUnknownOption(false)
+    .showHelpAfterError();
 
-  switch (command) {
-    case 'help':
-    case '--help':
-    case '-h':
-      printHelp();
-      return;
+  // Shared option groups (commander has no built-in inheritance, so
+  // we define them in helpers).
+  const addReconstructOpts = (cmd: Command) =>
+    cmd
+      .option('--from-claude <path>', 'Claude Code JSONL session file')
+      .option('--rules <path>', 'Destructive ruleset YAML')
+      .option('--ruleset <path>', 'Alias for --rules')
+      .option('--output <dir>', 'Output directory')
+      .option('--output-dir <dir>', 'Alias for --output')
+      .option('--session-id <id>', 'Session ID (ULID)')
+      .option('--agent-id <id>', 'Agent ID', 'claude-code')
+      .option('--capture-dir <path>', 'Capture directory');
 
-    case 'reconstruct':
-      await handleReconstruct(args);
-      return;
+  addReconstructOpts(
+    program
+      .command('reconstruct')
+      .description('Reconstruct a session from JSONL (dev-unsigned bundle)')
+      .action(async function (this: Command) {
+        await handleReconstruct(optsToArgs(this.opts()));
+      })
+  );
 
-    case 'package':
-      await handlePackage(args as unknown as PackageCommandArgs);
-      return;
+  addReconstructOpts(
+    program
+      .command('package')
+      .description('Produce a fully signed .depo bundle (default mode: signed)')
+      .option('--skip-timestamp', 'Downgrade to dev-unsigned (no TSA, no signature)')
+      .option('--key-dir <path>', 'Ed25519 key directory')
+      .action(async function (this: Command) {
+        await handlePackage(optsToArgs(this.opts()) as unknown as PackageCommandArgs);
+      })
+  );
 
-    case 'verify':
+  program
+    .command('verify [bundle]')
+    .description('Defer to the separate depose-verify Go binary')
+    .action(() => {
       console.error('ERROR: `depose verify` uses the separate `depose-verify` Go binary.');
       console.error(`Install from: ${VERIFIER_DOWNLOAD_URL}`);
       console.error('Usage: depose-verify verify <path-to-bundle>');
       process.exit(1);
-      return;
+    });
 
-    case 'install':
-      await handleInstall(args);
-      return;
+  addReconstructOpts(
+    program
+      .command('explain')
+      .description('Generate commentary.md (AI-generated, NOT evidence)')
+      .option('--bundle <dir>', 'Existing bundle directory')
+      .action(async function (this: Command) {
+        await handleExplain(optsToArgs(this.opts()) as unknown as ExplainCommandArgs);
+      })
+  );
 
-    case 'uninstall':
-      await handleUninstall(args);
-      return;
+  program
+    .command('install')
+    .description('Install the Claude Code hook and/or shell shims')
+    .option('--claude', 'Install the Claude Code PreToolUse hook')
+    .option('--shell', 'Install shell shims for destructive binaries')
+    .option('--project', 'Use project-level settings.json (with --claude)')
+    .option('--bin-dir <path>', 'Shim install directory')
+    .option('--capture-dir <path>', 'Capture directory')
+    .action(async function (this: Command) {
+      await handleInstall(optsToArgs(this.opts()));
+    });
 
-    case 'explain':
-      await handleExplain(args as unknown as ExplainCommandArgs);
-      return;
+  program
+    .command('uninstall')
+    .description('Remove the Claude Code hook and/or shell shims')
+    .option('--claude', 'Remove the Claude Code PreToolUse hook')
+    .option('--shell', 'Remove shell shims')
+    .option('--bin-dir <path>', 'Shim install directory (must match install)')
+    .action(async function (this: Command) {
+      await handleUninstall(optsToArgs(this.opts()));
+    });
 
-    default:
-      if (args.help) {
-        printHelp();
-        return;
-      }
-      console.error(`ERROR: Unknown command "${command}".`);
-      console.error('');
-      printHelp();
-      process.exit(1);
-      return;
+  // commander parses from a [node, script, ...] style; we receive a
+  // sliced argv. Use parseAsync with the from:'user' source.
+  try {
+    await program.parseAsync(argv, { from: 'user' });
+  } catch (err) {
+    // exitOverride above re-exits on parse errors; this catch
+    // handles handler-level rejections.
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
   }
-}
-
-// ── Help ─────────────────────────────────────────────────────────────
-
-function printHelp(): void {
-  console.log(`DEPOSE — Depose the agent. Produce the record.
-
-Usage:
-  depose <command> [options]
-
-Commands:
-  install --claude
-      Install Claude Code PreToolUse hook for active capture.
-      Creates capture directory and writes hook config to
-      ~/.claude/settings.json (or project .claude/settings.json).
-
-  install --shell
-      Install shell shims for destructive binaries.
-      Creates symlinks in ~/.depose/bin for: ${Array.from(SHIM_ALLOWLIST).join(', ')}
-      Add ~/.depose/bin to PATH before /usr/local/bin.
-
-  uninstall --claude
-      Remove Claude Code PreToolUse hook.
-
-  uninstall --shell
-      Remove shell shims from ~/.depose/bin.
-
-  reconstruct --from-claude <path>
-      Reconstruct a session from Claude Code JSONL.
-      Produces an unsigned .depo directory.
-
-  package --from-claude <path>
-      Produce a fully signed .depo bundle with hash chain,
-      Ed25519 signatures, and RFC 3161 timestamps.
-      This is the primary production command.
-
-  explain --from-claude <path>
-  explain --bundle <bundle-dir>
-      Generate AI commentary (commentary.md).
-      EXCLUDED from signed content. NOT evidence.
-      Provides a human-readable postmortem for convenience only.
-
-Options:
-  --help, -h          Show this help message
-  --rules <path>      Path to destructive ruleset YAML (default: rules/destructive.default.yaml)
-  --output <dir>      Output directory (default: ./depose-output)
-  --session-id <id>   Session ID (ULID, default: auto-generated)
-  --agent-id <id>     Agent ID (default: claude-code)
-  --ruleset <path>    Alias for --rules
-  --output-dir <dir>  Alias for --output
-  --skip-timestamp    Skip RFC 3161 timestamping (development only)
-  --key-dir <path>    Ed25519 key directory (default: ~/.depose/keys)
-  --project           Use project-level settings.json (for install --claude)
-  --bin-dir <path>    Shim installation directory (for install --shell, default: ~/.depose/bin)
-  --capture-dir <path> Capture directory (default: ~/.depose/captures)
-
-Examples:
-  depose install --claude
-  depose install --claude --project
-  depose install --shell
-  depose install --shell --bin-dir ~/.local/bin
-  depose reconstruct --from-claude session.jsonl
-  depose package --from-claude session.jsonl
-  depose package --from-claude session.jsonl --skip-timestamp
-  depose uninstall --claude
-  depose uninstall --shell
-`);
 }
 
 // ── Reconstruct command (Phase 1 — unsigned) ─────────────────────────

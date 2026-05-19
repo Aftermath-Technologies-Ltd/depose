@@ -208,7 +208,7 @@ These are debt items. None of them adds features. All of them make the codebase 
 
 **Verify.** Existing `loadDestructiveRules` tests pass. Add one fuzz test that feeds garbage YAML and asserts a clean error rather than a crash.
 
-### D3. Custom CLI arg parser → `commander`
+### D3. Custom CLI arg parser → `commander` [DONE]
 
 **Root cause.** `main.ts:56-95` doesn't support `--key=value`, declares `string[]` but parser overwrites repeats, and the flag-vs-value heuristic breaks on values starting with `-`. For a CLI that ships to forensics use cases, "trust me, I parsed your flag right" is the wrong posture.
 
