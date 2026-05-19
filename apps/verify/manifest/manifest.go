@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -113,11 +114,12 @@ func VerifySignature(m *Manifest, rawManifestBytes []byte) error {
 			return fmt.Errorf("signature[%d]: missing public key", i)
 		}
 
-		// Decode the PEM public key
-		pubKeyBytes, err := decodePEM([]byte(sig.PublicKey))
-		if err != nil {
-			return fmt.Errorf("signature[%d]: decode public key PEM: %w", i, err)
+		// Decode the PEM public key with the stdlib decoder.
+		block, _ := pem.Decode([]byte(sig.PublicKey))
+		if block == nil {
+			return fmt.Errorf("signature[%d]: no PEM block in publicKey", i)
 		}
+		pubKeyBytes := block.Bytes
 
 		// Parse the Ed25519 public key
 		pub, err := x509.ParsePKIXPublicKey(pubKeyBytes)
@@ -172,49 +174,3 @@ func StripSignatureFields(manifestJSON []byte) ([]byte, error) {
 	return canonical.Marshal(m)
 }
 
-// decodePEM extracts the DER bytes from a PEM block.
-func decodePEM(pemData []byte) ([]byte, error) {
-	// Simple PEM decoder — find BEGIN/END markers and base64-decode
-	// This avoids importing encoding/pem which strips headers we want to preserve
-	str := string(pemData)
-	beginMarker := "-----BEGIN "
-	endMarker := "-----END "
-
-	beginIdx := 0
-	for beginIdx < len(str) {
-		idx := indexOf(str, beginMarker, beginIdx)
-		if idx == -1 {
-			break
-		}
-
-		// Find the end of the type line
-		typeEnd := indexOf(str, "-----\n", idx)
-		if typeEnd == -1 {
-			break
-		}
-
-		// Find END marker
-		endIdx := indexOf(str, endMarker, typeEnd)
-		if endIdx == -1 {
-			break
-		}
-
-		// Extract base64 between markers
-		dataStart := typeEnd + len("-----\n")
-		dataEnd := endIdx
-
-		return base64.StdEncoding.DecodeString(str[dataStart:dataEnd])
-	}
-
-	return nil, fmt.Errorf("no PEM block found")
-}
-
-// indexOf returns the index of substr in s starting from start.
-func indexOf(s, substr string, start int) int {
-	for i := start; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
-}
