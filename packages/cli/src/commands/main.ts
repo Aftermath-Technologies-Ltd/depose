@@ -67,7 +67,29 @@ function optsToArgs(opts: Record<string, unknown>): CliArgs {
 
 // ── Main ─────────────────────────────────────────────────────────────
 
+/**
+ * Fail fast on unsupported platforms.
+ *
+ * The signing-key store relies on POSIX 0600 permissions (a no-op on
+ * Windows, leaving the private key world-readable). The shell shims
+ * are POSIX shell scripts. Active capture via the Claude Code hook
+ * assumes a POSIX hook command. Until those gaps close, Windows is
+ * out of scope rather than silently degraded.
+ */
+function assertSupportedPlatform(): void {
+  if (process.platform === 'win32') {
+    console.error(
+      'ERROR: depose is not supported on Windows.\n' +
+      '  - The signing key store relies on POSIX 0600 permissions.\n' +
+      '  - The capture shims are POSIX shell scripts.\n' +
+      'Run depose under macOS, Linux, or WSL2.'
+    );
+    process.exit(1);
+  }
+}
+
 export async function main(argv: string[]): Promise<void> {
+  assertSupportedPlatform();
   const program = new Command();
   program
     .name('depose')

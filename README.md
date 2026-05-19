@@ -75,6 +75,9 @@ cd apps/verify && make build-local
 ```
 
 Requirements: **Node.js ≥ 20**, **pnpm 9**, **Go 1.22+** for the verifier.
+**Platforms:** macOS and Linux. Windows is not supported (the signing
+key store relies on POSIX 0600 permissions and the capture shims are
+POSIX shell scripts); use WSL2 there.
 
 ## Quick start
 
