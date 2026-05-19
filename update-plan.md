@@ -200,7 +200,7 @@ These are debt items. None of them adds features. All of them make the codebase 
 
 `BUILD_PLAN.md` decision: it's currently in `.gitignore` but on disk. Move design content that's still relevant into `docs/architecture.md` and `docs/bundle-format.md` (which already exist), then delete `BUILD_PLAN.md`. Project plans don't live in repos; design specs do.
 
-### D2. Custom YAML parser → `yaml` package
+### D2. Custom YAML parser → `yaml` package [DONE]
 
 **Root cause.** `packages/core/src/reconstruct/yaml-parser.ts` is 408 lines reinventing a YAML subset. The avoid-a-dep tradeoff was wrong: the hand-rolled parser has dead parameters (lint warnings at lines 59, 307), partial implementation, and no fuzz coverage. The `yaml` npm package is ~250kb gzipped, zero transitive deps, used by millions of projects.
 
