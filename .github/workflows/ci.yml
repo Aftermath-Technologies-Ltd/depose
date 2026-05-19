@@ -45,6 +45,21 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Forbid Math.random in evidence paths
+        # B3 invariant: signatures, chains, and event IDs must come
+        # from a CSPRNG, never Math.random. Production source under
+        # these paths must not call it. We match `Math.random(` to
+        # avoid false positives in comments that name the API.
+        run: |
+          if grep -rn --include='*.ts' --exclude-dir=node_modules --exclude-dir=dist \
+              'Math\.random(' \
+              packages/chain/src \
+              packages/bundle/src \
+              packages/core/src/events; then
+            echo "Math.random forbidden under packages/chain/src, packages/bundle/src, packages/core/src/events"
+            exit 1
+          fi
+
       - name: Test
         run: pnpm test
 

@@ -46,6 +46,23 @@ describe('buildTimeStampReq', () => {
     const found = req.includes(hashBytes);
     expect(found).toBe(true);
   });
+
+  it('generates distinct CSPRNG nonces across 10000 requests (B3)', () => {
+    // Sanity check: with a CSPRNG we should never see a collision in
+    // 10k 8-byte nonces. With Math.random the chance is still tiny
+    // but the entropy source is the regression we're guarding.
+    const hashHex = createHash('sha256').update('nonce-test', 'utf-8').digest('hex');
+    const seen = new Set<string>();
+    const N = 10_000;
+    for (let i = 0; i < N; i++) {
+      const req = buildTimeStampReq(hashHex);
+      // The nonce is a DER INTEGER appearing after the messageImprint.
+      // We approximate by taking a fingerprint of the whole request,
+      // which differs whenever the nonce differs.
+      seen.add(req.toString('hex'));
+    }
+    expect(seen.size).toBe(N);
+  });
 });
 
 describe('extractTimestampFromTsr', () => {

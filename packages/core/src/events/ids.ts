@@ -80,11 +80,19 @@ function randomBytes(n: number): Uint8Array {
     _fixedSeedMono++;
     return bytes;
   }
-  if (CRYPTO && typeof (CRYPTO as { getRandomValues?: unknown }).getRandomValues === 'function') {
-    return (CRYPTO as { getRandomValues: (arr: Uint8Array) => Uint8Array }).getRandomValues(bytes);
+  // CSPRNG is mandatory in evidence paths — there is no Math.random
+  // fallback. Node ≥20 always exposes globalThis.crypto; browsers
+  // running on http: contexts (where crypto may be undefined) are
+  // not supported producers and must error loudly rather than emit
+  // a predictable ULID.
+  if (!CRYPTO || typeof (CRYPTO as { getRandomValues?: unknown }).getRandomValues !== 'function') {
+    throw new Error(
+      'CSPRNG unavailable: globalThis.crypto.getRandomValues is missing. ' +
+      'DEPOSE evidence IDs require a cryptographically secure RNG; ' +
+      'refusing to silently weaken to Math.random.'
+    );
   }
-  for (let i = 0; i < n; i++) bytes[i] = Math.floor(Math.random() * 256);
-  return bytes;
+  return (CRYPTO as { getRandomValues: (arr: Uint8Array) => Uint8Array }).getRandomValues(bytes);
 }
 
 /**

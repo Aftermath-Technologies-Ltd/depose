@@ -96,7 +96,7 @@ The bundle must be a self-contained record where every file means what its name 
 
 **Touches.** `packages/chain/src/sign-ed25519.ts`, `apps/verify/manifest/manifest.go`, signing/verification tests.
 
-### B3. CSPRNG everywhere randomness touches evidence
+### B3. CSPRNG everywhere randomness touches evidence [DONE]
 
 **Root cause.** Two `Math.random()` uses leak into the integrity path:
 - `packages/chain/src/timestamp-rfc3161.ts:95-100` for the RFC 3161 nonce.
@@ -262,7 +262,7 @@ CI must prove every claim the README makes. Today, the verify-examples job claim
 
 (See A4.) Separate job runs `tests/conformance/` vectors against both the TS canonical-JSON impl and the Go re-marshal. Blocks merges on divergence.
 
-### E3. Crypto invariant grep in CI
+### E3. Crypto invariant grep in CI [DONE]
 
 (See B3.) One-line CI step:
 
