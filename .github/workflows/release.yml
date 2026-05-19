@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  # OIDC token issuance for cosign keyless signing.
+  id-token: write
+  # Required for actions/upload-release-asset and gh release.
+  contents: write
+  # Required by the SLSA generator.
+  actions: read
+
+jobs:
+  build:
+    name: Cross-compile depose-verify
+    runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.hashes.outputs.hashes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Cross-compile (darwin/linux × arm64/amd64)
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          cd apps/verify
+          make all VERSION="${VERSION#v}"
+          ls -la build/
+
+      - name: Generate SHA256SUMS
+        id: hashes
+        run: |
+          cd apps/verify/build
+          sha256sum depose-verify-* > SHA256SUMS
+          cat SHA256SUMS
+          # base64-encoded hashes for the SLSA provenance generator.
+          # The SLSA action expects the SHA256SUMS file as input.
+          echo "hashes=$(sha256sum depose-verify-* | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Cosign sign — keyless (OIDC → Fulcio → Rekor)
+        # Signs SHA256SUMS, producing SHA256SUMS.sig and
+        # SHA256SUMS.pem (the short-lived Fulcio cert). Recipients
+        # verify with `cosign verify-blob --certificate ... --signature ...
+        # --certificate-identity-regexp ... --certificate-oidc-issuer ...`.
+        run: |
+          cd apps/verify/build
+          cosign sign-blob --yes \
+            --output-signature SHA256SUMS.sig \
+            --output-certificate SHA256SUMS.pem \
+            SHA256SUMS
+
+      - name: Upload artifacts for downstream jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: depose-verify-release
+          path: apps/verify/build/
+          retention-days: 5
+
+  provenance:
+    name: SLSA L3 provenance
+    needs: build
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
+    # The SLSA generator publishes a signed in-toto attestation that
+    # binds the SHA256SUMS contents to the GitHub Actions workflow
+    # run that produced them.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: ${{ needs.build.outputs.hashes }}
+      upload-assets: true
+
+  publish:
+    name: Publish GitHub Release
+    needs: [build, provenance]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: depose-verify-release
+          path: release/
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd release
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --notes "depose-verify ${{ github.ref_name }}. Verify with: cosign verify-blob --certificate SHA256SUMS.pem --signature SHA256SUMS.sig --certificate-identity-regexp '^https://github.com/Aftermath-Technologies-Ltd/depose/' --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' SHA256SUMS" \
+            depose-verify-* SHA256SUMS SHA256SUMS.sig SHA256SUMS.pem
