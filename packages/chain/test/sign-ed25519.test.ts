@@ -11,7 +11,6 @@ import {
   verifyManifestSignature,
   loadOrGenerateKeyPair,
 } from '../src/sign-ed25519.js';
-import { sha256String } from '@depose/core';
 import { existsSync, rmSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -104,16 +103,17 @@ describe('signManifest / verifyManifestSignature', () => {
     expect(valid).toBe(false);
   });
 
-  it('signs over the SHA-256 of the manifest (double hash)', () => {
-    // The signature is over sha256(manifestJson), not the raw manifest
+  it('signs the canonical JSON bytes directly (no pre-hash)', () => {
+    // B2: signature is over the raw canonical JSON bytes; Ed25519
+    // hashes internally per RFC 8032, so the previous SHA-256 +
+    // hex-encode step was both redundant and a cross-language seam.
     const keyPair = generateEd25519KeyPair();
     const manifestJson = '{"schemaVersion":1}';
-    const manifestHash = sha256String(manifestJson);
 
     const result = signManifest(manifestJson, keyPair);
 
-    // Verify against the hash directly (same as what signManifest computes internally)
-    const valid = verifyEd25519(manifestHash, result.signatureBase64, keyPair.publicKeyPem);
+    // Verify against the bytes directly — same input signManifest used.
+    const valid = verifyEd25519(manifestJson, result.signatureBase64, keyPair.publicKeyPem);
     expect(valid).toBe(true);
   });
 });

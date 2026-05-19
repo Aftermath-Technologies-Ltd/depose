@@ -7,13 +7,16 @@
 //   - Key stored with 0600 permissions, never logged
 //   - Optional: sigstore keyless if SIGSTORE_OIDC=1 or CI with OIDC (deferred)
 //
-// Signature is over the SHA-256 of canonical-JSON-serialized manifest.json.
+// Signature is over the canonical JSON bytes of the unsigned manifest.
+// We sign the bytes directly, not a hex-encoded SHA-256 — Ed25519
+// already hashes internally (RFC 8032), and pre-hashing into hex
+// added a cross-language seam (the Go verifier had to mirror the
+// "sign the hex string" oddity). See B2 in update-plan.md.
 
 import * as crypto from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { sha256String } from '@depose/core';
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -118,18 +121,14 @@ export function loadOrGenerateKeyPair(keyDir?: string): Ed25519KeyPair {
 // ── Signing ────────────────────────────────────────────────────────────
 
 /**
- * Sign data with an Ed25519 private key.
+ * Sign arbitrary bytes with an Ed25519 private key.
  *
- * Ed25519 uses its own internal hashing (Ed25519 ph=0, no pre-hash).
- * We pass `null` as the algorithm to crypto.sign — the Ed25519 key type
- * handles hashing internally per RFC 8032.
- *
- * @param data - The data to sign (UTF-8 string)
- * @param privateKeyPem - PEM-encoded Ed25519 private key
- * @returns Base64-encoded signature
+ * Ed25519 (pure, ph=0) hashes its input internally per RFC 8032, so
+ * we pass `null` as the algorithm and feed the raw message bytes.
  */
-export function signEd25519(data: string, privateKeyPem: string): string {
-  const signature = crypto.sign(null, Buffer.from(data, 'utf-8'), {
+export function signEd25519(data: Buffer | string, privateKeyPem: string): string {
+  const buf = typeof data === 'string' ? Buffer.from(data, 'utf-8') : data;
+  const signature = crypto.sign(null, buf, {
     key: privateKeyPem,
     format: 'pem',
     type: 'pkcs8',
@@ -138,21 +137,17 @@ export function signEd25519(data: string, privateKeyPem: string): string {
 }
 
 /**
- * Verify data with an Ed25519 public key.
- *
- * @param data - The original data (UTF-8 string)
- * @param signatureBase64 - Base64-encoded signature
- * @param publicKeyPem - PEM-encoded Ed25519 public key
- * @returns True if signature is valid
+ * Verify an Ed25519 signature over arbitrary bytes.
  */
 export function verifyEd25519(
-  data: string,
+  data: Buffer | string,
   signatureBase64: string,
   publicKeyPem: string
 ): boolean {
   try {
+    const buf = typeof data === 'string' ? Buffer.from(data, 'utf-8') : data;
     const signature = Buffer.from(signatureBase64, 'base64');
-    return crypto.verify(null, Buffer.from(data, 'utf-8'), {
+    return crypto.verify(null, buf, {
       key: publicKeyPem,
       format: 'pem',
       type: 'spki',
@@ -165,21 +160,17 @@ export function verifyEd25519(
 // ── Bundle signing ────────────────────────────────────────────────────
 
 /**
- * Sign the manifest for a DEPOSE bundle.
- *
- * The signature is computed over the SHA-256 of the canonical-JSON-serialized
- * manifest, as specified in BUILD_PLAN.md §4.3.
- *
- * @param manifestCanonicalJson - Canonical JSON of the manifest
- * @param keyPair - Ed25519 key pair
- * @returns Signature result for inclusion in the bundle
+ * Sign a DEPOSE manifest. The signature is over the canonical JSON
+ * bytes of the unsigned form — no pre-hash, no hex encoding step.
  */
 export function signManifest(
   manifestCanonicalJson: string,
   keyPair: Ed25519KeyPair
 ): Ed25519SignatureResult {
-  const manifestHash = sha256String(manifestCanonicalJson);
-  const signatureBase64 = signEd25519(manifestHash, keyPair.privateKeyPem);
+  const signatureBase64 = signEd25519(
+    Buffer.from(manifestCanonicalJson, 'utf-8'),
+    keyPair.privateKeyPem,
+  );
 
   return {
     signatureBase64,
@@ -189,18 +180,16 @@ export function signManifest(
 }
 
 /**
- * Verify a manifest signature against a manifest.
- *
- * @param manifestCanonicalJson - Canonical JSON of the manifest
- * @param signatureBase64 - Base64-encoded signature
- * @param publicKeyPem - PEM-encoded Ed25519 public key
- * @returns True if signature is valid
+ * Verify a manifest signature directly over canonical JSON bytes.
  */
 export function verifyManifestSignature(
   manifestCanonicalJson: string,
   signatureBase64: string,
   publicKeyPem: string
 ): boolean {
-  const manifestHash = sha256String(manifestCanonicalJson);
-  return verifyEd25519(manifestHash, signatureBase64, publicKeyPem);
+  return verifyEd25519(
+    Buffer.from(manifestCanonicalJson, 'utf-8'),
+    signatureBase64,
+    publicKeyPem,
+  );
 }
