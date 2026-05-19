@@ -122,19 +122,19 @@ CAPTURE  →  NORMALIZATION  →  RECONSTRUCTION  →  INTEGRITY  →  BUNDLE  �
 | **Normalization** | Claude Code JSONL, shell history (bash/zsh/fish), and git reflog → common event schema. | `packages/core` |
 | **Reconstruction** | Sort, merge across sources, deduplicate, flag gaps, build a causal timeline. | `packages/core/reconstruct` |
 | **Integrity** | IRONROOT hash chain, Ed25519 signing, RFC 3161 timestamping. | `packages/chain` |
-| **Bundle** | Deterministic `.depo` directory layout. | `packages/bundle` |
+| **Bundle** | Deterministic directory layout (tar packing is future work). | `packages/bundle` |
 | **Narrative** | Handlebars-templated prose with `[#evt-<ulid>]` citations. Excluded from root hash. | `packages/narrative` |
 
 Design rationale and threat model in [docs/architecture.md](docs/architecture.md) and [docs/threat-model.md](docs/threat-model.md).
 
 ## What's in a bundle
 
-A `.depo` is a deterministically-ordered directory:
+A DEPOSE bundle is a directory tree:
 
 ```
 incident-01JABC.../
-├── manifest.json            ← bundleId, rootHash, signatures, timestamps
-├── events.jsonl             ← every event in canonical JSON
+├── manifest.json            ← bundleId, rootHash, eventsJsonlSha256, sigs, timestamps
+├── events.jsonl             ← every event in canonical JSON, byte-pinned by manifest
 ├── rules/destructive.yaml   ← ruleset used at reconstruction time
 ├── narrative.md             ← templated prose with per-event citations
 ├── narrative.html           ← same, rendered
@@ -144,8 +144,13 @@ incident-01JABC.../
 └── raw/                     ← source JSONL, shell history fragments
 ```
 
-Tampering with any byte in any tracked artifact causes verification to fail.
-Format spec: [docs/bundle-format.md](docs/bundle-format.md).
+Tampering with any byte of `events.jsonl`, `manifest.json`, or
+`rules/destructive.yaml` causes verification to fail. The verifier
+recomputes each event's `payloadHash` from its `payload`, replays
+the IRONROOT chain to `rootHash`, hashes `events.jsonl` and compares
+to `manifest.eventsJsonlSha256`, and verifies the Ed25519 signature
++ RFC 3161 timestamp over the manifest. Format spec:
+[docs/bundle-format.md](docs/bundle-format.md).
 
 ## Active capture
 
