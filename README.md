@@ -192,14 +192,14 @@ CI rebuilds both bundles on every push and validates them end-to-end.
 packages/
 ├── core/             event schema, normalization, reconstruction, ruleset matcher
 ├── chain/            hash chain, Ed25519 signing, RFC 3161 timestamping
-├── bundle/           .depo format reader/writer
+├── bundle/           bundle directory writer + manifest schema
 ├── narrative/        Handlebars-based deterministic narrative renderer
 ├── capture-claude/   Claude Code PreToolUse hook
 └── cli/              `depose` command
+    └── rules/destructive.default.yaml   # bundled with the CLI
 apps/
 ├── verify/           `depose-verify` static Go binary
 └── capture-shim/     shell shim Go binary
-rules/                destructive-operations ruleset (YAML)
 examples/             synthetic reconstructions
 docs/                 architecture, threat model, bundle format, install guides
 ```
@@ -210,7 +210,8 @@ docs/                 architecture, threat model, bundle format, install guides
 pnpm build       # tsc --build across all packages (project references)
 pnpm typecheck   # tsc --build --noEmit
 pnpm lint        # eslint
-pnpm test        # vitest run — 198 tests across 17 files
+pnpm test        # vitest run — 252 tests across 23 files
+                 # + Go test ./... under apps/verify
 ```
 
 CI runs lint, typecheck, the full test suite, cross-compiles the Go
