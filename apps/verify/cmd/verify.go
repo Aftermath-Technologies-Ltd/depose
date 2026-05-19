@@ -15,6 +15,14 @@ import (
 	"github.com/depose/depose/apps/verify/timestamp"
 )
 
+// Supported schemaVersion range. See docs/bundle-format.md §8 for
+// the compatibility policy. Production bundles must declare a value
+// in this inclusive range; anything else fails closed.
+const (
+	SupportedSchemaMin = 1
+	SupportedSchemaMax = 1
+)
+
 // CheckResult represents the result of a single verification check.
 type CheckResult struct {
 	Name    string
@@ -56,6 +64,28 @@ func VerifyBundle(bundlePath string) *VerifyResult {
 		Pass:   true,
 		Detail: fmt.Sprintf("Bundle %s, schema v%d, mode=%s, %d events",
 			m.BundleID, m.SchemaVersion, m.Producer.Mode, m.Counts.Events),
+	})
+
+	// ── Check 1a: schemaVersion is within the supported range ───────
+	// Compatibility policy (docs/bundle-format.md §8): a verifier
+	// supports [SupportedSchemaMin, SupportedSchemaMax]. Bundles
+	// outside that range fail closed — no silent attempt to parse
+	// a future or stale schema.
+	if m.SchemaVersion < SupportedSchemaMin || m.SchemaVersion > SupportedSchemaMax {
+		result.Checks = append(result.Checks, CheckResult{
+			Name: "schema-version",
+			Pass: false,
+			Detail: fmt.Sprintf(
+				"unsupported schemaVersion %d (this verifier supports [%d, %d])",
+				m.SchemaVersion, SupportedSchemaMin, SupportedSchemaMax),
+		})
+		result.Pass = false
+		return result
+	}
+	result.Checks = append(result.Checks, CheckResult{
+		Name:   "schema-version",
+		Pass:   true,
+		Detail: fmt.Sprintf("schemaVersion %d is supported", m.SchemaVersion),
 	})
 
 	// ── Check 1b: producer.mode declared and recognized ──────────────
