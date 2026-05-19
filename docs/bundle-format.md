@@ -265,14 +265,27 @@ flexibility for multi-party attestation.
 
 ## 8. Versioning
 
-- `manifest.schemaVersion` is `1`. Bumping to `2` requires a migration path in
-  the verifier that supports all prior versions.
-- New event types and new payload fields are **additive** — they do not break
-  existing verifiers that ignore unknown fields.
-- Breaking changes (field removal, semantic alteration) require a major schema
-  version bump and a new verifier code path.
-- The `producer.version` field (semver) identifies the specific `depose` CLI
-  that produced the bundle, enabling per-version behavior if needed.
+- `manifest.schemaVersion` is `1`.
+- **Verifier compatibility policy.** A verifier with code-level
+  `SupportedSchemaMax = N` supports the range `[N-1, N]`. Bundles
+  with `schemaVersion` outside that range are rejected with
+  `unsupported schemaVersion` and a non-zero exit code; the verifier
+  does not attempt to parse a future schema's manifest, since silent
+  best-effort parsing of an evolved schema is how integrity bugs
+  get shipped.
+- Bumping `schemaVersion` from `N` to `N+1` requires a new verifier
+  release that raises both `SupportedSchemaMin` (to `N`) and
+  `SupportedSchemaMax` (to `N+1`). Once a verifier with
+  `SupportedSchemaMax = N+1` exists, older verifiers still verify
+  `schemaVersion = N` bundles by design.
+- New event types and new payload fields are **additive** within a
+  schema version — they do not break existing verifiers that ignore
+  unknown fields.
+- Breaking changes (field removal, semantic alteration) require a
+  major schema version bump and a new verifier code path.
+- The `producer.version` field (semver) identifies the specific
+  `depose` CLI that produced the bundle, enabling per-version
+  behavior if needed.
 
 ---
 

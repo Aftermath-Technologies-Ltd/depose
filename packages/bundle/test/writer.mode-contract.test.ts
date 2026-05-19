@@ -213,4 +213,22 @@ describe('mode contract', () => {
     expect(result.exitCode).not.toBe(0);
     expect(result.stdout).toContain('mode-declaration');
   });
+
+  it('verifier rejects an unsupported schemaVersion', async () => {
+    if (!hasVerifyBinary()) return;
+    const depopPath = await buildBundle({
+      mode: 'dev-unsigned',
+      sessionId: 'sess-mc-future-schema',
+      includeKey: false,
+    });
+
+    const manifestPath = pathJoin(depopPath, 'manifest.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+    manifest.schemaVersion = 999;
+    writeFileSync(manifestPath, JSON.stringify(manifest), 'utf-8');
+
+    const result = runVerify(depopPath);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toMatch(/unsupported schemaVersion 999/);
+  });
 });

@@ -58,7 +58,7 @@ The bundle must be a self-contained record where every file means what its name 
 
 **Touches.** `packages/core/src/events/canonical-json.ts`, `apps/verify/manifest/manifest.go`, new `tests/conformance/`, new CI job.
 
-### A5. SchemaVersion is enforced
+### A5. SchemaVersion is enforced [DONE]
 
 **Root cause.** Manifest carries `schemaVersion: 1`. The verifier never checks it.
 
