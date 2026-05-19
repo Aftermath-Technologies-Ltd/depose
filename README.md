@@ -1,38 +1,66 @@
-# DEPOSE
+<p align="center">
+  <img src="./.github/assets/cover.svg" alt="DEPOSE — Depose the agent. Produce the record." width="100%">
+</p>
 
-**Depose the agent. Produce the record.**
+<p align="center">
+  <strong>Forensic evidence bundles for AI coding agent sessions.</strong><br>
+  Hash-chained · Ed25519-signed · RFC&nbsp;3161-timestamped · verifiable off-host with a single Go binary.
+</p>
 
-DEPOSE turns an AI coding agent session into a self-contained, hash-chained,
-cryptographically signed evidence bundle — verifiable off-host by anyone with
-a single Go binary and no other DEPOSE infrastructure.
+<p align="center">
+  <a href="https://github.com/Aftermath-Technologies-Ltd/depose/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Aftermath-Technologies-Ltd/depose/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Aftermath-Technologies-Ltd/depose/actions/workflows/verify-examples.yml"><img alt="Verify Examples" src="https://github.com/Aftermath-Technologies-Ltd/depose/actions/workflows/verify-examples.yml/badge.svg"></a>
+  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5.9-3178c6?logo=typescript&logoColor=white">
+  <img alt="Go" src="https://img.shields.io/badge/go-1.22-00ADD8?logo=go&logoColor=white">
+  <img alt="pnpm" src="https://img.shields.io/badge/pnpm-9-F69220?logo=pnpm&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
+</p>
 
-It is designed for the moment *after* something has gone wrong: a destroyed
-production database, a wiped infra account, a deleted directory. You point
-DEPOSE at a Claude Code or Codex CLI session log and it produces a `.depo`
-bundle that an auditor, regulator, or court can verify themselves.
-
----
-
-## What it produces
-
-A `.depo` bundle is a deterministically-ordered directory containing:
-
-- `events.jsonl` — every captured event from the session, in canonical JSON
-- `manifest.json` — bundle metadata, root hash of an IRONROOT hash chain, signatures, RFC 3161 timestamps
-- `rules/destructive.yaml` — the destructive-operation ruleset used at reconstruction time
-- `narrative.md` / `narrative.html` — template-driven prose with `[#evt-<ulid>]` citations
-- `verify.txt` — human-readable verification summary
-
-Tampering with any byte in any artifact causes verification to fail.
-
-## What it is not
-
-- Not an LLM-narrated incident summarizer in the signed path
-- Not an agent runtime governance layer
-- Not a rollback or restore tool
-- Not a SaaS product or dashboard
+<p align="center">
+  <a href="#why-depose">Why</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#whats-in-a-bundle">Bundle</a> ·
+  <a href="#active-capture">Active capture</a> ·
+  <a href="#examples">Examples</a> ·
+  <a href="#repository-layout">Layout</a> ·
+  <a href="#development">Dev</a> ·
+  <a href="#documentation">Docs</a>
+</p>
 
 ---
+
+## What it is
+
+DEPOSE turns a Claude Code or Codex CLI session into a self-contained,
+hash-chained, cryptographically signed evidence bundle — verifiable off-host
+by anyone with a single Go binary and no other DEPOSE infrastructure.
+
+It is the record you wish you had the moment *after* something went wrong:
+a wiped production database, a deleted directory, a destroyed cloud account.
+Point DEPOSE at a session log and it produces a `.depo` bundle an auditor,
+regulator, or court can verify themselves.
+
+## Why DEPOSE
+
+Agent transcripts on disk are not evidence. They are unsigned text files
+that anyone with shell access can rewrite. When an AI coding agent does
+real damage, the question stops being *what happened* and becomes *what
+can you prove happened, to a third party who does not trust your laptop*.
+
+DEPOSE answers that question with three properties that hold off-host:
+
+| Property | Mechanism |
+|---|---|
+| **Tamper-evident** | IRONROOT hash chain over events; any byte change fails replay. |
+| **Authenticated** | Ed25519 manifest signature; sealed by a key the producer controls. |
+| **Anti-backdated** | RFC 3161 timestamp from FreeTSA (DigiCert fallback) anchors the bundle to a moment in time. |
+
+No LLM sits in the signed path. Narrative prose is templated from signed
+events and excluded from the root hash, so reading it cannot taint the
+record.
 
 ## Install
 
@@ -42,17 +70,15 @@ cd depose
 pnpm install
 pnpm build
 
-# Build the standalone verifier (Go 1.22+)
+# Standalone verifier (Go 1.22+)
 cd apps/verify && make build-local
 ```
 
-Requirements: Node.js ≥ 20, pnpm 9.x, Go 1.22+ (for the verifier).
-
----
+Requirements: **Node.js ≥ 20**, **pnpm 9**, **Go 1.22+** for the verifier.
 
 ## Quick start
 
-Produce a signed bundle from a Claude Code session JSONL:
+**Produce** a signed bundle from a Claude Code session JSONL:
 
 ```bash
 ./packages/cli/bin/depose package \
@@ -60,118 +86,144 @@ Produce a signed bundle from a Claude Code session JSONL:
   --skip-timestamp
 ```
 
-(`--skip-timestamp` skips the RFC 3161 network call; omit it for production.)
+`--skip-timestamp` skips the RFC 3161 network call; omit it for production.
 
-Verify the bundle from any host:
+**Verify** the bundle from any host:
 
 ```bash
-./apps/verify/build/depose-verify verify path/to/bundle.depo
+./apps/verify/build/depose-verify verify path/to/incident-<bundleId>
 ```
 
-A passing run looks like:
+A passing run prints:
 
 ```
 parse           OK
 signature       OK
 chain-replay    OK
 artifacts       OK
-timestamp       OK (or SKIPPED)
+timestamp       OK
 PASS  bundleId=01J... rootHash=99a96827806b4924...
 ```
 
-See `depose --help` for the full command surface (`reconstruct`, `package`,
+Full command surface: `depose --help` (`reconstruct`, `package`,
 `install --claude`, `install --shell`, `explain`, `uninstall`).
 
----
+## How it works
+
+Six layers. Each does one thing. None LLM-narrated.
+
+```
+CAPTURE  →  NORMALIZATION  →  RECONSTRUCTION  →  INTEGRITY  →  BUNDLE  →  NARRATIVE
+```
+
+| Layer | What it does | Package |
+|---|---|---|
+| **Capture** | Hooks and shims record events at execution time. | `packages/capture-claude`, `apps/capture-shim` |
+| **Normalization** | Claude Code JSONL, shell history (bash/zsh/fish), and git reflog → common event schema. | `packages/core` |
+| **Reconstruction** | Sort, merge across sources, deduplicate, flag gaps, build a causal timeline. | `packages/core/reconstruct` |
+| **Integrity** | IRONROOT hash chain, Ed25519 signing, RFC 3161 timestamping. | `packages/chain` |
+| **Bundle** | Deterministic `.depo` directory layout. | `packages/bundle` |
+| **Narrative** | Handlebars-templated prose with `[#evt-<ulid>]` citations. Excluded from root hash. | `packages/narrative` |
+
+Design rationale and threat model in [docs/architecture.md](docs/architecture.md) and [docs/threat-model.md](docs/threat-model.md).
+
+## What's in a bundle
+
+A `.depo` is a deterministically-ordered directory:
+
+```
+incident-01JABC.../
+├── manifest.json            ← bundleId, rootHash, signatures, timestamps
+├── events.jsonl             ← every event in canonical JSON
+├── rules/destructive.yaml   ← ruleset used at reconstruction time
+├── narrative.md             ← templated prose with per-event citations
+├── narrative.html           ← same, rendered
+├── verify.txt               ← human-readable verification summary
+├── artifacts/               ← captured file diffs, payloads
+├── attestations/            ← signatures, RFC 3161 tokens
+└── raw/                     ← source JSONL, shell history fragments
+```
+
+Tampering with any byte in any tracked artifact causes verification to fail.
+Format spec: [docs/bundle-format.md](docs/bundle-format.md).
 
 ## Active capture
 
-For sessions you are running *now*, install the hooks that record events at
-the moment they happen (rather than reconstructing from logs after the fact):
+Reconstructing from a JSONL after the fact is the lower-bound mode.
+For sessions you are running *now*, install hooks that record events
+at execution time:
 
 ```bash
-depose install --claude   # registers a Claude Code PreToolUse hook
-depose install --shell    # installs shell shims for terraform, aws, gh, kubectl, psql, gcloud, railway, rm
+depose install --claude   # registers Claude Code PreToolUse hook
+depose install --shell    # shims terraform, aws, gh, kubectl, psql, gcloud, railway, rm
 ```
 
-The hook and shim write capture records under `~/.depose/captures/`. Subsequent
-`depose package` runs merge captured records with the session JSONL so every
-covered event has a verified pre-execution intent recorded.
+Capture records land under `~/.depose/captures/`. Later `depose package`
+runs merge them with the session JSONL so every covered event has a
+verified pre-execution intent on record.
 
-See [docs/hook-installation.md](docs/hook-installation.md) and
+Coverage matrix and threat-vs-coverage tradeoffs:
+[docs/capture-coverage.md](docs/capture-coverage.md). Install details:
+[docs/hook-installation.md](docs/hook-installation.md),
 [docs/shim-installation.md](docs/shim-installation.md).
-
----
-
-## Architecture
-
-Six layers, each does one thing. No LLM in the signed path.
-
-```
-CAPTURE → NORMALIZATION → RECONSTRUCTION → INTEGRITY → BUNDLE → NARRATIVE
-```
-
-- **Capture** — Claude Code PreToolUse hook (`packages/capture-claude`) and shell shims (`apps/capture-shim`) record events at execution time.
-- **Normalization** — Claude Code JSONL, shell history (bash/zsh/fish), and git reflog are normalized into a common event schema (`packages/core`).
-- **Reconstruction** — events are sorted, merged across sources, deduplicated, and gap-flagged; a causal timeline is built (`packages/core/reconstruct`).
-- **Integrity** — IRONROOT hash chain, Ed25519 signing, RFC 3161 timestamping with FreeTSA primary / DigiCert fallback (`packages/chain`).
-- **Bundle** — deterministic `.depo` directory layout (`packages/bundle`).
-- **Narrative** — Handlebars template renderer with per-event citations (`packages/narrative`). Excluded from the root hash; derived from signed events.
-
-Full design in [docs/architecture.md](docs/architecture.md). Bundle format spec
-in [docs/bundle-format.md](docs/bundle-format.md). Threat model in
-[docs/threat-model.md](docs/threat-model.md).
-
----
-
-## Repository layout
-
-```
-packages/
-  core/             event schema, normalization, reconstruction, ruleset matcher
-  chain/            hash chain, Ed25519 signing, RFC 3161 timestamping
-  bundle/           .depo format reader/writer
-  narrative/        Handlebars-based deterministic narrative renderer
-  capture-claude/   Claude Code PreToolUse hook
-  cli/              `depose` command
-apps/
-  verify/           `depose-verify` static Go binary
-  capture-shim/     shell shim Go binary
-rules/              destructive operations ruleset (YAML)
-examples/           synthetic reconstructions (datatalks, pocketos)
-docs/               architecture, threat model, bundle format, install guides
-```
-
----
 
 ## Examples
 
-Two synthetic reconstructions are checked into the repo. Each ships a Claude
-Code JSONL and a `produce.sh` that runs `depose package`:
+Two synthetic reconstructions are checked in. Each ships a Claude Code
+JSONL and a `produce.sh` that runs the full pipeline:
 
-- [examples/datatalks-reconstruction](examples/datatalks-reconstruction) — agent runs `rm -rf` on a training data directory.
-- [examples/pocketos-reconstruction](examples/pocketos-reconstruction) — agent runs `terraform destroy -auto-approve`.
+- **[datatalks-reconstruction](examples/datatalks-reconstruction)** — agent runs `rm -rf` on a training-data directory.
+- **[pocketos-reconstruction](examples/pocketos-reconstruction)** — agent runs `terraform destroy -auto-approve`.
 
 ```bash
 bash examples/datatalks-reconstruction/produce.sh
 ```
 
----
+CI rebuilds both bundles on every push and validates them end-to-end.
+
+## Repository layout
+
+```
+packages/
+├── core/             event schema, normalization, reconstruction, ruleset matcher
+├── chain/            hash chain, Ed25519 signing, RFC 3161 timestamping
+├── bundle/           .depo format reader/writer
+├── narrative/        Handlebars-based deterministic narrative renderer
+├── capture-claude/   Claude Code PreToolUse hook
+└── cli/              `depose` command
+apps/
+├── verify/           `depose-verify` static Go binary
+└── capture-shim/     shell shim Go binary
+rules/                destructive-operations ruleset (YAML)
+examples/             synthetic reconstructions
+docs/                 architecture, threat model, bundle format, install guides
+```
 
 ## Development
 
 ```bash
-pnpm build       # tsc --build across all packages
+pnpm build       # tsc --build across all packages (project references)
 pnpm typecheck   # tsc --build --noEmit
 pnpm lint        # eslint
-pnpm test        # vitest run (full suite)
+pnpm test        # vitest run — 198 tests across 17 files
 ```
 
-CI runs lint, typecheck, tests, builds the Go verifier (cross-compiled for
-darwin/linux × arm64/amd64), and verifies the example bundles end-to-end.
+CI runs lint, typecheck, the full test suite, cross-compiles the Go
+verifier for darwin/linux × arm64/amd64, and re-produces + verifies
+both example bundles.
 
----
+## Documentation
+
+| Doc | What |
+|---|---|
+| [architecture.md](docs/architecture.md) | System design, two-binary model, data flow. |
+| [bundle-format.md](docs/bundle-format.md) | `.depo` spec — layout, canonical JSON, hash chain. |
+| [threat-model.md](docs/threat-model.md) | What DEPOSE defends against, what it doesn't. |
+| [capture-coverage.md](docs/capture-coverage.md) | Coverage matrix per capture mode. |
+| [hook-installation.md](docs/hook-installation.md) | Claude Code PreToolUse hook setup. |
+| [shim-installation.md](docs/shim-installation.md) | Shell shim setup. |
+| [legal-considerations.md](docs/legal-considerations.md) | Evidentiary use, jurisdictional notes. |
 
 ## License
 
-Proprietary — all rights reserved.
+Proprietary — all rights reserved. © Aftermath Technologies Ltd.
