@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/depose/depose/apps/verify/canonical"
+	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/canonical"
 )
 
 // Manifest represents the manifest.json structure.

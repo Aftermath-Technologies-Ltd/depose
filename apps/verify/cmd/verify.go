@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/depose/depose/apps/verify/chain"
-	"github.com/depose/depose/apps/verify/manifest"
-	"github.com/depose/depose/apps/verify/timestamp"
+	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/chain"
+	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/manifest"
+	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/timestamp"
 )
 
 // Supported schemaVersion range. See docs/bundle-format.md §8 for

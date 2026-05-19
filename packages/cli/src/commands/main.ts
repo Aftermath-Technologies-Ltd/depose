@@ -36,6 +36,7 @@ import { loadOrGenerateKeyPair, type Ed25519KeyPair } from '@depose/chain';
 import { handlePackage, type PackageCommandArgs } from './package.js';
 import { handleExplain, type ExplainCommandArgs } from './explain.js';
 import { DEFAULT_RULES_PATH } from '../rules-default.js';
+import { VERIFIER_DOWNLOAD_URL } from '@depose/bundle';
 import {
   installClaudeHook,
   installShellShims,
@@ -117,7 +118,7 @@ export async function main(argv: string[]): Promise<void> {
 
     case 'verify':
       console.error('ERROR: `depose verify` uses the separate `depose-verify` Go binary.');
-      console.error('Install from: https://github.com/depose/depose/releases/latest');
+      console.error(`Install from: ${VERIFIER_DOWNLOAD_URL}`);
       console.error('Usage: depose-verify verify <path-to-bundle>');
       process.exit(1);
       return;

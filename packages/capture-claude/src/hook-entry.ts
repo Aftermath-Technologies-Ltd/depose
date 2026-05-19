@@ -68,9 +68,10 @@ export async function handlePreToolUse(
   // Walk parent process tree (best-effort)
   const parentProcessTree = walkProcessTree();
 
-  // Resolve shell_command_pre source
-  const source: ShellCommandPrePayload['source'] =
-    input.tool_name === 'Bash' ? 'claude-pretooluse' : 'claude-pretooluse';
+  // Every Claude tool capture is labelled 'claude-pretooluse' — the
+  // hook fires for Bash, Edit, and Write but they all originate
+  // from the same pre-tool-use point.
+  const source: ShellCommandPrePayload['source'] = 'claude-pretooluse';
 
   const payload: ShellCommandPrePayload = {
     argv,

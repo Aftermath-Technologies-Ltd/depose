@@ -139,7 +139,7 @@ Whichever is chosen, `package.json:license` and `README.md` license badge get up
 
 **Touches.** Repo root `LICENSE`, `package.json`, `README.md`.
 
-### C2. Single source of truth for the verifier download URL
+### C2. Single source of truth for the verifier download URL [DONE]
 
 **Root cause.** `github.com/depose/depose` is hardcoded in three places (`cli/main.ts:120`, `bundle/writer.ts:327`, `verify/go.mod:1`). README badges point to `Aftermath-Technologies-Ltd/depose`. The wrong URL is baked into every `verify.txt`, telling evidence recipients to fetch the verifier from a non-existent location.
 
@@ -238,7 +238,7 @@ These are debt items. None of them adds features. All of them make the codebase 
 
 **Fix.** `package.json:engines.node: ">=20"` is the contract. CI runs a matrix of Node 20 and Node 22 in *both* workflows. README and `engines` updated to reflect actual support.
 
-### D7. Tautology in capture hook
+### D7. Tautology in capture hook [DONE]
 
 `packages/capture-claude/src/hook-entry.ts:72-73` — the conditional `Bash ? 'claude-pretooluse' : 'claude-pretooluse'` is dead. Decide intent: same source for all tools (delete the conditional) or distinct sources per tool (fix the values). Looking at the rest of the file, same-source-for-all is correct. Delete the conditional.
 

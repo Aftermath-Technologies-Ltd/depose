@@ -15,7 +15,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/depose/depose/apps/verify/cmd"
+	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/cmd"
 )
 
 func main() {

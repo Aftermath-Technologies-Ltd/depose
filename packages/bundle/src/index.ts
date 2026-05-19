@@ -43,3 +43,5 @@ export {
   NARRATIVE_HTML,
   VERIFY_TXT,
 } from './layout.js';
+
+export { VERIFIER_DOWNLOAD_URL, GITHUB_REPO_SLUG } from './constants.js';

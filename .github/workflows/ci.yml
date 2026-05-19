@@ -45,6 +45,19 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Forbid stale verifier URLs outside constants.ts
+        # C2 invariant: the verifier download URL has a single source
+        # of truth in packages/bundle/src/constants.ts. Anywhere else
+        # would silently bake a wrong path into verify.txt.
+        run: |
+          if grep -rn --include='*.ts' --include='*.md' --include='*.sh' \
+              --exclude-dir=node_modules --exclude-dir=dist \
+              --exclude='constants.ts' --exclude='update-plan.md' \
+              'github.com/depose/depose' .; then
+            echo "Stale 'github.com/depose/depose' URL found. Use VERIFIER_DOWNLOAD_URL from @depose/bundle."
+            exit 1
+          fi
+
       - name: Forbid Math.random in evidence paths
         # B3 invariant: signatures, chains, and event IDs must come
         # from a CSPRNG, never Math.random. Production source under
