@@ -296,6 +296,32 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 			})
 			result.Pass = false
 		} else {
+			// payload-hash recomputation is reported as its own check so
+			// the failure mode (payload tamper) is obvious in the report.
+			if len(chainResult.PayloadMismatches) > 0 {
+				details := make([]string, len(chainResult.PayloadMismatches))
+				for i, mm := range chainResult.PayloadMismatches {
+					details[i] = fmt.Sprintf("event[%d] %s: stored=%s, recomputed=%s",
+						mm.Index, mm.EventID, mm.Expected[:16], mm.Computed[:16])
+				}
+				result.Checks = append(result.Checks, CheckResult{
+					Name: "payload-hash",
+					Pass: false,
+					Detail: fmt.Sprintf(
+						"payloadHash mismatch at %d event(s) — payload bytes do not canonicalize to the recorded hash: %s",
+						len(chainResult.PayloadMismatches), strings.Join(details, "; ")),
+				})
+				result.Pass = false
+			} else {
+				result.Checks = append(result.Checks, CheckResult{
+					Name: "payload-hash",
+					Pass: true,
+					Detail: fmt.Sprintf(
+						"all %d event payloads re-hash to their recorded payloadHash",
+						chainResult.EventCount),
+				})
+			}
+
 			if len(chainResult.HashMismatches) > 0 {
 				details := make([]string, len(chainResult.HashMismatches))
 				for i, mm := range chainResult.HashMismatches {
