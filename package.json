@@ -2,6 +2,7 @@
   "name": "depose",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "Depose the agent. Produce the record. A self-contained, hash-chained, signed evidence bundle from local AI coding agent sessions.",
   "packageManager": "pnpm@9.15.0",
   "engines": {
