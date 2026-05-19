@@ -286,7 +286,7 @@ Already exists at `packages/bundle/test/e2e.acceptance.test.ts`. Extend to cover
 
 **Fix.** After Workstreams A and B land, read `threat-model.md` line by line. Each defensive claim either has a corresponding verifier check + test, or it gets removed. Add explicit non-goals: Windows is not supported (or supported with caveats). Replay attacks on TSA tokens out of scope (single TSA cert is assumed trusted for its validity window). Producer-host compromise: out of scope; DEPOSE captures what the host shows, not ground truth.
 
-### F2. `docs/legal-considerations.md` reviewed against the production format
+### F2. `docs/legal-considerations.md` reviewed against the production format [DONE]
 
 Same exercise. FRE 902(13) self-authentication and Daubert reliability claims need to map to specific verifier checks. If a claim has no test, it doesn't go in the doc.
 
