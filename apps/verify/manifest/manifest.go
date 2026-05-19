@@ -2,6 +2,7 @@
 package manifest
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"crypto/x509"
@@ -10,6 +11,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/depose/depose/apps/verify/canonical"
 )
 
 // Manifest represents the manifest.json structure.
@@ -159,14 +162,21 @@ func VerifySignature(m *Manifest, rawManifestBytes []byte) error {
 // StripSignatureFields removes the signatures and timestamps fields from
 // the manifest JSON to produce the "unsigned form" for signature verification.
 // Exported so cmd/verify.go can reuse it for timestamp verification.
+//
+// The output is re-canonicalized through the JCS writer so the bytes
+// match TypeScript's `serializeManifestForSigning` exactly. Using
+// stdlib `json.Marshal` here would HTML-escape `<`, `>`, `&` (Go's
+// default) and silently diverge from the producer.
 func StripSignatureFields(manifestJSON []byte) ([]byte, error) {
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(manifestJSON, &m); err != nil {
+	var m map[string]interface{}
+	dec := json.NewDecoder(bytes.NewReader(manifestJSON))
+	dec.UseNumber()
+	if err := dec.Decode(&m); err != nil {
 		return nil, fmt.Errorf("parse manifest for signing: %w", err)
 	}
-	m["signatures"] = json.RawMessage(`[]`)
-	m["timestamps"] = json.RawMessage(`[]`)
-	return json.Marshal(m)
+	m["signatures"] = []interface{}{}
+	m["timestamps"] = []interface{}{}
+	return canonical.Marshal(m)
 }
 
 // decodePEM extracts the DER bytes from a PEM block.

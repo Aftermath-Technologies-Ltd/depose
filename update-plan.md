@@ -48,7 +48,7 @@ The bundle must be a self-contained record where every file means what its name 
 
 **Touches.** `packages/bundle/src/manifest.ts`, `packages/bundle/src/writer.ts`, `apps/verify/manifest/manifest.go`, `apps/verify/cmd/verify.go`, all example `produce.sh`.
 
-### A4. Canonical JSON has a single specification with conformance vectors
+### A4. Canonical JSON has a single specification with conformance vectors [DONE]
 
 **Root cause.** The TS canonical JSON and Go's re-marshal must produce byte-identical output for signatures to verify cross-language. There is no specification document and no conformance test. `StripSignatureFields` in Go uses `json.Marshal` without `SetEscapeHTML(false)`, so any manifest containing `<`, `>`, or `&` will mismatch.
 

@@ -65,6 +65,11 @@ jobs:
           go vet ./...
           go build -o build/depose-verify .
 
+      - name: Go tests (incl. canonical JSON conformance vectors)
+        run: |
+          cd apps/verify
+          go test ./...
+
       - name: Cross-compile verifier
         run: |
           cd apps/verify

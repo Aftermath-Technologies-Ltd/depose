@@ -1,0 +1,158 @@
+{
+  "description": "RFC 8785 JCS conformance vectors for DEPOSE canonical JSON. Both packages/core/src/events/canonical-json.ts and apps/verify/canonical/jcs.go run these — any divergence breaks cross-language signature verification. See docs/canonical-json.md.",
+  "vectors": [
+    {
+      "name": "primitive-null",
+      "input": null,
+      "expected": "null"
+    },
+    {
+      "name": "primitive-true",
+      "input": true,
+      "expected": "true"
+    },
+    {
+      "name": "primitive-false",
+      "input": false,
+      "expected": "false"
+    },
+    {
+      "name": "primitive-empty-string",
+      "input": "",
+      "expected": "\"\""
+    },
+    {
+      "name": "primitive-zero",
+      "input": 0,
+      "expected": "0"
+    },
+    {
+      "name": "primitive-negative",
+      "input": -42,
+      "expected": "-42"
+    },
+    {
+      "name": "primitive-large-int",
+      "input": 9007199254740991,
+      "expected": "9007199254740991"
+    },
+    {
+      "name": "empty-object",
+      "input": {},
+      "expected": "{}"
+    },
+    {
+      "name": "empty-array",
+      "input": [],
+      "expected": "[]"
+    },
+    {
+      "name": "array-preserves-order",
+      "input": ["c", "a", "b"],
+      "expected": "[\"c\",\"a\",\"b\"]"
+    },
+    {
+      "name": "object-sorts-keys",
+      "input": {"c": 1, "a": 2, "b": 3},
+      "expected": "{\"a\":2,\"b\":3,\"c\":1}"
+    },
+    {
+      "name": "object-deep-key-sort",
+      "input": {"outer": {"z": 1, "a": 2}},
+      "expected": "{\"outer\":{\"a\":2,\"z\":1}}"
+    },
+    {
+      "name": "no-whitespace",
+      "input": {"a": 1, "b": [1, 2]},
+      "expected": "{\"a\":1,\"b\":[1,2]}"
+    },
+    {
+      "name": "string-quote-escape",
+      "input": "a\"b",
+      "expected": "\"a\\\"b\""
+    },
+    {
+      "name": "string-backslash-escape",
+      "input": "a\\b",
+      "expected": "\"a\\\\b\""
+    },
+    {
+      "name": "string-control-chars",
+      "input": "\b\f\n\r\t",
+      "expected": "\"\\b\\f\\n\\r\\t\""
+    },
+    {
+      "name": "string-control-u0001",
+      "input": "\u0001",
+      "expected": "\"\\u0001\""
+    },
+    {
+      "name": "string-slash-not-escaped",
+      "input": "a/b",
+      "expected": "\"a/b\""
+    },
+    {
+      "name": "string-html-chars-not-escaped",
+      "input": "<script>alert(\"x\")</script>",
+      "expected": "\"<script>alert(\\\"x\\\")</script>\""
+    },
+    {
+      "name": "string-ampersand-not-escaped",
+      "input": "a&b",
+      "expected": "\"a&b\""
+    },
+    {
+      "name": "string-non-ascii-literal",
+      "input": "café",
+      "expected": "\"café\""
+    },
+    {
+      "name": "string-emoji-literal",
+      "input": "🚀",
+      "expected": "\"🚀\""
+    },
+    {
+      "name": "manifest-like-keys",
+      "input": {
+        "schemaVersion": 1,
+        "bundleId": "01ABC",
+        "producer": {
+          "tool": "depose",
+          "mode": "signed",
+          "host": {"os": "darwin", "arch": "arm64"}
+        }
+      },
+      "expected": "{\"bundleId\":\"01ABC\",\"producer\":{\"host\":{\"arch\":\"arm64\",\"os\":\"darwin\"},\"mode\":\"signed\",\"tool\":\"depose\"},\"schemaVersion\":1}"
+    },
+    {
+      "name": "manifest-with-html-payload",
+      "input": {"argv": ["echo", "<script>"], "cwd": "/tmp"},
+      "expected": "{\"argv\":[\"echo\",\"<script>\"],\"cwd\":\"/tmp\"}"
+    },
+    {
+      "name": "nested-arrays",
+      "input": [[1, 2], [3, 4]],
+      "expected": "[[1,2],[3,4]]"
+    },
+    {
+      "name": "mixed-types-in-array",
+      "input": [1, "a", true, null, {"k": "v"}],
+      "expected": "[1,\"a\",true,null,{\"k\":\"v\"}]"
+    },
+    {
+      "name": "negative-zero-as-int",
+      "input": -0,
+      "expected": "0"
+    },
+    {
+      "name": "key-with-uppercase-sorts-first",
+      "input": {"a": 1, "B": 2},
+      "expected": "{\"B\":2,\"a\":1}"
+    },
+    {
+      "name": "key-with-digit-sorts-before-letter",
+      "input": {"a": 1, "1": 2},
+      "expected": "{\"1\":2,\"a\":1}"
+    }
+  ]
+}
