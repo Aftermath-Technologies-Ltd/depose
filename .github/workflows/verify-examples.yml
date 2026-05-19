@@ -1,0 +1,121 @@
+name: Verify Example Bundles
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'examples/**'
+      - '.github/workflows/verify-examples.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'examples/**'
+      - '.github/workflows/verify-examples.yml'
+
+jobs:
+  verify-examples:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        example:
+          - pocketos-reconstruction
+          - datatalks-reconstruction
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm -r run build
+
+      - name: Build Go capture-shim
+        run: |
+          cd apps/capture-shim
+          go build -o depose-shim .
+
+      - name: Produce bundle for ${{ matrix.example }}
+        run: |
+          cd examples/${{ matrix.example }}
+          bash produce.sh
+
+      - name: Verify bundle structure
+        run: |
+          EXAMPLE="${{ matrix.example }}"
+          OUTPUT_DIR="examples/${EXAMPLE}/depose-output"
+          
+          # Find the .depo directory
+          DEPO_DIR=$(find "$OUTPUT_DIR" -name "*.depo" -type d | head -1)
+          
+          if [ -z "$DEPO_DIR" ]; then
+            echo "ERROR: No .depo bundle directory found in $OUTPUT_DIR"
+            exit 1
+          fi
+          
+          echo "Found bundle: $DEPO_DIR"
+          
+          # Verify required files exist
+          for REQUIRED in manifest.json events.jsonl rules/destructive.yaml narrative.md narrative.html verify.txt; do
+            if [ ! -f "$DEPO_DIR/$REQUIRED" ]; then
+              echo "ERROR: Missing required file: $REQUIRED"
+              exit 1
+            fi
+            echo "  ✓ $REQUIRED"
+          done
+          
+          # Verify manifest has required fields
+          BUNDLE_ID=$(jq -r '.bundleId' "$DEPO_DIR/manifest.json")
+          ROOT_HASH=$(jq -r '.rootHash' "$DEPO_DIR/manifest.json")
+          EVENT_COUNT=$(jq -r '.counts.events' "$DEPO_DIR/manifest.json")
+          
+          if [ -z "$BUNDLE_ID" ] || [ "$BUNDLE_ID" = "null" ]; then
+            echo "ERROR: manifest.json missing bundleId"
+            exit 1
+          fi
+          
+          if [ -z "$ROOT_HASH" ] || [ "$ROOT_HASH" = "null" ]; then
+            echo "ERROR: manifest.json missing rootHash"
+            exit 1
+          fi
+          
+          if [ -z "$EVENT_COUNT" ] || [ "$EVENT_COUNT" = "null" ] || [ "$EVENT_COUNT" = "0" ]; then
+            echo "ERROR: manifest.json has zero events"
+            exit 1
+          fi
+          
+          echo ""
+          echo "Bundle verified: $BUNDLE_ID"
+          echo "  Root hash: $ROOT_HASH"
+          echo "  Events: $EVENT_COUNT"
+          echo "  Narrative: $(wc -l < "$DEPO_DIR/narrative.md") lines"
+          
+          # Verify events.jsonl has at least one line per event
+          JSONL_LINES=$(grep -c '' "$DEPO_DIR/events.jsonl")
+          if [ "$JSONL_LINES" -lt "$EVENT_COUNT" ]; then
+            echo "ERROR: events.jsonl has $JSONL_LINES lines but manifest claims $EVENT_COUNT events"
+            exit 1
+          fi
+          echo "  Events.jsonl: $JSONL_LINES lines"
+          
+          echo ""
+          echo "✅ $EXAMPLE bundle verification passed"
+
+      - name: Upload bundle artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.example }}-bundle
+          path: examples/${{ matrix.example }}/depose-output/
+          retention-days: 7
