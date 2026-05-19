@@ -12,7 +12,7 @@
 
 The bundle must be a self-contained record where every file means what its name says, every claim in the manifest is independently checkable from the bundle's contents, and every produced bundle passes the verifier. Today this is not true.
 
-### A1. Default rules path is resolved against the CLI package, not CWD
+### A1. Default rules path is resolved against the CLI package, not CWD [DONE]
 
 **Root cause.** `resolve('../rules/destructive.default.yaml')` in `cli/src/commands/{main,package,explain}.ts` is CWD-relative. From `examples/datatalks-reconstruction/`, it resolves to a non-existent file. `loadDestructiveRules` returns `[]`, no destructive op gets flagged, the headline feature silently fails.
 

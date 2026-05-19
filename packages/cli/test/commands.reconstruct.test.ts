@@ -21,7 +21,7 @@ import { readFileSync, existsSync, rmSync, mkdirSync, readdirSync } from 'node:f
 import { join as pathJoin } from 'node:path';
 
 const fixturesDir = pathJoin(__dirname, '../../core/test/fixtures');
-const rulesPath = pathJoin(__dirname, '../../../rules/destructive.default.yaml');
+const rulesPath = pathJoin(__dirname, '../rules/destructive.default.yaml');
 const testOutputDir = pathJoin(__dirname, 'test-output-cli');
 
 // ── Helper ───────────────────────────────────────────────────────────

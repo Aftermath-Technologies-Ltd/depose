@@ -21,7 +21,7 @@ import {
 } from '@depose/core';
 import { writeBundle, type Manifest } from '../src/index.js';
 
-const rulesPath = pathJoin(__dirname, '../../../rules/destructive.default.yaml');
+const rulesPath = pathJoin(__dirname, '../../cli/rules/destructive.default.yaml');
 const testOutputDir = pathJoin(__dirname, 'test-output');
 
 // ── Helper ───────────────────────────────────────────────────────────
