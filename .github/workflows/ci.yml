@@ -9,6 +9,13 @@ on:
 jobs:
   lint-typecheck-test:
     runs-on: ubuntu-latest
+    # D6: package.json:engines.node = ">=20". We verify on both the
+    # minimum supported version (20) and the current LTS (22) so a
+    # regression in either fails the build, not just one.
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
 
@@ -20,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
 
       - name: Setup Go
