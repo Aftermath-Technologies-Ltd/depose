@@ -62,6 +62,18 @@ function runVerify(bundlePath: string): { exitCode: number; stdout: string; stde
   }
 }
 
+// Fake RFC 3161 token to inject into signed-mode bundles during
+// tests that can't reach a live TSA. The verifier's structural
+// check will fail (no real signing cert, wrong messageImprint), but
+// chain-replay and signature-verify still run as intended.
+const FAKE_TIMESTAMP = [
+  {
+    tsa: 'test-tsa',
+    timestamp: '2025-05-18T15:31:30.000Z',
+    tokenBase64: Buffer.from('fake-rfc3161-token-for-tests').toString('base64'),
+  },
+];
+
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe('Phase 2 acceptance: signed bundle pipeline', () => {
@@ -90,8 +102,8 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true, // Skip TSA for deterministic test
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     // Verify manifest has non-empty rootHash
@@ -151,8 +163,8 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     // Verify chain using the chained events (with chainHash populated)
@@ -183,8 +195,8 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     // Tamper with an event's payloadHash — this is what the chain protects
@@ -233,8 +245,8 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     // Flip a byte in the rules/destructive.yaml artifact
@@ -274,8 +286,8 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     // Strip the signature from attestations/signatures.json
@@ -321,8 +333,8 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     const { depopPath: path2 } = await writeBundle(events, rules, {
@@ -336,8 +348,8 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     // events.jsonl chain hashes should be identical (same input, same key)
@@ -384,8 +396,8 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     const result = runVerify(depopPath);
@@ -421,8 +433,8 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     // Tamper with events.jsonl
@@ -461,8 +473,8 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     // Strip signature from manifest
@@ -510,8 +522,8 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
       rulesetBytes,
       outputDir: testOutputDir,
       keyPair,
-      unsigned: false,
-      skipTimestamp: true,
+      mode: 'signed' as const,
+      injectedTimestamps: FAKE_TIMESTAMP,
     });
 
     // Inject a fake RFC 3161 timestamp that is AFTER producedAt

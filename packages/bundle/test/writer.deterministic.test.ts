@@ -60,7 +60,7 @@ describe('writeBundle (unsigned mode)', () => {
         rules,
         rulesetBytes,
         outputDir: testOutputDir,
-        unsigned: true,
+        mode: 'dev-unsigned',
       });
 
       // Check directory exists
@@ -105,7 +105,7 @@ describe('writeBundle (unsigned mode)', () => {
         rules,
         rulesetBytes,
         outputDir: testOutputDir,
-        unsigned: true,
+        mode: 'dev-unsigned',
       });
 
       expect(manifest.schemaVersion).toBe(1);
@@ -143,7 +143,7 @@ describe('writeBundle (unsigned mode)', () => {
         rules,
         rulesetBytes,
         outputDir: testOutputDir,
-        unsigned: true,
+        mode: 'dev-unsigned',
       });
 
       const eventsContent = readFileSync(pathJoin(depopPath, 'events.jsonl'), 'utf-8');
@@ -177,7 +177,7 @@ describe('writeBundle (unsigned mode)', () => {
         rules,
         rulesetBytes,
         outputDir: testOutputDir,
-        unsigned: true,
+        mode: 'dev-unsigned',
       });
 
       const verifyTxt = readFileSync(pathJoin(depopPath, 'verify.txt'), 'utf-8');
@@ -210,7 +210,7 @@ describe('writeBundle (unsigned mode)', () => {
         rules,
         rulesetBytes,
         outputDir: testOutputDir,
-        unsigned: true,
+        mode: 'dev-unsigned',
       });
 
       const { depopPath: path2 } = await writeBundle(events, rules, {
@@ -223,7 +223,7 @@ describe('writeBundle (unsigned mode)', () => {
         rules,
         rulesetBytes,
         outputDir: testOutputDir,
-        unsigned: true,
+        mode: 'dev-unsigned',
       });
 
       // manifest.json should be identical

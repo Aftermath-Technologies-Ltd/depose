@@ -349,7 +349,7 @@ async function handleReconstruct(args: CliArgs): Promise<void> {
     rules,
     rulesetBytes,
     outputDir: resolvedOutput,
-    unsigned: true,
+    mode: 'dev-unsigned',
   });
 
   console.log(`Bundle written to: ${depopPath}`);

@@ -9,6 +9,7 @@ export {
   serializeManifestForSigning,
   hashManifest,
   hashManifestForSigning,
+  type BundleMode,
   type Manifest,
   type SignatureBlock,
   type Rfc3161Token,

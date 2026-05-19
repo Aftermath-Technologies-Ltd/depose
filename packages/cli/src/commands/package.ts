@@ -178,10 +178,18 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   const sessionEnded = merged.length > 0 ? (merged[merged.length - 1]?.wallTs ?? new Date().toISOString()) : new Date().toISOString();
   const producedAt = new Date().toISOString();
 
-  console.log('Building hash chain...');
-  console.log('Signing manifest...');
-  if (!skipTimestamp) {
+  // --skip-timestamp downgrades the run to dev-unsigned mode. The
+  // resulting bundle carries empty signatures + timestamps and is
+  // explicitly labelled NOT EVIDENCE. Production runs omit the flag.
+  const mode: 'signed' | 'dev-unsigned' = skipTimestamp ? 'dev-unsigned' : 'signed';
+
+  console.log(`Mode: ${mode}`);
+  if (mode === 'signed') {
+    console.log('Building hash chain...');
+    console.log('Signing manifest...');
     console.log('Requesting RFC 3161 timestamps...');
+  } else {
+    console.log('Building hash chain... (dev-unsigned: no signature, no timestamp)');
   }
 
   try {
@@ -195,9 +203,8 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       rules,
       rulesetBytes,
       outputDir: resolvedOutput,
+      mode,
       keyPair,
-      skipTimestamp,
-      unsigned: false,
     });
 
     for (const w of [...normalizeWarnings, ...mergeWarnings, ...bundleWarnings]) {
@@ -205,13 +212,14 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
     }
 
     console.log('');
-    console.log(`Signed bundle written to: ${depopPath}`);
+    console.log(`${mode === 'signed' ? 'Signed' : 'Dev-unsigned'} bundle written to: ${depopPath}`);
     console.log(`Manifest: ${JSON.stringify({
       bundleId: manifest.bundleId,
+      mode: manifest.producer.mode,
       events: manifest.counts.events,
       destructiveOps: manifest.counts.destructiveOperations,
       gaps: manifest.counts.gaps,
-      rootHash: manifest.rootHash.slice(0, 16) + '...',
+      rootHash: manifest.rootHash ? manifest.rootHash.slice(0, 16) + '...' : '(empty)',
       signatures: manifest.signatures.length,
       timestamps: manifest.timestamps.length,
     }, null, 2)}`);

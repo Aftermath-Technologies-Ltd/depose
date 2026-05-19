@@ -32,7 +32,7 @@ The bundle must be a self-contained record where every file means what its name 
 
 **Touches.** `packages/bundle/src/writer.ts`, `packages/bundle/src/manifest.ts`, callers in `cli/src/commands/{main,package}.ts`, `apps/verify/cmd/verify.go`.
 
-### A3. Bundle mode is explicit; the verifier enforces the declared contract
+### A3. Bundle mode is explicit; the verifier enforces the declared contract [DONE]
 
 **Root cause.** `--skip-timestamp` produces a bundle that looks signed (real Ed25519 sig, real chain) but is missing the timestamp — the verifier rejects it because it can't tell whether timestamps were *intentionally* skipped (dev) or *removed* (tamper). Today, every example bundle fails verification for this reason.
 
