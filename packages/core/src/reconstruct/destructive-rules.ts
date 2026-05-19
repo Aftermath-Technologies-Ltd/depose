@@ -16,7 +16,7 @@
 // See BUILD_PLAN.md §4.1 for the Event schema (shell_command_pre).
 
 import { readFileSync } from 'node:fs';
-import { parse as parseYaml } from './yaml-parser.js';
+import { parse as parseYaml } from 'yaml';
 import type {
   Event,
   ShellCommandPrePayload,

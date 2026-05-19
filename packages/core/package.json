@@ -17,8 +17,11 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^24.0.10",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4",
-    "@types/node": "^24.0.10"
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "yaml": "^2.9.0"
   }
 }
