@@ -158,25 +158,55 @@ access controls. If an attacker has persistent read access to the
 capture directory, they have a continuous surveillance capability
 regardless of DEPOSE — the mitigation is host-level access control.
 
-### 3.2 Attacker with a `.depo` bundle
+### 3.2 Attacker with a bundle (no key)
 
 **What they learn:** Everything in §1 above. The bundle is a
-self-contained archive with no access controls beyond what the
+self-contained record with no access controls beyond what the
 producer applied before sharing.
 
 **What they cannot do:**
 
-- Forge a valid bundle without the producer's private key.
-- Modify the bundle without invalidating signatures.
-- Replay the bundle's timestamps against a different root hash
-  (RFC 3161 tokens are bound to a specific hash value).
-- Claim the bundle proves something it does not (the verification
-  report is deterministic and reproducible).
+- Forge a valid bundle without the producer's private key — the
+  Ed25519 signature is over the canonical bytes of `manifest.json`
+  with `signatures=[]` and `timestamps=[]`, and the manifest pins
+  every other authenticated artifact transitively (see below).
+- Modify `manifest.json` without invalidating the Ed25519 signature.
+- Modify the content of any event's `payload` field. The verifier
+  re-canonicalizes each event's payload (RFC 8785 JCS) and SHA-256s
+  the bytes; a mismatch with the recorded `payloadHash` fails the
+  `payload-hash` check. This is the regression that was open before
+  this fix: rewriting a payload string while leaving `payloadHash`
+  and `chainHash` intact passed verification. It does not now.
+- Modify `payloadHash`, `chainHash`, or chained metadata (id, wallTs,
+  monoNs, sessionId, agentId, parentEventId, type, payloadHash) on
+  any event without invalidating chain replay against
+  `manifest.rootHash`.
+- Add, remove, reorder, or otherwise byte-mutate `events.jsonl`
+  beyond what the chain already covers. The verifier hashes the
+  literal file bytes and compares against `manifest.eventsJsonlSha256`,
+  which is signed.
+- Modify `rules/destructive.yaml` without invalidating the
+  `ruleset-integrity` check (manifest carries the SHA-256).
+- Replay the bundle's timestamps against a different manifest. RFC
+  3161 tokens commit to `SHA-256(unsigned manifest)` via
+  `TSTInfo.HashedMessage`.
+- Claim the bundle proves something it does not — the verification
+  report is deterministic and reproducible.
+
+**What they *can* do without changing the verification outcome:**
+
+- Modify `narrative.md` / `narrative.html` / `verify.txt` — these
+  are documented in `docs/bundle-format.md §4.3` as non-evidentiary.
+  A modified narrative does not invalidate the bundle, but a
+  recipient who reads it cannot rely on it; the canonical record is
+  `events.jsonl` and the verifier's own report.
 
 **Mitigation:** Before producing a bundle for sharing, audit the
 contents. Use the hash-only default for file contents. Trim the
 env allowlist to operationally necessary keys. Redact prompts
-that contain sensitive but non-evidentiary content.
+that contain sensitive but non-evidentiary content. After redaction,
+re-run `depose package` to produce a new signed bundle with new
+hashes.
 
 ### 3.3 Attacker who compromises the producer's Ed25519 key
 
