@@ -25,5 +25,7 @@ apps/verify/build/
 # Test artifacts
 coverage/
 
-# Build plan (local only)
-BUILD_PLAN.md
+# Local dev scratch
+*.bak
+_fix_*.py
+debug-*.ts
