@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" role="img" aria-label="DEPOSE — depose the agent, produce the record">
+  <title>DEPOSE</title>
+  <desc>Hash-chained, signed evidence bundles from AI coding agent sessions.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#05080f"/>
+      <stop offset="55%" stop-color="#0a1220"/>
+      <stop offset="100%" stop-color="#0d1830"/>
+    </linearGradient>
+
+    <linearGradient id="block" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a2640"/>
+      <stop offset="100%" stop-color="#0f1830"/>
+    </linearGradient>
+
+    <linearGradient id="blockHi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f3a5f"/>
+      <stop offset="100%" stop-color="#13243f"/>
+    </linearGradient>
+
+    <linearGradient id="okStripe" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#1b2a44" opacity="0.55"/>
+    </pattern>
+
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <symbol id="chainArrow" viewBox="0 0 40 12">
+      <path d="M0 6 H30 M24 1 L31 6 L24 11" fill="none" stroke="#3a557f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+
+  <!-- background -->
+  <rect width="1280" height="360" fill="url(#bg)"/>
+  <rect width="1280" height="360" fill="url(#grid)"/>
+
+  <!-- accent line -->
+  <line x1="60" y1="312" x2="1220" y2="312" stroke="#1c2c48" stroke-width="1"/>
+  <line x1="60" y1="312" x2="320" y2="312" stroke="#10b981" stroke-width="2"/>
+
+  <!-- ===== LEFT: wordmark ===== -->
+  <g font-family="ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace">
+
+    <!-- eyebrow -->
+    <text x="60" y="90" fill="#10b981" font-size="14" letter-spacing="6" font-weight="600">
+      EVIDENCE  ·  HASH-CHAINED  ·  SIGNED
+    </text>
+
+    <!-- DEPOSE wordmark -->
+    <text x="60" y="190" fill="#f1f5f9" font-size="120" font-weight="800" letter-spacing="-2">DEPOSE</text>
+
+    <!-- tagline -->
+    <text x="62" y="232" fill="#94a3b8" font-size="20" font-weight="500">
+      Depose the agent.  Produce the record.
+    </text>
+
+    <!-- description -->
+    <text x="62" y="270" fill="#64748b" font-size="14">
+      <tspan x="62" dy="0">Turn a Claude Code or Codex CLI session into a verifiable</tspan>
+      <tspan x="62" dy="18">evidence bundle. One signed file. Audited off-host.</tspan>
+    </text>
+  </g>
+
+  <!-- ===== RIGHT: hash-chain visualization ===== -->
+  <g transform="translate(700, 70)" font-family="ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace">
+
+    <!-- label above the chain -->
+    <text x="0" y="-12" fill="#64748b" font-size="11" letter-spacing="3">IRONROOT  HASH  CHAIN</text>
+
+    <!-- block 1 -->
+    <g transform="translate(0, 0)">
+      <rect width="100" height="120" rx="8" fill="url(#block)" stroke="#243a5e" stroke-width="1"/>
+      <text x="10" y="20" fill="#94a3b8" font-size="9">evt 01</text>
+      <text x="10" y="48" fill="#cbd5e1" font-size="11" font-weight="600">prompt</text>
+      <text x="10" y="74" fill="#475569" font-size="9">9a968278</text>
+      <text x="10" y="88" fill="#475569" font-size="9">06b49241</text>
+      <text x="10" y="102" fill="#475569" font-size="9">b2c0fa3e</text>
+    </g>
+    <use href="#chainArrow" x="104" y="54" width="40" height="12"/>
+
+    <!-- block 2 -->
+    <g transform="translate(148, 0)">
+      <rect width="100" height="120" rx="8" fill="url(#block)" stroke="#243a5e" stroke-width="1"/>
+      <text x="10" y="20" fill="#94a3b8" font-size="9">evt 02</text>
+      <text x="10" y="48" fill="#cbd5e1" font-size="11" font-weight="600">tool_call</text>
+      <text x="10" y="74" fill="#475569" font-size="9">3c0f8821</text>
+      <text x="10" y="88" fill="#475569" font-size="9">d4ee05b1</text>
+      <text x="10" y="102" fill="#475569" font-size="9">7f1c8a90</text>
+    </g>
+    <use href="#chainArrow" x="252" y="54" width="40" height="12"/>
+
+    <!-- block 3 - destructive (highlighted amber) -->
+    <g transform="translate(296, 0)">
+      <rect width="100" height="120" rx="8" fill="url(#blockHi)" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="10" y="20" fill="#fbbf24" font-size="9">evt 03  ⚠</text>
+      <text x="10" y="48" fill="#fde68a" font-size="11" font-weight="600">rm -rf</text>
+      <text x="10" y="74" fill="#78716c" font-size="9">8e2a0fbd</text>
+      <text x="10" y="88" fill="#78716c" font-size="9">11a9c4c0</text>
+      <text x="10" y="102" fill="#78716c" font-size="9">ff04ee21</text>
+    </g>
+    <use href="#chainArrow" x="400" y="54" width="40" height="12"/>
+
+    <!-- block 4 -->
+    <g transform="translate(444, 0)">
+      <rect width="100" height="120" rx="8" fill="url(#block)" stroke="#243a5e" stroke-width="1"/>
+      <text x="10" y="20" fill="#94a3b8" font-size="9">evt 04</text>
+      <text x="10" y="48" fill="#cbd5e1" font-size="11" font-weight="600">result</text>
+      <text x="10" y="74" fill="#475569" font-size="9">b774c9a0</text>
+      <text x="10" y="88" fill="#475569" font-size="9">5e1188a2</text>
+      <text x="10" y="102" fill="#475569" font-size="9">2cd903bc</text>
+    </g>
+    <use href="#chainArrow" x="548" y="54" width="40" height="12"/>
+
+    <!-- block 5 (root) -->
+    <g transform="translate(592, 0)" filter="url(#glow)">
+      <rect width="100" height="120" rx="8" fill="url(#block)" stroke="#10b981" stroke-width="1.5"/>
+      <text x="10" y="20" fill="#10b981" font-size="9" letter-spacing="2">ROOT</text>
+      <text x="10" y="48" fill="#a7f3d0" font-size="11" font-weight="600">manifest</text>
+      <text x="10" y="74" fill="#64748b" font-size="9">99a96827</text>
+      <text x="10" y="88" fill="#64748b" font-size="9">806b4924</text>
+      <text x="10" y="102" fill="#64748b" font-size="9">ed25519 ✓</text>
+    </g>
+
+    <!-- pass stripe -->
+    <g transform="translate(0, 156)">
+      <rect width="692" height="36" rx="6" fill="#0b1d18" stroke="#10b981" stroke-width="1"/>
+      <text x="16" y="23" fill="#10b981" font-size="11" letter-spacing="2" font-weight="700">VERIFY</text>
+      <text x="78" y="23" fill="#94a3b8" font-size="11">
+        parse <tspan fill="#10b981">OK</tspan>  ·  signature <tspan fill="#10b981">OK</tspan>  ·  chain-replay <tspan fill="#10b981">OK</tspan>  ·  artifacts <tspan fill="#10b981">OK</tspan>  ·  rfc-3161 <tspan fill="#10b981">OK</tspan>
+      </text>
+      <circle cx="672" cy="18" r="6" fill="url(#okStripe)"/>
+    </g>
+  </g>
+</svg>
