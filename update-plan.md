@@ -111,7 +111,7 @@ The bundle must be a self-contained record where every file means what its name 
 
 **Touches.** `packages/chain/src/timestamp-rfc3161.ts`, `packages/core/src/events/ids.ts`, new CI step in `ci.yml`.
 
-### B4. Custom PEM and hex code is deleted in favor of stdlib
+### B4. Custom PEM and hex code is deleted in favor of stdlib [DONE]
 
 **Root cause.** `apps/verify/manifest/manifest.go:172-206` reimplements PEM decoding by hand and `apps/verify/timestamp/rfc3161.go:155-183` reimplements hex decoding. Both are stdlib (`encoding/pem`, `encoding/hex`). The custom PEM decoder has CRLF-handling and whitespace gaps that are silent correctness traps.
 
