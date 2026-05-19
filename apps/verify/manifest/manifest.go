@@ -31,10 +31,11 @@ type Manifest struct {
 }
 
 type ProducerInfo struct {
-	Tool    string   `json:"tool"`
-	Version string   `json:"version"`
-	Mode    string   `json:"mode"`
-	Host    HostInfo `json:"host"`
+	Tool           string   `json:"tool"`
+	Version        string   `json:"version"`
+	Mode           string   `json:"mode"`
+	KeyFingerprint string   `json:"keyFingerprint,omitempty"`
+	Host           HostInfo `json:"host"`
 }
 
 type HostInfo struct {

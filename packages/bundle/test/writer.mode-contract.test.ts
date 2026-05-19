@@ -214,6 +214,59 @@ describe('mode contract', () => {
     expect(result.stdout).toContain('mode-declaration');
   });
 
+  it('verifier accepts the correct --expected-key-fingerprint (C4)', async () => {
+    if (!hasVerifyBinary()) return;
+    const depopPath = await buildBundle({
+      mode: 'signed',
+      sessionId: 'sess-mc-keypin-ok',
+      includeKey: true,
+    });
+
+    const manifest = JSON.parse(readFileSync(pathJoin(depopPath, 'manifest.json'), 'utf-8'));
+    const fp = manifest.producer.keyFingerprint;
+    expect(fp).toMatch(/^[0-9a-f]{64}$/);
+
+    const result = (() => {
+      try {
+        const stdout = execSync(`${verifyBinary} verify --expected-key-fingerprint ${fp} ${depopPath}`, {
+          encoding: 'utf-8',
+          timeout: 30000,
+        });
+        return { exitCode: 0, stdout };
+      } catch (err: unknown) {
+        const e = err as { status?: number; stdout?: string };
+        return { exitCode: e.status ?? 1, stdout: e.stdout ?? '' };
+      }
+    })();
+    expect(result.stdout).toContain('key-fingerprint-pin');
+    expect(result.stdout).toContain('matches expectation');
+  });
+
+  it('verifier rejects a mismatched --expected-key-fingerprint (C4)', async () => {
+    if (!hasVerifyBinary()) return;
+    const depopPath = await buildBundle({
+      mode: 'signed',
+      sessionId: 'sess-mc-keypin-bad',
+      includeKey: true,
+    });
+
+    const wrong = '0'.repeat(64);
+    const result = (() => {
+      try {
+        const stdout = execSync(`${verifyBinary} verify --expected-key-fingerprint=${wrong} ${depopPath}`, {
+          encoding: 'utf-8',
+          timeout: 30000,
+        });
+        return { exitCode: 0, stdout };
+      } catch (err: unknown) {
+        const e = err as { status?: number; stdout?: string };
+        return { exitCode: e.status ?? 1, stdout: e.stdout ?? '' };
+      }
+    })();
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toContain('key fingerprint mismatch');
+  });
+
   it('verifier rejects an unsupported schemaVersion', async () => {
     if (!hasVerifyBinary()) return;
     const depopPath = await buildBundle({

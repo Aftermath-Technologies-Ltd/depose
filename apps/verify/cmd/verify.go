@@ -30,6 +30,21 @@ type CheckResult struct {
 	Detail  string
 }
 
+// VerifyOpts configures optional pinning behavior the recipient
+// asks for: pinning to a specific key fingerprint (air-gapped key
+// flow) or to a Sigstore signer identity (keyless flow).
+type VerifyOpts struct {
+	// ExpectedKeyFingerprint, when non-empty, is the lowercase hex
+	// SHA-256 of the SPKI DER bytes of the public signing key.
+	// Verification fails if manifest.producer.keyFingerprint
+	// disagrees (or is missing).
+	ExpectedKeyFingerprint string
+	// SignerIdentityRegex, when non-empty, is a regex the Sigstore
+	// signer cert identity must match. Currently a placeholder —
+	// the Sigstore code path is staged but not yet wired in.
+	SignerIdentityRegex string
+}
+
 // VerifyResult represents the overall verification result.
 type VerifyResult struct {
 	Pass   bool
@@ -41,7 +56,11 @@ type VerifyResult struct {
 }
 
 // VerifyBundle runs all verification checks on a .depo bundle directory.
-func VerifyBundle(bundlePath string) *VerifyResult {
+func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
+	var opt VerifyOpts
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
 	result := &VerifyResult{
 		Bundle: bundlePath,
 		Pass:   true,
@@ -156,6 +175,54 @@ func VerifyBundle(bundlePath string) *VerifyResult {
 				Detail: "signed: signatures and timestamps both present",
 			})
 		}
+	}
+
+	// ── Check 1d: producer.keyFingerprint pin (optional) ─────────────
+	// When the recipient passes --expected-key-fingerprint, the
+	// manifest's keyFingerprint must equal it. This is the
+	// air-gapped trust path: the producer publishes the fingerprint
+	// out-of-band, and the verifier refuses any bundle that doesn't
+	// match. Skipped when no expectation was provided.
+	if opt.ExpectedKeyFingerprint != "" {
+		got := m.Producer.KeyFingerprint
+		want := opt.ExpectedKeyFingerprint
+		if got == "" {
+			result.Checks = append(result.Checks, CheckResult{
+				Name: "key-fingerprint-pin",
+				Pass: false,
+				Detail: fmt.Sprintf(
+					"--expected-key-fingerprint=%s, but manifest has no producer.keyFingerprint",
+					want),
+			})
+			result.Pass = false
+		} else if !strings.EqualFold(got, want) {
+			result.Checks = append(result.Checks, CheckResult{
+				Name: "key-fingerprint-pin",
+				Pass: false,
+				Detail: fmt.Sprintf(
+					"key fingerprint mismatch: manifest=%s..., expected=%s...",
+					truncHex(got, 16), truncHex(want, 16)),
+			})
+			result.Pass = false
+		} else {
+			result.Checks = append(result.Checks, CheckResult{
+				Name:   "key-fingerprint-pin",
+				Pass:   true,
+				Detail: fmt.Sprintf("manifest key fingerprint matches expectation (%s...)", truncHex(got, 16)),
+			})
+		}
+	}
+
+	// ── Check 1e: signer identity (Sigstore, future) ─────────────────
+	// Currently a no-op placeholder; Sigstore-signed bundles will
+	// land in a follow-up. We surface the flag so the contract is
+	// visible in --help today and pin tests can exist.
+	if opt.SignerIdentityRegex != "" {
+		result.Checks = append(result.Checks, CheckResult{
+			Name:   "signer-identity",
+			Pass:   true,
+			Detail: fmt.Sprintf("--signer-identity=%q recorded (no Sigstore signature in this bundle)", opt.SignerIdentityRegex),
+		})
 	}
 
 	// ── Check 2: Signature verification ──────────────────────────────
@@ -520,6 +587,14 @@ func (r *VerifyResult) Print() {
 		fmt.Println("  checks failed. See the details above for specific failures.")
 	}
 	fmt.Println()
+}
+
+// truncHex returns the first n hex chars of s, or s if shorter.
+func truncHex(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
 }
 
 // JSON returns the verification result as JSON (for machine consumers).

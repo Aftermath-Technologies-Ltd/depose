@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/cmd"
 )
@@ -27,18 +28,50 @@ func main() {
 
 	switch os.Args[1] {
 	case "verify":
-		if len(os.Args) < 3 {
+		// flags: positional bundle path, plus optional pinning flags
+		// for the air-gapped key-fingerprint discipline and the
+		// (future) Sigstore signer-identity binding.
+		var bundlePath string
+		var expectedFingerprint string
+		var signerIdentity string
+		for i := 2; i < len(os.Args); i++ {
+			arg := os.Args[i]
+			switch {
+			case arg == "--expected-key-fingerprint" && i+1 < len(os.Args):
+				expectedFingerprint = os.Args[i+1]
+				i++
+			case strings.HasPrefix(arg, "--expected-key-fingerprint="):
+				expectedFingerprint = strings.TrimPrefix(arg, "--expected-key-fingerprint=")
+			case arg == "--signer-identity" && i+1 < len(os.Args):
+				signerIdentity = os.Args[i+1]
+				i++
+			case strings.HasPrefix(arg, "--signer-identity="):
+				signerIdentity = strings.TrimPrefix(arg, "--signer-identity=")
+			case strings.HasPrefix(arg, "-"):
+				fmt.Fprintf(os.Stderr, "ERROR: unknown flag %q\n", arg)
+				os.Exit(1)
+			default:
+				if bundlePath != "" {
+					fmt.Fprintf(os.Stderr, "ERROR: extra positional argument %q\n", arg)
+					os.Exit(1)
+				}
+				bundlePath = arg
+			}
+		}
+		if bundlePath == "" {
 			fmt.Fprintf(os.Stderr, "ERROR: bundle path required\n")
-			fmt.Fprintf(os.Stderr, "Usage: depose-verify verify <path-to-bundle>\n")
+			fmt.Fprintf(os.Stderr, "Usage: depose-verify verify [--expected-key-fingerprint <hex>] [--signer-identity <regex>] <path-to-bundle>\n")
 			os.Exit(1)
 		}
-		bundlePath := os.Args[2]
 		absPath, err := filepath.Abs(bundlePath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: invalid path %q: %v\n", bundlePath, err)
 			os.Exit(1)
 		}
-		result := cmd.VerifyBundle(absPath)
+		result := cmd.VerifyBundle(absPath, cmd.VerifyOpts{
+			ExpectedKeyFingerprint: expectedFingerprint,
+			SignerIdentityRegex:    signerIdentity,
+		})
 		result.Print()
 		if !result.Pass {
 			os.Exit(1)
