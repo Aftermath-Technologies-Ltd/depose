@@ -3,11 +3,15 @@ package chain
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/canonical"
 )
 
 // Event represents a minimal event for chain verification.
@@ -38,17 +42,30 @@ type EventMetadata struct {
 
 // ReplayResult holds the outcome of chain replay.
 type ReplayResult struct {
-	RootHash       string
-	EventCount     int
-	HashMismatches []HashMismatch
+	RootHash          string
+	EventCount        int
+	HashMismatches    []HashMismatch
+	PayloadMismatches []PayloadMismatch
 }
 
 // HashMismatch records a chain hash mismatch at a specific event.
 type HashMismatch struct {
-	Index      int
-	EventID    string
-	Expected   string
-	Computed   string
+	Index    int
+	EventID  string
+	Expected string
+	Computed string
+}
+
+// PayloadMismatch records a recomputed payloadHash that does not match
+// the value stored on the event. Detecting this is what closes the
+// payload-tamper hole: without re-deriving payloadHash from the
+// payload bytes, an attacker could rewrite payload content and leave
+// the chain hash intact.
+type PayloadMismatch struct {
+	Index    int
+	EventID  string
+	Expected string
+	Computed string
 }
 
 // ReplayChain reads events.jsonl and replays the IRONROOT hash chain.
@@ -100,8 +117,30 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 
 	var prevHash [32]byte // zero32 for first event
 	var mismatches []HashMismatch
+	var payloadMismatches []PayloadMismatch
 
 	for i, evt := range events {
+		// ── Recompute payloadHash from the actual payload bytes ──
+		// Without this step, payloadHash is trusted from disk and the
+		// chain replay only proves the recorded payloadHash is
+		// internally consistent — not that the recorded payload
+		// canonicalizes to that hash. An attacker can then rewrite
+		// payload content without touching payloadHash and the chain
+		// still validates. We close that hole here by re-canonicalizing
+		// the payload through the JCS marshaller and SHA-256'ing it.
+		computedPayloadHash, err := recomputePayloadHash(evt.Payload)
+		if err != nil {
+			return nil, fmt.Errorf("recompute payloadHash for event %s: %w", evt.ID, err)
+		}
+		if computedPayloadHash != evt.PayloadHash {
+			payloadMismatches = append(payloadMismatches, PayloadMismatch{
+				Index:    i,
+				EventID:  evt.ID,
+				Expected: evt.PayloadHash,
+				Computed: computedPayloadHash,
+			})
+		}
+
 		// Compute eventMetadata as canonical JSON of the metadata fields.
 		// Go's json.Marshal on structs uses field declaration order, which may
 		// not match the TypeScript canonical-json (alphabetical key sort).
@@ -150,10 +189,37 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 	rootHash := fmt.Sprintf("%x", prevHash)
 
 	return &ReplayResult{
-		RootHash:       rootHash,
-		EventCount:     len(events),
-		HashMismatches: mismatches,
+		RootHash:          rootHash,
+		EventCount:        len(events),
+		HashMismatches:    mismatches,
+		PayloadMismatches: payloadMismatches,
 	}, nil
+}
+
+// recomputePayloadHash canonicalizes the event's payload (RFC 8785 JCS)
+// and returns SHA-256 over the canonical bytes as a lowercase hex string.
+// Matches the TypeScript producer's `sha256(payload)` helper:
+//
+//	sha256(value) = hex(SHA-256(utf8(canonicalJson(value))))
+func recomputePayloadHash(rawPayload json.RawMessage) (string, error) {
+	if len(rawPayload) == 0 {
+		// Treat a missing payload as null for determinism — matches
+		// canonicalJson(undefined/null) = "null" on the TS side.
+		sum := sha256.Sum256([]byte("null"))
+		return hex.EncodeToString(sum[:]), nil
+	}
+	var value interface{}
+	dec := json.NewDecoder(bytes.NewReader(rawPayload))
+	dec.UseNumber()
+	if err := dec.Decode(&value); err != nil {
+		return "", fmt.Errorf("decode payload: %w", err)
+	}
+	canonicalBytes, err := canonical.Marshal(value)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize payload: %w", err)
+	}
+	sum := sha256.Sum256(canonicalBytes)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 // sortEventsByID sorts events by their ULID id field.
