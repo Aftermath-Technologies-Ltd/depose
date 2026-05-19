@@ -78,8 +78,9 @@ does one thing. Data flows downward; no layer reaches up.
 └────────────────┬──────────────────────────────────────────────┘
                  │
 ┌────────────────▼──────────────────────────────────────────────┐
-│  BUNDLE (.depo)                                                │
-│   Deterministically-ordered tarball, manifest.json entrypoint   │
+│  BUNDLE                                                        │
+│   Deterministic directory tree, manifest.json entrypoint.       │
+│   (Future: canonical USTAR packing in the producer.)            │
 └────────────────┬──────────────────────────────────────────────┘
                  │
 ┌────────────────▼──────────────────────────────────────────────┐
@@ -171,18 +172,22 @@ Integrity is the cryptography layer. It makes the bundle tamper-evident:
 
 ### 2.5 Layer 5: Bundle
 
-The bundle layer serializes everything into a `.depo` tarball:
+The bundle layer serializes everything into a deterministic directory
+tree under `incident-<ulid>/`:
 
-- **manifest.ts** — builds the manifest with all computed hashes, counts, and
-  metadata.
-- **writer.ts** — writes the tarball with deterministic ordering, fixed mtime,
-  fixed uid/gid, no extended attributes.
-- **reader.ts** — reads tarballs (used by verifier-shared logic for testing).
+- **manifest.ts** — builds the manifest with all computed hashes
+  (rootHash, eventsJsonlSha256, rulesetHash), counts, and metadata.
+- **writer.ts** — writes the directory tree. Per-file ordering inside
+  `events.jsonl` is canonical (ULID sort) and the file's bytes are
+  pinned by `manifest.eventsJsonlSha256` before the manifest is
+  signed. Other files are not order-sensitive to verification.
 - **layout.ts** — path conventions and constants.
 
-The tarball ordering is lexicographic by path. This guarantees that two runs
-with the same inputs and same fixed clock produce byte-identical output (modulo
-non-deterministic signature bytes).
+Canonical USTAR archive packing in the producer is tracked as future
+work. Until then, recipients pack/unpack with their preferred tool;
+integrity flows through the in-bundle hashes, not the container
+metadata. See `docs/bundle-format.md` §1 for a tar invocation that
+produces a byte-identical archive across rebuilds.
 
 ### 2.6 Layer 6: Narrative
 
@@ -233,7 +238,7 @@ labeled "AI-GENERATED COMMENTARY — NOT EVIDENCE."
                                    │
                     ┌──────────────▼──────────────────────┐
                     │   BUNDLE                             │
-                    │   Deterministic tar → .depo file     │
+                    │   Deterministic directory tree       │
                     └──────────────┬──────────────────────┘
                                    │
                     ┌──────────────▼──────────────────────┐
@@ -392,16 +397,16 @@ Developer Machine                          Third Party
 ┌──────────────────────┐                  ┌──────────────────────┐
 │  Claude Code          │                  │                      │
 │      │                │                  │  depose-verify        │
-│      ▼                │    .depo         │      │               │
+│      ▼                │  bundle dir      │      │               │
 │  PreToolUse hook      │──────────────▶  │      ▼               │
-│  Shell shim           │   (tarball)     │  PASS / FAIL report   │
+│  Shell shim           │                  │  PASS / FAIL report   │
 │      │                │                  │                      │
 │      ▼                │                  │  No DEPOSE install   │
 │  depose reconstruct   │                  │  No Node.js required │
 │  depose package       │                  │  No network required │
 │      │                │                  │  (except Rekor check)│
 │      ▼                │                  │                      │
-│  .depo bundle         │                  └──────────────────────┘
+│  bundle directory     │                  └──────────────────────┘
 └──────────────────────┘
 ```
 

@@ -1,42 +1,44 @@
 # DEPOSE Bundle Format (.depo)
 
-The `.depo` file is the core product of DEPOSE. It is a deterministically-ordered tarball
-containing a complete, verifiable evidence bundle from an AI coding agent session. This
-document specifies every aspect of the format so that any third party — including the
-standalone `depose-verify` binary — can parse, validate, and reason about the bundle
-without any DEPOSE infrastructure.
+A DEPOSE bundle is the core product of DEPOSE: a directory tree
+containing a complete, verifiable evidence record of an AI coding
+agent session. This document specifies every aspect of the format so
+any third party — including the standalone `depose-verify` binary —
+can parse, validate, and reason about the bundle without any DEPOSE
+infrastructure.
 
 ---
 
 ## 1. Container format
 
-The `.depo` file is a **POSIX tar archive** (USTAR format) with the following constraints:
+The bundle today ships as a **directory tree** rooted at
+`incident-<ulid>/`. Recipients can pack and unpack it with any tool
+that handles directories (e.g. `tar -cf` for transport). Integrity is
+established by cryptographic primitives over the bundle's *contents*
+(per-event payloadHash, IRONROOT chain rootHash, manifest signature,
+`manifest.eventsJsonlSha256`, `manifest.rulesetHash`), not by tar
+metadata, so the in-flight container is the recipient's choice.
 
-| Property        | Value                              | Rationale                              |
-|-----------------|------------------------------------|----------------------------------------|
-| Format          | USTAR (no PAX headers)             | Deterministic; avoids variable xattrs  |
-| uid / gid       | 0 / 0                              | Removes host-specific identity leakage  |
-| File mode       | 0644 (files), 0755 (directories)   | Uniform; no permission surprises        |
-| mtime           | Fixed to `manifest.producedAt`     | Deterministic across rebuilds           |
-| Extended attrs  | None                               | Eliminates non-portable metadata        |
-| Compression     | None (not gzip, not zstd)          | Deterministic byte output; verifier     |
-|                 |                                    | needs only stdlib tar                   |
-
-No compression is applied. The bundle may be large; recipients who want compression
-can apply it externally. The archive must be byte-identical when re-produced from the
-same inputs with the same fixed clock (modulo non-deterministic signature bytes).
+> **Note on container determinism.** Earlier drafts of this document
+> specified a deterministic POSIX USTAR archive (fixed mtime, uid/gid
+> 0, no PAX headers, lexicographic ordering). The producer does not
+> ship that container yet — `writer.ts` writes a directory tree. If
+> reproducible byte-identical *archives* matter for your workflow,
+> pack with `tar --sort=name --mtime="$(jq -r .producedAt manifest.json)"
+> --owner=0 --group=0 --numeric-owner --pax-option=exthdr.name=%d/PaxHeaders/%f
+> -cf bundle.tar incident-<id>/` after produce. A canonical tar
+> packer in the producer is tracked as future work.
 
 ---
 
 ## 2. Directory layout
 
 ```
-incident-<ulid>.depo/
+incident-<ulid>/
   manifest.json                         # Entry point. Schema version, hashes, counts.
   events.jsonl                          # One Event JSON per line, sorted by id (ULID).
   raw/
     claude-code/<session>.jsonl          # Verbatim Claude Code session transcript.
-    codex/<session>.json                 # Verbatim Codex session data.
     shell-history/<host>.txt            # Shell history at capture time.
     git-reflog.txt                       # Git reflog at capture time.
     capture/<event-id>.json             # Pre-execution capture records.
@@ -69,15 +71,19 @@ incident-<ulid>.depo/
 
 ## 3. Deterministic ordering
 
-All files in the tar archive appear in **lexicographic order by path** (full path,
-using `/` as separator, compared byte-by-byte). Directories appear before their
-contents.
+`events.jsonl` is byte-pinned by `manifest.eventsJsonlSha256` and
+event order inside it is sorted by event id (ULID) — that's what the
+verifier replays. Other files in the bundle are not order-sensitive
+to verification; their integrity flows through the per-event chain
+(`payloadHash` of payloads that reference artifact hashes) or via
+`manifest.rulesetHash`.
 
-This ordering is critical: it ensures that two runs of `depose package` with the
-same inputs and the same fixed clock produce byte-identical tar streams (excluding
-signature bytes, which are non-deterministic by design).
+If you want a byte-identical *archive* across rebuilds, see the
+note in §1 about packing with deterministic tar flags after produce.
+The order described below is the order a deterministic tar packer
+would use and the order future producer-side tar support will emit.
 
-### 3.1 Ordering rules
+### 3.1 Ordering rules (recommended for archival packers)
 
 1. Directory entries precede their children.
 2. Within a directory, entries are sorted by full path (e.g., `artifacts/files-pre/...`
@@ -114,16 +120,26 @@ is what the signature covers.
 The signed trust path is:
 
 ```
-events.jsonl  -->  hash chain  -->  rootHash  -->  manifest.json  -->  signature
+events.jsonl  -->  per-event payloadHash (recomputed from payload bytes)
+              -->  IRONROOT chain  -->  rootHash
+              -->  manifest.eventsJsonlSha256 (over the literal file bytes)
+              -->  manifest.json
+              -->  signature
 ```
 
-Therefore, the following content is **signed** (tampering invalidates the signature):
+Therefore, the following content is **signed** (tampering invalidates verification):
 
-- `events.jsonl` — every event, its payload hash, metadata, and chain linkage.
-- `manifest.json` — root hash, counts, ruleset hash, session metadata.
-- `rules/destructive.yaml` — indirectly, because its SHA-256 is stored as
-  `manifest.rulesetHash`. Changing the rules without updating the manifest
-  breaks verification.
+- `events.jsonl` — every byte. Authenticated two independent ways:
+  (1) the verifier re-canonicalizes each event's `payload` and SHA-256s
+  it to confirm the stored `payloadHash` matches, then replays the
+  IRONROOT chain to confirm `rootHash`; (2) the verifier re-hashes
+  the whole file and compares to `manifest.eventsJsonlSha256`. Both
+  must pass.
+- `manifest.json` — root hash, counts, ruleset hash, events.jsonl
+  hash, session metadata.
+- `rules/destructive.yaml` — indirectly, because its SHA-256 is stored
+  as `manifest.rulesetHash`. Changing the rules without updating the
+  manifest breaks verification.
 
 ### 4.2 Unsigned but integrity-checked content
 
@@ -156,24 +172,46 @@ are **not evidence**:
 
 ### 4.4 Verifier behavior
 
-The `depose-verify` binary checks:
+The `depose-verify` binary checks, in order:
 
-1. **Chain integrity**: Replay the hash chain over `events.jsonl`; confirm
-   the terminal hash matches `manifest.rootHash`.
-2. **Signature validity**: Verify the signature in `attestations/signatures.json`
-   against `manifest.json` using the embedded public key or Fulcio certificate.
-3. **Artifact hashes**: For every artifact in `artifacts/`, compute its SHA-256
-   and confirm it matches the hash referenced in the corresponding event payload.
-4. **Ruleset hash**: Compute SHA-256 of `rules/destructive.yaml` and confirm it
-   matches `manifest.rulesetHash`.
-5. **RFC 3161 timestamps**: Validate timestamp tokens against the TSA's certificate
-   chain. Confirm `manifest.producedAt` does not postdate any timestamp's `genTime`.
-6. **Rekor inclusion** (optional, if present): Verify the inclusion proof against
-   the Rekor public instance.
+1. **manifest-parse / schema-version / mode-declaration / mode-contract**:
+   `manifest.json` parses, `schemaVersion` is in the supported range,
+   and `producer.mode` (`signed` or `dev-unsigned`) is consistent with
+   the presence of signatures and timestamps.
+2. **signature-verify**: Ed25519 signature in
+   `attestations/signatures.json` (also embedded in `manifest.signatures[]`)
+   verifies against the bytes of `manifest.json` with `signatures=[]`
+   and `timestamps=[]`.
+3. **payload-hash**: For every event in `events.jsonl`, the verifier
+   canonicalizes `payload` (RFC 8785 JCS) and SHA-256s the bytes; the
+   result must equal the stored `payloadHash`. Detects payload-string
+   rewrites that leave the hash field untouched.
+4. **chain-replay**: Replay the IRONROOT hash chain over the events,
+   sorted by ULID id; the terminal hash must equal `manifest.rootHash`.
+   Detects any mutation to `payloadHash`, `chainHash`, or chained
+   metadata fields.
+5. **timestamp-verify**: For each RFC 3161 token, ASN.1-parse the
+   TimeStampToken, enforce `hashAlgorithm = SHA-256`, compare
+   `TSTInfo.HashedMessage` to SHA-256 of the unsigned manifest, and
+   verify the embedded TSA's PKCS7 signature + cert chain against
+   the embedded FreeTSA root + system pool.
+6. **timestamp-backdating**: `manifest.producedAt` must not be after
+   any TSA token's reported time (with a 1-second tolerance for
+   whole-second TSA truncation).
+7. **artifact-events-jsonl**: SHA-256 of the on-disk `events.jsonl`
+   bytes must equal `manifest.eventsJsonlSha256`. Detects line
+   reordering, whitespace insertion, or any byte-level mutation that
+   would not otherwise show up in the per-event chain.
+8. **ruleset-integrity**: SHA-256 of `rules/destructive.yaml` must
+   equal `manifest.rulesetHash`.
+9. **bundle-completeness**: All required files
+   (`manifest.json`, `events.jsonl`,
+   `attestations/signatures.json`, `rules/destructive.yaml`,
+   `verify.txt`) are present.
 
-If any check in (1)-(4) fails, the verifier reports **FAIL** with a specific
-message identifying the failing component. RFC 3161 or Rekor failures are
-reported as warnings unless the `--strict` flag is set.
+In `signed` mode any failure produces `RESULT: FAIL` and a non-zero
+exit. In `dev-unsigned` mode signature and timestamp checks are
+skipped by mode-contract; chain replay and payload-hash still apply.
 
 ---
 
@@ -202,6 +240,7 @@ interface Manifest {
     endedAt: string;
   };
   rootHash: string;                // Terminal chain hash over events.jsonl
+  eventsJsonlSha256: string;       // SHA-256 of the literal events.jsonl bytes
   signatures: SignatureBlock[];
   timestamps: Rfc3161Token[];
   rekor?: RekorEntry[];
