@@ -125,6 +125,7 @@ describe('ULID', () => {
       }
       expect(ulids.size).toBe(1000);
     });
+
   });
 
   describe('ulidFromTime', () => {

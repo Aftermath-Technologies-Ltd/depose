@@ -12,7 +12,7 @@
 // a bundle without a timestamp — that defeats the purpose").
 
 import { readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes as cryptoRandomBytes } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
 import { request as httpRequest } from 'node:http';
 
@@ -91,13 +91,15 @@ const SHA256_ALG_ID = Buffer.from([
   0x03, 0x04, 0x02, 0x01, 0x05, 0x00,
 ]);
 
-/** Generate a random 8-byte nonce for the request */
+/**
+ * Generate a CSPRNG 8-byte nonce for the RFC 3161 request.
+ *
+ * The nonce binds the TSA's response to a particular request so a
+ * replay of an older response is detectable. A predictable nonce
+ * would let an attacker prepare a response in advance.
+ */
 function generateNonce(): Buffer {
-  const nonce = Buffer.alloc(8);
-  for (let i = 0; i < 8; i++) {
-    nonce[i] = Math.floor(Math.random() * 256);
-  }
-  return nonce;
+  return cryptoRandomBytes(8);
 }
 
 /** DER-encode an INTEGER tag + length + value */
