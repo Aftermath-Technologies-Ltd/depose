@@ -216,7 +216,7 @@ These are debt items. None of them adds features. All of them make the codebase 
 
 **Verify.** All existing CLI tests pass. New tests for `--key=value`, repeated flags, and values starting with `-`.
 
-### D4. Extract shared event-pipeline module
+### D4. Extract shared event-pipeline module [DONE]
 
 **Root cause.** `handleReconstruct` (main.ts) and `handlePackage` (package.ts) share ~150 lines verbatim — JSONL load, shell history, reflog, capture, merge, timeline. `createShellCommandEvent` is byte-for-byte duplicated. Two copies will drift; only one will be tested under stress.
 

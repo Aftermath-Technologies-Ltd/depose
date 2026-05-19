@@ -10,28 +10,19 @@
 //
 // Named exports only (BUILD_PLAN.md §3.1).
 
-import { resolve, join, dirname } from 'node:path';
+import { resolve } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';
 import {
-  normalizeClaudeCodeJsonl,
-  parseShellHistory,
-  parseGitReflog,
-  reflogToEvents,
-  mergeEvents,
   buildTimeline,
   formatTimelineSummary,
   loadDestructiveRules,
   generateUlid,
-  ulidFromTime,
-  sha256,
-  normalizeCaptureRecords,
-  type Event,
-  type ShellCommandPrePayload,
   type AgentId,
 } from '@depose/core';
 import { writeBundle } from '@depose/bundle';
 import { loadOrGenerateKeyPair } from '@depose/chain';
 import { DEFAULT_RULES_PATH } from '../rules-default.js';
+import { loadAndMergeEvents } from '../pipeline.js';
 
 // ── CLI args interface ─────────────────────────────────────────────
 
@@ -90,81 +81,22 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   const keyPair = loadOrGenerateKeyPair(keyDir);
   console.log(`Public key: ${keyPair.publicKeyPem.split('\n')[1]?.slice(0, 20)}...`);
 
-  // Load destructive rules (bytes are also retained for the bundle so
-  // the verifier can re-hash them against manifest.rulesetHash).
+  // Load destructive rules. Bytes are passed verbatim to the
+  // bundle writer so the verifier can re-hash them against
+  // manifest.rulesetHash.
   const rules = loadDestructiveRules(resolvedRules);
   const rulesetBytes = readFileSync(resolvedRules);
 
-  // Read and normalize JSONL
   console.log('Normalizing session data...');
-  const jsonl = readFileSync(resolvedJsonl, 'utf-8');
-  const { events: claudeEvents, warnings: normalizeWarnings } = normalizeClaudeCodeJsonl(jsonl, {
+  const { events: merged, warnings: pipelineWarnings, gapCount, linkedCount, captureRecordCount } = loadAndMergeEvents({
+    jsonlPath: resolvedJsonl,
     sessionId,
     agentId: agentId as AgentId,
+    captureDir: args['capture-dir'] as string | undefined,
   });
-
-  // Load shell history (if available)
-  const shellHistoryPath = join(dirname(resolvedJsonl), 'shell-history.txt');
-  let shellEvents: Event[] = [];
-  if (existsSync(shellHistoryPath)) {
-    const shellHistory = readFileSync(shellHistoryPath, 'utf-8');
-    const shellCommands = parseShellHistory(shellHistory);
-    const shellSessionId = sessionId || claudeEvents[0]?.sessionId || generateUlid();
-    const shellMonoOffset = claudeEvents.length;
-    const shellStart = claudeEvents[0]?.wallTs || new Date().toISOString();
-    shellEvents = [];
-    for (const cmd of shellCommands) {
-      const monoNs = shellMonoOffset + shellEvents.length;
-      const wallTs = cmd.timestamp || shellStart;
-      shellEvents.push(createShellCommandEvent(cmd, shellSessionId, 'shell', monoNs, wallTs));
-    }
+  if (captureRecordCount > 0) {
+    console.log(`Loaded ${captureRecordCount} pre-execution capture records`);
   }
-
-  // Load git reflog (if available)
-  const reflogPath = join(dirname(resolvedJsonl), 'git-reflog.txt');
-  let reflogEvents: Event[] = [];
-  if (existsSync(reflogPath)) {
-    const reflog = readFileSync(reflogPath, 'utf-8');
-    const reflogEntries = parseGitReflog(reflog);
-    const reflogSessionId = sessionId || claudeEvents[0]?.sessionId || generateUlid();
-    const reflogOffset = claudeEvents.length + shellEvents.length;
-    const { events: reflogResult } = reflogToEvents(reflogEntries, {
-      sessionId: reflogSessionId,
-      agentId: 'shell',
-      monoOffset: reflogOffset,
-    });
-    reflogEvents = reflogResult;
-  }
-
-  // Load pre-execution capture records (Phase 3)
-  const captureDirFromArgs = args['capture-dir'] as string | undefined;
-  const captureResult = normalizeCaptureRecords(captureDirFromArgs, {
-    sessionId: sessionId || claudeEvents[0]?.sessionId || generateUlid(),
-    agentId: agentId as AgentId,
-    monoOffset: claudeEvents.length + shellEvents.length + reflogEvents.length,
-  });
-  const captureEvents = captureResult.events;
-  if (captureResult.recordCount > 0) {
-    console.log(`Loaded ${captureResult.recordCount} pre-execution capture records`);
-  }
-  for (const w of captureResult.warnings) {
-    console.log(`  WARN: ${w}`);
-  }
-
-  // Merge all sources
-  const { events: merged, warnings: mergeWarnings, gapCount, linkedCount } = mergeEvents(
-    {
-      claudeCodeEvents: claudeEvents,
-      shellHistoryEvents: shellEvents,
-      reflogEvents: reflogEvents,
-      captureEvents,
-    },
-    {
-      sessionId: sessionId || claudeEvents[0]?.sessionId || generateUlid(),
-      agentId: agentId as AgentId,
-    }
-  );
-
   console.log(`Merged ${merged.length} events (${gapCount} gaps, ${linkedCount} linked)`);
 
   // Build timeline
@@ -173,7 +105,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   console.log(summary);
 
   // Build and sign bundle
-  const bundleId = sessionId || (claudeEvents[0]?.sessionId || generateUlid());
+  const bundleId = sessionId || (merged[0]?.sessionId || generateUlid());
   const sessionStarted = merged.length > 0 ? (merged[0]?.wallTs ?? new Date().toISOString()) : new Date().toISOString();
   const sessionEnded = merged.length > 0 ? (merged[merged.length - 1]?.wallTs ?? new Date().toISOString()) : new Date().toISOString();
   const producedAt = new Date().toISOString();
@@ -207,7 +139,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       keyPair,
     });
 
-    for (const w of [...normalizeWarnings, ...mergeWarnings, ...bundleWarnings]) {
+    for (const w of [...pipelineWarnings, ...bundleWarnings]) {
       console.log(`  WARN: ${w}`);
     }
 
@@ -232,47 +164,3 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
-function createShellCommandEvent(
-  cmd: {
-    timestamp: string | null;
-    command: string;
-    argv: string[];
-    cwd: string | null;
-    exitCode: number | null;
-    durationMs: number | null;
-  },
-  sessionId: string,
-  agentId: 'shell',
-  monoNs: number,
-  wallTs: string
-): Event {
-  const id = ulidFromTime(Date.now());
-  const prePayload: ShellCommandPrePayload = {
-    argv: cmd.argv,
-    cwd: cmd.cwd || '',
-    envHash: '',
-    envSubset: {},
-    ttyId: null,
-    user: process.env.USER || '',
-    hostname: process.env.HOSTNAME || '',
-    parentProcessTree: [],
-    fileArgs: [],
-    source: 'shell-shim',
-    captureSchemaVersion: 1,
-  };
-  const preHash = sha256(prePayload);
-  const preEvent: Event = {
-    id,
-    wallTs,
-    monoNs,
-    sessionId,
-    agentId,
-    parentEventId: null,
-    type: 'shell_command_pre',
-    payload: prePayload,
-    payloadHash: preHash,
-  };
-  return preEvent;
-}
