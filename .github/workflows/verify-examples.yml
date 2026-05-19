@@ -78,25 +78,88 @@ jobs:
           echo "Verifying: $DEPO_DIR"
           ./apps/verify/build/depose-verify verify "$DEPO_DIR"
 
-      - name: Negative test — one-byte tamper of events.jsonl must FAIL
-        # Mutate a single byte and re-verify; expect a non-zero exit.
-        # This is what makes the README's "rebuilds and validates
-        # end-to-end" claim true.
+      - name: Negative tests — three semantic tampers must each FAIL
+        # The previous test flipped one random byte at offset 2 of
+        # events.jsonl, which lands inside a JSON object header and
+        # failed only because json.Unmarshal errored — passing
+        # incorrectly when a semantically meaningful mutation left
+        # JSON intact. We exercise the three attacks the producer/
+        # verifier contract is supposed to defend against:
+        #
+        #   (a) payload tamper      — rewrite a payload string,
+        #                              leave payloadHash/chainHash intact.
+        #   (b) payloadHash tamper  — flip a hex char inside payloadHash.
+        #   (c) chainHash tamper    — flip a hex char inside chainHash.
+        #
+        # All three must produce a non-zero exit from depose-verify.
         run: |
+          set -e
           EXAMPLE="${{ matrix.example }}"
           OUTPUT_DIR="examples/${EXAMPLE}/depose-output"
           DEPO_DIR=$(find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 -name "incident-*" -type d | head -1)
-          # Flip a byte near the start of events.jsonl
-          dd if=/dev/urandom of="$DEPO_DIR/events.jsonl" bs=1 count=1 seek=2 conv=notrunc status=none
-          set +e
-          ./apps/verify/build/depose-verify verify "$DEPO_DIR"
-          STATUS=$?
-          set -e
-          if [ "$STATUS" -eq 0 ]; then
-            echo "ERROR: verifier accepted tampered bundle (exit 0 from tampered events.jsonl)"
-            exit 1
-          fi
-          echo "OK — verifier rejected tampered bundle (exit $STATUS)"
+          if [ -z "$DEPO_DIR" ]; then echo "no bundle"; exit 1; fi
+
+          assert_fail() {
+            local label="$1" workdir="$2"
+            set +e
+            ./apps/verify/build/depose-verify verify "$workdir" > /dev/null
+            local status=$?
+            set -e
+            if [ "$status" -eq 0 ]; then
+              echo "ERROR: $label tamper was accepted (exit 0)"
+              ./apps/verify/build/depose-verify verify "$workdir"
+              exit 1
+            fi
+            echo "OK — $label tamper rejected (exit $status)"
+          }
+
+          # (a) Payload tamper: rewrite a Bash command without
+          # touching payloadHash. This is the attack the README's
+          # "any byte change fails replay" promise is about.
+          A=$(mktemp -d); cp -r "$DEPO_DIR"/. "$A"
+          # Pick whichever string is actually in the fixture; sed -i is
+          # a no-op when the pattern is absent, so try both.
+          sed -i 's|rm -rf /data/training|rm -rf /tmp/nothing |g' "$A/events.jsonl" || true
+          sed -i 's|terraform destroy -auto-approve|terraform plan -auto-approve  |g' "$A/events.jsonl" || true
+          assert_fail "payload-string" "$A"
+
+          # (b) payloadHash tamper: flip a hex character inside the
+          # first payloadHash literal. Verifier should fail on
+          # chain-replay (and/or payload-hash) — never PASS.
+          B=$(mktemp -d); cp -r "$DEPO_DIR"/. "$B"
+          python3 -c '
+          import sys, re
+          p = sys.argv[1]
+          data = open(p).read()
+          # Flip one hex char inside the first occurrence of payloadHash.
+          def flip(m):
+              v = m.group(1)
+              ch = v[0]
+              swap = "0" if ch != "0" else "1"
+              return "\"payloadHash\":\"" + swap + v[1:] + "\""
+          data, n = re.subn(r"\"payloadHash\":\"([0-9a-f]{64})\"", flip, data, count=1)
+          assert n == 1, "no payloadHash field found"
+          open(p, "w").write(data)
+          ' "$B/events.jsonl"
+          assert_fail "payloadHash-hex" "$B"
+
+          # (c) chainHash tamper: flip one hex char inside the first
+          # chainHash literal. Must fail at chain-replay.
+          C=$(mktemp -d); cp -r "$DEPO_DIR"/. "$C"
+          python3 -c '
+          import sys, re
+          p = sys.argv[1]
+          data = open(p).read()
+          def flip(m):
+              v = m.group(1)
+              ch = v[0]
+              swap = "0" if ch != "0" else "1"
+              return "\"chainHash\":\"" + swap + v[1:] + "\""
+          data, n = re.subn(r"\"chainHash\":\"([0-9a-f]{64})\"", flip, data, count=1)
+          assert n == 1, "no chainHash field found"
+          open(p, "w").write(data)
+          ' "$C/events.jsonl"
+          assert_fail "chainHash-hex" "$C"
 
       - name: Upload bundle artifact
         if: always()
