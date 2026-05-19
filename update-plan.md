@@ -248,7 +248,7 @@ These are debt items. None of them adds features. All of them make the codebase 
 
 CI must prove every claim the README makes. Today, the verify-examples job claims end-to-end validation but skips the actual verification.
 
-### E1. Wire `depose-verify` into example verification
+### E1. Wire `depose-verify` into example verification [DONE]
 
 **Root cause.** `.github/workflows/verify-examples.yml` checks files exist with `jq`. It never runs the verifier. The README claims "CI rebuilds both bundles on every push and validates them end-to-end" — this is false today.
 

@@ -191,10 +191,16 @@ func bytesEqualConstantTime(a, b []byte) bool {
 }
 
 // VerifyManifestProducedAt checks that producedAt is not after any
-// RFC 3161 timestamp (anti-backdating check). Tolerance reduced
-// from 1s to 0: the producer hashes the manifest *before* asking a
-// TSA to sign over it, so any drift means the TSA round-tripped
-// faster than the producer could write to disk — impossible.
+// RFC 3161 timestamp (anti-backdating check).
+//
+// We allow up to 1 second of tolerance because RFC 3161 TSAs
+// typically truncate to whole-second precision in the genTime
+// field. A producer that records producedAt as
+// 21:39:00.367Z and then receives a TSA token reporting
+// 21:39:00.000Z (the same wall-clock second, truncated) is not
+// backdating — it's the TSA's reporting precision.
+const backdateToleranceSeconds = 1
+
 func VerifyManifestProducedAt(producedAt string, tokens []Token) error {
 	producedTime, err := parseTimestamp(producedAt)
 	if err != nil {
@@ -206,7 +212,10 @@ func VerifyManifestProducedAt(producedAt string, tokens []Token) error {
 		if err != nil {
 			continue
 		}
-		if producedTime.After(ts) {
+		// Backdating = producedAt > ts + tolerance.
+		// The TSA truncates to whole seconds, so producedAt is
+		// allowed to be at most 1 second after the reported time.
+		if producedTime.After(ts.Add(backdateToleranceSeconds * time.Second)) {
 			return fmt.Errorf(
 				"manifest producedAt (%s) is AFTER timestamp from %s (%s) — possible backdating",
 				producedAt, token.TSA, token.Timestamp)
