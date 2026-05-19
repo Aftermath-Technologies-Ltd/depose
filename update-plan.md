@@ -280,7 +280,7 @@ Already exists at `packages/bundle/test/e2e.acceptance.test.ts`. Extend to cover
 
 ## Workstream F — threat model alignment
 
-### F1. Re-audit `docs/threat-model.md` against the implementation
+### F1. Re-audit `docs/threat-model.md` against the implementation [DONE]
 
 **Root cause.** With the bugs found in A1–A3 and B1 fixed, the threat model needs a fresh pass. Today, the threat model likely overclaims: it asserts anti-backdating, ruleset integrity, and tamper-evidence — none of which are fully enforced by the current verifier.
 
