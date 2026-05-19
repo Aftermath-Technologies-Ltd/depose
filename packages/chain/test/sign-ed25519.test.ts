@@ -11,7 +11,7 @@ import {
   verifyManifestSignature,
   loadOrGenerateKeyPair,
 } from '../src/sign-ed25519.js';
-import { existsSync, rmSync, mkdirSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 

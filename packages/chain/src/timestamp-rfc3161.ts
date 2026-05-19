@@ -11,7 +11,6 @@
 // If both TSAs fail, the bundle is not produced (build plan: "Never produce
 // a bundle without a timestamp — that defeats the purpose").
 
-import { readFileSync } from 'node:fs';
 import { createHash, randomBytes as cryptoRandomBytes } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
 import { request as httpRequest } from 'node:http';

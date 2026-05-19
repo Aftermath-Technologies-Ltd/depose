@@ -12,8 +12,6 @@
 // Current status: scaffold only. Full implementation deferred until
 // Ed25519 path is validated end-to-end.
 
-import { sha256String } from '@depose/core';
-
 // ── Types ─────────────────────────────────────────────────────────────
 
 export interface SigstoreSignatureResult {

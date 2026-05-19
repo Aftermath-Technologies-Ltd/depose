@@ -11,7 +11,7 @@
     "build": "tsc --build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint packages/",
+    "lint": "eslint packages/ --max-warnings 0",
     "typecheck": "tsc --build --noEmit"
   },
   "devDependencies": {

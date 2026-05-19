@@ -14,18 +14,16 @@
 // Set DEPOSE_VERIFY_PATH to override the default path.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
 import { execSync } from 'node:child_process';
 import {
   normalizeClaudeCodeJsonl,
   loadDestructiveRules,
-  generateUlid,
 } from '@depose/core';
 import { writeBundle } from '../src/index.js';
 import { generateEd25519KeyPair, verifyHashChain, verifyManifestSignature } from '@depose/chain';
 
-const fixturesDir = pathJoin(__dirname, '../../core/test/fixtures');
 const rulesPath = pathJoin(__dirname, '../../cli/rules/destructive.default.yaml');
 const testOutputDir = pathJoin(__dirname, 'test-output-e2e');
 const verifyBinary = process.env.DEPOSE_VERIFY_PATH ||
@@ -53,11 +51,12 @@ function runVerify(bundlePath: string): { exitCode: number; stdout: string; stde
       timeout: 30000,
     });
     return { exitCode: 0, stdout, stderr: '' };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const e = err as { status?: number; stdout?: string; stderr?: string };
     return {
-      exitCode: err.status ?? 1,
-      stdout: err.stdout ?? '',
-      stderr: err.stderr ?? '',
+      exitCode: e.status ?? 1,
+      stdout: e.stdout ?? '',
+      stderr: e.stderr ?? '',
     };
   }
 }

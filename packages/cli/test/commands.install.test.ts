@@ -4,16 +4,14 @@
 // See BUILD_PLAN.md §6 (Phase 3) for acceptance criteria.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   installClaudeHook,
   installShellShims,
-  uninstallClaudeHook,
   uninstallShellShims,
   SHIM_ALLOWLIST,
-  DEFAULT_DEPOSE_BIN_DIR,
   HOOK_COMMAND,
 } from '../src/commands/install.js';
 

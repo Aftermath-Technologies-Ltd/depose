@@ -18,8 +18,6 @@ import {
 import {
   isEventType,
   type EventBase,
-  type AgentId,
-  type EventType,
 } from '../src/events/schema.js';
 
 describe('canonicalJson', () => {

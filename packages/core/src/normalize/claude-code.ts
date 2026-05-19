@@ -18,7 +18,6 @@ import type {
   Event,
   EventBase,
   EventType,
-  ProcessNode,
   PromptPayload,
   AssistantMessagePayload,
   ToolCallIntentPayload,
@@ -29,7 +28,7 @@ import type {
   ErrorPayload,
   GapPayload,
 } from '../events/schema.js';
-import { sha256, canonicalJson } from '../events/canonical-json.js';
+import { sha256 } from '../events/canonical-json.js';
 import { generateUlid, ulidFromTime } from '../events/ids.js';
 
 // ── Claude Code JSONL line shape (best-effort reconstruction) ────────
@@ -387,7 +386,7 @@ function normalizeClaudeCodeLine(
     case 'command': {
       // Some Claude Code versions emit shell commands as a separate type
       const argv = typeof line.input === 'string' ? [line.input] : (line.input as string[]) || [];
-      const outputStr =
+      const _outputStr =
         typeof line.output === 'string'
           ? line.output
           : line.output !== undefined

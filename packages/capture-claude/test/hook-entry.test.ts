@@ -4,7 +4,7 @@
 // See BUILD_PLAN.md §6 (Phase 3) for acceptance criteria.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -19,7 +19,6 @@ import {
 import {
   filterEnv,
   isEnvAllowed,
-  parseExtraAllowlist,
 } from '../src/env-allowlist.js';
 import {
   hashFile,

@@ -56,7 +56,7 @@ function parseBlock(lines: string[], start: number, indent: number): [unknown, n
   return [parseScalar(trimmed), start + 1];
 }
 
-function parseArray(lines: string[], start: number, parentIndent: number): [unknown[], number] {
+function parseArray(lines: string[], start: number, _parentIndent: number): [unknown[], number] {
   const items: unknown[] = [];
   let i = start;
 
@@ -304,7 +304,7 @@ function parseObject(lines: string[], start: number, indent: number): [Record<st
  * Parse a value that appears on the same line as a key.
  * Handles inline arrays like ["a", "b", "c"].
  */
-function parseValue(valueStr: string, lines: string[], nextLine: number, childIndent: number): unknown {
+function parseValue(valueStr: string, lines: string[], nextLine: number, _childIndent: number): unknown {
   const trimmed = valueStr.trim();
 
   // Inline array: [item1, item2, ...]

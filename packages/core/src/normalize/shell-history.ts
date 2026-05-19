@@ -12,14 +12,9 @@
 // See BUILD_PLAN.md §4.1 for the Event schema.
 
 import type {
-  AgentId,
-  Event,
   ShellCommandPostPayload,
   ShellCommandPrePayload,
-  ProcessNode,
 } from '../events/schema.js';
-import { ulidFromTime } from '../events/ids.js';
-import { sha256 } from '../events/canonical-json.js';
 
 // ── Shell history line formats ───────────────────────────────────────
 
@@ -106,9 +101,9 @@ export function parseBashHistory(content: string): ShellHistoryCommand[] {
     }
 
     const argv = tokenize(commandStr);
-    const monoNs = timestamp ? Date.parse(timestamp) * 1e6 : Date.now() * 1e6;
+    const _monoNs = timestamp ? Date.parse(timestamp) * 1e6 : Date.now() * 1e6;
 
-    const prePayload: ShellCommandPrePayload = {
+    const _prePayload: ShellCommandPrePayload = {
       argv,
       cwd: cwd || '',
       envHash: '',
@@ -122,7 +117,7 @@ export function parseBashHistory(content: string): ShellHistoryCommand[] {
       captureSchemaVersion: 1,
     };
 
-    const postPayload: ShellCommandPostPayload = {
+    const _postPayload: ShellCommandPostPayload = {
       exitCode: 0,
       durationMs: 0,
       stdoutHash: '',

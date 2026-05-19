@@ -83,7 +83,7 @@ describe('depose reconstruct', () => {
     ]);
 
     // Check that process.exit was not called (or called with 0)
-    const exitCode = process.exit as unknown as typeof process.exit & { mock?: { calls: number[][] } };
+    const _exitCode = process.exit as unknown as typeof process.exit & { mock?: { calls: number[][] } };
 
     // Find the output directory
     const outputDir = pathJoin(testOutputDir);
