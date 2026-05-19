@@ -8,7 +8,6 @@ import { describe, it, expect } from 'vitest';
 import {
   buildTimeStampReq,
   extractTimestampFromTsr,
-  verifyTimestamp,
   DEFAULT_TSA_ENDPOINTS,
 } from '../src/timestamp-rfc3161.js';
 import { createHash } from 'node:crypto';
@@ -93,60 +92,11 @@ describe('extractTimestampFromTsr', () => {
   });
 });
 
-describe('verifyTimestamp', () => {
-  it('rejects invalid base64', () => {
-    const result = verifyTimestamp('not-valid-base64!!!', 'abc123');
-    expect(result.valid).toBe(false);
-  });
-
-  it('rejects DER without SEQUENCE tag', () => {
-    const badDer = Buffer.alloc(10, 0x05); // not SEQUENCE
-    const result = verifyTimestamp(badDer.toString('base64'), 'abc123');
-    expect(result.valid).toBe(false);
-    expect(result.detail).toContain('SEQUENCE');
-  });
-
-  it('accepts a token that contains the expected hash', () => {
-    // Build a synthetic DER that contains our hash
-    const hashHex = createHash('sha256').update('test manifest', 'utf-8').digest('hex');
-    const hashBytes = Buffer.from(hashHex, 'hex');
-
-    // Synthetic DER: SEQUENCE + hash bytes + some padding
-    const inner = Buffer.concat([
-      Buffer.from([0x04, hashBytes.length]),
-      hashBytes,
-      Buffer.alloc(4, 0x00), // padding
-    ]);
-    const der = Buffer.concat([
-      Buffer.from([0x30]),
-      Buffer.from([inner.length]),
-      inner,
-    ]);
-
-    const result = verifyTimestamp(der.toString('base64'), hashHex);
-    expect(result.valid).toBe(true);
-  });
-
-  it('rejects a token that does not contain the expected hash', () => {
-    const hashHex = createHash('sha256').update('test manifest', 'utf-8').digest('hex');
-    const wrongHash = createHash('sha256').update('wrong data', 'utf-8').digest('hex');
-    const hashBytes = Buffer.from(wrongHash, 'hex');
-
-    const inner = Buffer.concat([
-      Buffer.from([0x04, hashBytes.length]),
-      hashBytes,
-    ]);
-    const der = Buffer.concat([
-      Buffer.from([0x30]),
-      Buffer.from([inner.length]),
-      inner,
-    ]);
-
-    const result = verifyTimestamp(der.toString('base64'), hashHex);
-    expect(result.valid).toBe(false);
-    expect(result.detail).toContain('mismatch');
-  });
-});
+// The TS-side `verifyTimestamp` was removed: it byte-scanned the DER
+// blob for the expected hash, which is trivially forgeable. Real RFC
+// 3161 verification lives in the Go verifier
+// (apps/verify/timestamp/rfc3161.go) and is exercised via
+// rfc3161_test.go.
 
 describe('DEFAULT_TSA_ENDPOINTS', () => {
   it('has exactly 2 endpoints (FreeTSA + DigiCert)', () => {

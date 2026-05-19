@@ -32,12 +32,14 @@ export {
   formatFingerprintSshStyle,
 } from './key-fingerprint.js';
 
-// RFC 3161 timestamping
+// RFC 3161 timestamping. Real cryptographic verification (TSA
+// signature, cert chain, hash algorithm enforcement) lives in the
+// Go verifier under apps/verify/timestamp/. The TS side only
+// produces tokens; consumers must use depose-verify to validate.
 export {
   requestTimestamps,
   buildTimeStampReq,
   extractTimestampFromTsr,
-  verifyTimestamp,
   DEFAULT_TSA_ENDPOINTS,
   type TsaEndpoint,
   type Rfc3161Token,
