@@ -8,6 +8,7 @@ depose-output/
 # Go binaries
 depose-shim
 depose-verify-*
+apps/verify/build/
 
 # OS
 .DS_Store

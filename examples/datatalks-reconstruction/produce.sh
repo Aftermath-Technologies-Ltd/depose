@@ -6,15 +6,17 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SESSION_JSONL="$SCRIPT_DIR/session.synthetic.jsonl"
 OUTPUT_DIR="$SCRIPT_DIR/depose-output"
+DEPOSE="$REPO_ROOT/packages/cli/bin/depose"
 
 echo "Depose: producing signed bundle from DataTalks synthetic session..."
 echo "  Input:  $SESSION_JSONL"
 echo "  Output: $OUTPUT_DIR"
 echo ""
 
-npx depose package \
+"$DEPOSE" package \
   --from-claude "$SESSION_JSONL" \
   --output "$OUTPUT_DIR" \
   --skip-timestamp
