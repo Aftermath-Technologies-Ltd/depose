@@ -34,9 +34,9 @@
 
 ## What it is
 
-DEPOSE turns a Claude Code or Codex CLI session into a self-contained,
-hash-chained, cryptographically signed evidence bundle — verifiable off-host
-by anyone with a single Go binary and no other DEPOSE infrastructure.
+DEPOSE turns a Claude Code session into a self-contained, hash-chained,
+cryptographically signed evidence bundle — verifiable off-host by
+anyone with a single Go binary and no other DEPOSE infrastructure.
 
 It is the record you wish you had the moment *after* something went wrong:
 a wiped production database, a deleted directory, a destroyed cloud account.

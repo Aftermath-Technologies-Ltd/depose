@@ -270,11 +270,12 @@ export async function writeBundle(
   const sortedEvents = eventsJsonlSorted;
   writeFileSync(join(bundleDir, EVENTS_PATH), eventsJsonlBytes);
 
-  // Write raw/ directory (populated by capture layer in Phase 3)
+  // Write raw/ directory. Only sub-trees for capture sources that
+  // are actually implemented; a Codex normalizer was previously
+  // promised but never shipped, so we stop emitting an empty
+  // raw/codex/ directory that misleads recipients about coverage.
   const rawClaudeDir = join(bundleDir, RAW_DIR, 'claude-code');
   mkdirSync(rawClaudeDir, { recursive: true });
-  const rawCodexDir = join(bundleDir, RAW_DIR, 'codex');
-  mkdirSync(rawCodexDir, { recursive: true });
   const rawShellDir = join(bundleDir, RAW_DIR, 'shell-history');
   mkdirSync(rawShellDir, { recursive: true });
   const rawReflogFile = join(bundleDir, RAW_DIR, 'git-reflog.txt');
