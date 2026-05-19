@@ -40,6 +40,14 @@ export interface TimestampOptions {
   tsaEndpoints?: TsaEndpoint[];
   /** Request timeout in milliseconds (default: 15000) */
   timeoutMs?: number;
+  /**
+   * Request timestamps from every configured endpoint instead of
+   * short-circuiting on the first success. Off by default — the
+   * verifier needs one valid token, and querying every TSA on every
+   * produce doubles network exposure and TSA load. Useful only for
+   * multi-anchor archival workflows.
+   */
+  requireAll?: boolean;
 }
 
 // ── Default TSA endpoints ────────────────────────────────────────────
@@ -286,14 +294,21 @@ export function extractTimestampFromTsr(tsrDer: Buffer): string | null {
 // ── Main timestamping function ────────────────────────────────────────
 
 /**
- * Request RFC 3161 timestamps from TSA services.
+ * Request an RFC 3161 timestamp from a TSA, with fallback.
  *
- * Tries the primary TSA first, then falls back to the secondary.
- * Returns at least one token on success. Throws if all TSAs fail.
+ * Iterates the configured endpoints in order, returning the *first*
+ * successful token. The remaining endpoints are only consulted when
+ * the preceding one fails (network error, non-2xx, timeout, bad
+ * response). A bundle with one trusted timestamp is the contract —
+ * polling every TSA on every produce is wasteful and gives an
+ * eavesdropper at the second TSA a free hint that this producer is
+ * timestamping right now. Set `requireAll: true` to request from
+ * every endpoint regardless (useful for multi-anchor archival).
  *
- * @param dataToTimestamp - The data to timestamp (usually canonical JSON of manifest)
- * @param options - Timestamp options
- * @returns Array of RFC 3161 tokens
+ * @param dataToTimestamp - canonical JSON of manifest (or any bytes)
+ * @param options - TSA endpoints / per-request timeout / multi-anchor
+ * @returns Array of RFC 3161 tokens — length 1 by default, up to
+ *          `endpoints.length` when `requireAll: true`
  */
 export async function requestTimestamps(
   dataToTimestamp: string,
@@ -301,6 +316,7 @@ export async function requestTimestamps(
 ): Promise<Rfc3161Token[]> {
   const endpoints = options?.tsaEndpoints ?? DEFAULT_TSA_ENDPOINTS;
   const timeoutMs = options?.timeoutMs ?? 15000;
+  const requireAll = options?.requireAll === true;
   const tokens: Rfc3161Token[] = [];
   const errors: string[] = [];
 
@@ -310,7 +326,6 @@ export async function requestTimestamps(
   // Build the RFC 3161 request
   const queryDer = buildTimeStampReq(hashHex);
 
-  // Try each endpoint
   for (const endpoint of endpoints) {
     try {
       const tsrDer = await sendTsaRequest(endpoint, queryDer, timeoutMs);
@@ -321,6 +336,11 @@ export async function requestTimestamps(
         timestamp: timestamp ?? new Date().toISOString(),
         tokenBase64: tsrDer.toString('base64'),
       });
+
+      // Stop after first success unless multi-anchor was requested.
+      if (!requireAll) {
+        break;
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       errors.push(`${endpoint.name}: ${msg}`);
