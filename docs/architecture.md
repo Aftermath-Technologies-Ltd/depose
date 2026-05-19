@@ -51,10 +51,10 @@ does one thing. Data flows downward; no layer reaches up.
 ```
 ┌───────────────────────────────────────────────────────────────┐
 │  CAPTURE                                                       │
-│   • Passive: Claude Code JSONL, Codex sessions, shell history,│
-│     git reflog, fs mtime snapshots                             │
+│   • Passive: Claude Code JSONL, shell history, git reflog,    │
+│     fs mtime snapshots                                         │
 │   • Active: PreToolUse hook (Claude Code) + PATH shim          │
-│     (Codex / generic destructive binaries)                     │
+│     (generic destructive binaries)                             │
 └────────────────┬──────────────────────────────────────────────┘
                  │
 ┌────────────────▼──────────────────────────────────────────────┐
@@ -95,8 +95,8 @@ does one thing. Data flows downward; no layer reaches up.
 Capture is the sensory layer — it records what happened. It has two modes:
 
 - **Passive**: Reads existing artifacts that the agent runtime already produces
-  (Claude Code JSONL transcripts, Codex session data, shell history files, git
-  reflog, filesystem mtime snapshots). No code injection; no runtime coupling.
+  (Claude Code JSONL transcripts, shell history files, git reflog, filesystem
+  mtime snapshots). No code injection; no runtime coupling.
 - **Active**: Injects observation points into the agent's execution path to
   capture data that passive sources miss. Two mechanisms:
   - **Claude Code PreToolUse hook**: A command-line hook registered in
@@ -118,7 +118,6 @@ Raw captures are vendor-specific and heterogeneous. Normalization converts them
 into a single, unified `Event` schema with a stable type system:
 
 - `claude-code.ts` — parses Claude Code JSONL into Event records.
-- `codex.ts` — parses Codex session data into Event records.
 - `shell-history.ts` — parses bash/zsh/fish history into Event records.
 - `git-reflog.ts` — parses reflog entries into Event records.
 - `merge.ts` — merges all sources into a single timeline, sorted by ULID, and
