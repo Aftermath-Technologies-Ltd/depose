@@ -173,6 +173,17 @@ export async function writeBundle(
     rootHash = chainResult.rootHash;
   }
 
+  // ── Step 1b: Pre-serialize events.jsonl bytes and hash them ──────
+  // We compute the exact UTF-8 byte sequence that will be written to
+  // events.jsonl (sorted by id, one JSON object per line, trailing
+  // newline) and embed its SHA-256 into the signed manifest. The
+  // verifier re-reads events.jsonl and compares — pinning the file's
+  // byte form directly, on top of the per-event chain.
+  const eventsJsonlSorted = [...chainedEvents].sort((a, b) => a.id.localeCompare(b.id));
+  const eventsJsonlContent = eventsJsonlSorted.map((e) => JSON.stringify(e)).join('\n') + '\n';
+  const eventsJsonlBytes = Buffer.from(eventsJsonlContent, 'utf-8');
+  const eventsJsonlSha256 = sha256Bytes(eventsJsonlBytes);
+
   // ── Step 2: Build manifest ────────────────────────────────────────
   // In signed mode, embed the signer's key fingerprint so the
   // recipient can pin against an out-of-band-published identity
@@ -191,6 +202,7 @@ export async function writeBundle(
     sessionEndedAt,
     rulesetHash,
     rootHash,
+    eventsJsonlSha256,
     keyFingerprint,
   });
 
@@ -250,10 +262,13 @@ export async function writeBundle(
   const finalManifestJson = serializeManifest(manifest);
   writeFileSync(join(bundleDir, MANIFEST_PATH), finalManifestJson, 'utf-8');
 
-  // Write events.jsonl (one event per line, sorted by id)
-  const sortedEvents = [...chainedEvents].sort((a, b) => a.id.localeCompare(b.id));
-  const eventsJsonl = sortedEvents.map((e) => JSON.stringify(e)).join('\n') + '\n';
-  writeFileSync(join(bundleDir, EVENTS_PATH), eventsJsonl, 'utf-8');
+  // Write events.jsonl — the exact bytes we hashed into
+  // manifest.eventsJsonlSha256 above. Re-serializing here would risk
+  // a divergence between hashed bytes and on-disk bytes if any future
+  // change to JSON.stringify-equivalent code drifted between the two
+  // paths; we use the same Buffer instead.
+  const sortedEvents = eventsJsonlSorted;
+  writeFileSync(join(bundleDir, EVENTS_PATH), eventsJsonlBytes);
 
   // Write raw/ directory (populated by capture layer in Phase 3)
   const rawClaudeDir = join(bundleDir, RAW_DIR, 'claude-code');
