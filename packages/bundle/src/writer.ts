@@ -22,7 +22,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Event, DestructiveRule } from '@depose/core';
 import { buildTimeline, sha256Bytes } from '@depose/core';
-import { buildManifest, serializeManifest, serializeManifestForSigning, hashManifest, type Manifest, type SignatureBlock, type Rfc3161Token } from './manifest.js';
+import { buildManifest, serializeManifest, serializeManifestForSigning, type BundleMode, type Manifest, type SignatureBlock, type Rfc3161Token } from './manifest.js';
 import { buildHashChain } from '@depose/chain';
 import { signManifest as signManifestEd25519, type Ed25519KeyPair } from '@depose/chain';
 import { requestTimestamps, type Rfc3161Token as ChainRfc3161Token } from '@depose/chain';
@@ -30,7 +30,18 @@ import { renderMarkdown, renderHtml } from '@depose/narrative';
 
 // ── Bundle layout constants (BUILD_PLAN.md §5) ──────────────────────
 
-const BUNDLE_DIR = 'incident';
+const BUNDLE_DIR_SIGNED = 'incident';
+const BUNDLE_DIR_DEV_UNSIGNED = 'incident-unsigned';
+const DEV_UNSIGNED_BANNER = [
+  '═══════════════════════════════════════════════════════════════════',
+  '  THIS IS A DEVELOPMENT BUNDLE — NOT EVIDENCE',
+  '',
+  '  This bundle was produced with mode="dev-unsigned". It carries',
+  '  NO Ed25519 signature and NO RFC 3161 timestamp. It is suitable',
+  '  for pipeline testing only. It is NOT admissible as evidence.',
+  '═══════════════════════════════════════════════════════════════════',
+  '',
+].join('\n');
 const MANIFEST_PATH = 'manifest.json';
 const EVENTS_PATH = 'events.jsonl';
 const RAW_DIR = 'raw';
@@ -64,12 +75,27 @@ export interface BundleWriterOptions {
   rulesetBytes: Buffer;
   /** Output directory (where the .depo directory is written) */
   outputDir: string;
-  /** Ed25519 key pair for signing (required for signed bundles) */
+  /**
+   * Bundle production mode (see BundleMode docstring).
+   *
+   * `signed` — production. Requires keyPair. Builds chain, signs,
+   *   requests RFC 3161 timestamps. The bundle is named
+   *   `incident-<id>` and is the only mode acceptable as evidence.
+   * `dev-unsigned` — pipeline testing. signatures/timestamps are
+   *   empty. The bundle is named `incident-unsigned-<id>` and
+   *   verify.txt + narrative carry a "NOT EVIDENCE" banner. The
+   *   chain is built only if keyPair is provided (this preserves
+   *   roundtrip tests without an active TSA dependency).
+   */
+  mode: BundleMode;
+  /** Ed25519 key pair. Required for `signed`. Optional for
+   *  `dev-unsigned` (used only to build the chain; the signature
+   *  itself is not emitted). */
   keyPair?: Ed25519KeyPair;
-  /** Whether to skip RFC 3161 timestamping (default: false) */
-  skipTimestamp?: boolean;
-  /** Whether to produce an unsigned bundle (Phase 1 compatible) */
-  unsigned?: boolean;
+  /** Test-only hatch: pre-baked RFC 3161 tokens to embed instead of
+   *  calling a real TSA. Used by signed-mode tests that cannot reach
+   *  a live TSA. Never set by CLI commands. */
+  injectedTimestamps?: ChainRfc3161Token[];
 }
 
 // ── Bundle output ────────────────────────────────────────────────────
@@ -88,21 +114,16 @@ export interface BundleOutput {
 // ── Main writer ──────────────────────────────────────────────────────
 
 /**
- * Write a signed .depo bundle (Phase 2: fully signed and timestamped).
+ * Write a .depo bundle in the requested mode (see `BundleMode`).
  *
- * If `unsigned` is true, produces a Phase 1-compatible unsigned bundle
- * (no chain hashes, no signatures, no timestamps).
- *
- * The signed path:
- *   1. Build hash chain over sorted events (IRONROOT construction)
- *   2. Build manifest with rootHash from chain
- *   3. Sign manifest with Ed25519
- *   4. Request RFC 3161 timestamps from TSA
- *   5. Write all bundle files
- *
- * @param events - Events to include in the bundle
- * @param rules - Destructive ruleset
- * @param options - Bundle writer options
+ * Modes:
+ *   - `signed`: builds chain, signs, timestamps. Requires keyPair.
+ *     Fails closed if a TSA cannot be reached (no silent downgrade).
+ *   - `dev-unsigned`: signatures/timestamps stay empty. Chain is
+ *     still built when keyPair is provided. Bundle dir is renamed
+ *     to `incident-unsigned-<id>` and verify.txt + narrative carry
+ *     a "NOT EVIDENCE" banner so a casual recipient cannot mistake
+ *     it for an evidentiary bundle.
  */
 export async function writeBundle(
   events: Event[],
@@ -119,22 +140,32 @@ export async function writeBundle(
     rules: destructiveRules,
     rulesetBytes,
     outputDir,
+    mode,
     keyPair,
-    skipTimestamp,
-    unsigned,
+    injectedTimestamps,
   } = options;
+
+  if (mode === 'signed' && !keyPair) {
+    throw new Error(
+      'mode="signed" requires a keyPair. Use mode="dev-unsigned" for unsigned bundles.'
+    );
+  }
 
   const rulesetHash = sha256Bytes(rulesetBytes);
 
   const warnings: string[] = [];
   const bundleId = sessionId;
+  const isDevUnsigned = mode === 'dev-unsigned';
 
   let rootHash = '';
   let chainedEvents = events;
 
-  // ── Step 1: Build hash chain (Phase 2) ───────────────────────────
-  if (!unsigned) {
-    // Sort events by id (ULID) for deterministic chain
+  // ── Step 1: Build hash chain (only when we have a key) ───────────
+  // The chain is what `signed` mode signs over. In `dev-unsigned`
+  // mode we still build the chain when a key is supplied so the
+  // verifier can exercise chain-replay on dev bundles, but no
+  // signature is emitted.
+  if (keyPair) {
     const sorted = [...events].sort((a, b) => a.id.localeCompare(b.id));
     const chainResult = buildHashChain(sorted);
     chainedEvents = chainResult.chainedEvents;
@@ -146,6 +177,7 @@ export async function writeBundle(
     bundleId,
     producedAt,
     version,
+    mode,
     sessionId,
     agentId,
     sessionStartedAt,
@@ -157,12 +189,10 @@ export async function writeBundle(
   let signatures: SignatureBlock[] = [];
   let timestamps: Rfc3161Token[] = [];
 
-  // ── Step 3: Sign manifest (Phase 2) ────────────────────────────────
-  if (!unsigned && keyPair) {
-    // Sign the manifest in its unsigned form (no signatures, no timestamps)
-    // to avoid the self-referential signature problem
+  // ── Step 3: Sign manifest (signed mode only) ──────────────────────
+  if (mode === 'signed') {
     const manifestForSigning = serializeManifestForSigning(manifest);
-    const sigResult = signManifestEd25519(manifestForSigning, keyPair);
+    const sigResult = signManifestEd25519(manifestForSigning, keyPair!);
 
     signatures.push({
       scheme: 'ed25519',
@@ -170,18 +200,15 @@ export async function writeBundle(
       publicKey: sigResult.publicKeyPem,
       signedFields: 'manifest.json',
     });
-
-    // Update manifest with signature
     manifest.signatures = signatures;
   }
 
-  // ── Step 4: Request RFC 3161 timestamps (Phase 2) ──────────────────
-  if (!unsigned && !skipTimestamp) {
+  // ── Step 4: RFC 3161 timestamps (signed mode only) ────────────────
+  if (mode === 'signed') {
     try {
-      // Timestamp the UNSIGNED manifest (same form used for signing)
-      // so the verifier can reconstruct it by stripping signatures/timestamps.
-      const manifestForTimestamping = serializeManifestForSigning(manifest);
-      const tsTokens = await requestTimestamps(manifestForTimestamping);
+      const tsTokens = injectedTimestamps && injectedTimestamps.length > 0
+        ? injectedTimestamps
+        : await requestTimestamps(serializeManifestForSigning(manifest));
 
       for (const token of tsTokens) {
         timestamps.push({
@@ -190,25 +217,25 @@ export async function writeBundle(
           tokenBase64: token.tokenBase64,
         });
       }
-
-      // Update manifest with timestamps
       manifest.timestamps = timestamps;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Per BUILD_PLAN.md: "Never produce a bundle without a timestamp"
-      // This is a hard error for signed bundles
       throw new Error(
-        `Failed to obtain RFC 3161 timestamp — cannot produce signed bundle.\n${msg}`
+        `Failed to obtain RFC 3161 timestamp — cannot produce signed bundle.\n${msg}\n` +
+        `Use mode="dev-unsigned" if you need an unsigned bundle for pipeline testing.`
       );
     }
   }
 
-  if (unsigned) {
-    warnings.push('Bundle is unsigned (Phase 1 mode). No chain hashes, signatures, or timestamps.');
+  if (isDevUnsigned) {
+    warnings.push('Bundle is dev-unsigned. signatures=[], timestamps=[]. NOT EVIDENCE.');
   }
 
   // ── Step 5: Write the bundle directory ─────────────────────────────
-  const bundleDir = join(outputDir, `${BUNDLE_DIR}-${bundleId}`);
+  const bundleDirName = isDevUnsigned
+    ? `${BUNDLE_DIR_DEV_UNSIGNED}-${bundleId}`
+    : `${BUNDLE_DIR_SIGNED}-${bundleId}`;
+  const bundleDir = join(outputDir, bundleDirName);
   mkdirSync(bundleDir, { recursive: true });
 
   // Write manifest.json (re-serialize with updated signatures/timestamps)
@@ -274,30 +301,38 @@ export async function writeBundle(
   // Build timeline for narrative rendering
   const timeline = buildTimeline(chainedEvents, destructiveRules);
 
-  // Write narrative files (Phase 4: deterministically rendered)
-  const narrativeMd = renderMarkdown(timeline, {
+  // Write narrative files (Phase 4: deterministically rendered).
+  // In dev-unsigned mode the banner is prepended so a reader cannot
+  // mistake the narrative for an evidentiary record.
+  const narrativeOptions = {
     bundleId,
     producedAt,
     agentId,
     sessionId,
     sessionStartedAt,
     sessionEndedAt,
-  });
-  writeFileSync(join(bundleDir, NARRATIVE_MD), narrativeMd, 'utf-8');
+  };
+  const narrativeMd = renderMarkdown(timeline, narrativeOptions);
+  writeFileSync(
+    join(bundleDir, NARRATIVE_MD),
+    isDevUnsigned ? DEV_UNSIGNED_BANNER + narrativeMd : narrativeMd,
+    'utf-8'
+  );
 
-  const narrativeHtml = renderHtml(timeline, {
-    bundleId,
-    producedAt,
-    agentId,
-    sessionId,
-    sessionStartedAt,
-    sessionEndedAt,
-  });
-  writeFileSync(join(bundleDir, NARRATIVE_HTML), narrativeHtml, 'utf-8');
+  const narrativeHtml = renderHtml(timeline, narrativeOptions);
+  writeFileSync(
+    join(bundleDir, NARRATIVE_HTML),
+    isDevUnsigned ? wrapHtmlBanner(narrativeHtml) : narrativeHtml,
+    'utf-8'
+  );
 
   // Write verify.txt (attorney-friendly instructions)
   const verifyTxt = buildVerifyTxt(manifest);
-  writeFileSync(join(bundleDir, VERIFY_TXT), verifyTxt, 'utf-8');
+  writeFileSync(
+    join(bundleDir, VERIFY_TXT),
+    isDevUnsigned ? DEV_UNSIGNED_BANNER + verifyTxt : verifyTxt,
+    'utf-8'
+  );
 
   return {
     depopPath: bundleDir,
@@ -305,6 +340,19 @@ export async function writeBundle(
     events: sortedEvents,
     warnings,
   };
+}
+
+// ── HTML banner wrapper for dev-unsigned narrative ──────────────────
+
+function wrapHtmlBanner(html: string): string {
+  const banner = '<div style="background:#7a1f1f;color:#fff;padding:1em 1.5em;border-bottom:4px solid #ff0;font-family:-apple-system,Segoe UI,sans-serif;font-weight:bold"><strong>THIS IS A DEVELOPMENT BUNDLE — NOT EVIDENCE.</strong> mode="dev-unsigned": no signature, no timestamp.</div>';
+  if (html.includes('<body>')) {
+    return html.replace('<body>', `<body>${banner}`);
+  }
+  if (html.includes('<body ')) {
+    return html.replace(/<body([^>]*)>/, `<body$1>${banner}`);
+  }
+  return banner + html;
 }
 
 // ── Verify text ──────────────────────────────────────────────────────

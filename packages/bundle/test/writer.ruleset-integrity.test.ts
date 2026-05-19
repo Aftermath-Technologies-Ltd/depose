@@ -50,7 +50,7 @@ describe('bundle ruleset integrity', () => {
       rules,
       rulesetBytes,
       outputDir: testOutputDir,
-      unsigned: true,
+      mode: 'dev-unsigned',
     });
 
     const embedded = readFileSync(pathJoin(depopPath, 'rules', 'destructive.yaml'));
@@ -78,7 +78,7 @@ describe('bundle ruleset integrity', () => {
       rules,
       rulesetBytes,
       outputDir: testOutputDir,
-      unsigned: true,
+      mode: 'dev-unsigned',
     });
 
     const original = readFileSync(pathJoin(depopPath, 'rules', 'destructive.yaml'));

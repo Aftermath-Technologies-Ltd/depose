@@ -24,9 +24,12 @@ type CheckResult struct {
 
 // VerifyResult represents the overall verification result.
 type VerifyResult struct {
-	Pass    bool
-	Bundle  string
-	Checks  []CheckResult
+	Pass   bool
+	// Mode is the declared producer.mode from the manifest ("signed"
+	// or "dev-unsigned"). Empty if the manifest could not be parsed.
+	Mode   string
+	Bundle string
+	Checks []CheckResult
 }
 
 // VerifyBundle runs all verification checks on a .depo bundle directory.
@@ -47,18 +50,98 @@ func VerifyBundle(bundlePath string) *VerifyResult {
 		result.Pass = false
 		return result
 	}
+	result.Mode = m.Producer.Mode
 	result.Checks = append(result.Checks, CheckResult{
 		Name:   "manifest-parse",
 		Pass:   true,
-		Detail: fmt.Sprintf("Bundle %s, schema v%d, %d events", m.BundleID, m.SchemaVersion, m.Counts.Events),
+		Detail: fmt.Sprintf("Bundle %s, schema v%d, mode=%s, %d events",
+			m.BundleID, m.SchemaVersion, m.Producer.Mode, m.Counts.Events),
 	})
 
+	// ── Check 1b: producer.mode declared and recognized ──────────────
+	// The mode is the bundle's declared contract. The verifier
+	// enforces the invariants of the declared mode; declaring a mode
+	// the verifier doesn't recognize is itself a failure.
+	switch m.Producer.Mode {
+	case "signed", "dev-unsigned":
+		result.Checks = append(result.Checks, CheckResult{
+			Name:   "mode-declaration",
+			Pass:   true,
+			Detail: fmt.Sprintf("producer.mode=%q recognized", m.Producer.Mode),
+		})
+	case "":
+		result.Checks = append(result.Checks, CheckResult{
+			Name:   "mode-declaration",
+			Pass:   false,
+			Detail: "producer.mode is missing — bundle predates the mode contract or has been stripped",
+		})
+		result.Pass = false
+	default:
+		result.Checks = append(result.Checks, CheckResult{
+			Name:   "mode-declaration",
+			Pass:   false,
+			Detail: fmt.Sprintf("producer.mode=%q is not a recognized mode (expected signed or dev-unsigned)", m.Producer.Mode),
+		})
+		result.Pass = false
+	}
+
+	// ── Check 1c: mode-contract invariants ───────────────────────────
+	// dev-unsigned: signatures and timestamps MUST both be empty.
+	//   Any non-empty value means the producer mis-declared.
+	// signed: signatures and timestamps MUST both be non-empty. The
+	//   detailed sig/ts checks below will run regardless, but this
+	//   gate is what makes the mode contract enforceable.
+	switch m.Producer.Mode {
+	case "dev-unsigned":
+		if len(m.Signatures) > 0 || len(m.Timestamps) > 0 {
+			result.Checks = append(result.Checks, CheckResult{
+				Name: "mode-contract",
+				Pass: false,
+				Detail: fmt.Sprintf(
+					"dev-unsigned requires signatures=[] and timestamps=[]; got %d signature(s) and %d timestamp(s)",
+					len(m.Signatures), len(m.Timestamps)),
+			})
+			result.Pass = false
+		} else {
+			result.Checks = append(result.Checks, CheckResult{
+				Name:   "mode-contract",
+				Pass:   true,
+				Detail: "dev-unsigned: signatures=[], timestamps=[] (as required)",
+			})
+		}
+	case "signed":
+		if len(m.Signatures) == 0 || len(m.Timestamps) == 0 {
+			result.Checks = append(result.Checks, CheckResult{
+				Name: "mode-contract",
+				Pass: false,
+				Detail: fmt.Sprintf(
+					"signed requires at least one signature and at least one timestamp; got %d signature(s) and %d timestamp(s)",
+					len(m.Signatures), len(m.Timestamps)),
+			})
+			result.Pass = false
+		} else {
+			result.Checks = append(result.Checks, CheckResult{
+				Name:   "mode-contract",
+				Pass:   true,
+				Detail: "signed: signatures and timestamps both present",
+			})
+		}
+	}
+
 	// ── Check 2: Signature verification ──────────────────────────────
-	if len(m.Signatures) == 0 {
+	// In dev-unsigned mode we skip the signature check entirely — the
+	// mode-contract gate above already requires signatures=[].
+	if m.Producer.Mode == "dev-unsigned" {
+		result.Checks = append(result.Checks, CheckResult{
+			Name:   "signature-verify",
+			Pass:   true,
+			Detail: "skipped (dev-unsigned)",
+		})
+	} else if len(m.Signatures) == 0 {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "signature-verify",
 			Pass:   false,
-			Detail: "No signatures found — unsigned bundle",
+			Detail: "No signatures found — signed bundle missing signature",
 		})
 		result.Pass = false
 	} else {
@@ -90,11 +173,20 @@ func VerifyBundle(bundlePath string) *VerifyResult {
 	}
 
 	// ── Check 3: Hash chain replay ───────────────────────────────────
-	if m.RootHash == "" {
+	// In dev-unsigned mode rootHash may legitimately be empty (the
+	// reconstruct command produces no chain). Skip chain-replay in
+	// that case instead of failing.
+	if m.RootHash == "" && m.Producer.Mode == "dev-unsigned" {
+		result.Checks = append(result.Checks, CheckResult{
+			Name:   "chain-replay",
+			Pass:   true,
+			Detail: "skipped (dev-unsigned: no chain)",
+		})
+	} else if m.RootHash == "" {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "chain-replay",
 			Pass:   false,
-			Detail: "No root hash — unsigned bundle",
+			Detail: "No root hash — signed bundle missing chain",
 		})
 		result.Pass = false
 	} else {
@@ -140,7 +232,15 @@ func VerifyBundle(bundlePath string) *VerifyResult {
 	}
 
 	// ── Check 4: RFC 3161 timestamps ──────────────────────────────────
-	if len(m.Timestamps) == 0 {
+	// Skipped entirely in dev-unsigned mode; mode-contract enforces
+	// timestamps=[] for that mode.
+	if m.Producer.Mode == "dev-unsigned" {
+		result.Checks = append(result.Checks, CheckResult{
+			Name:   "timestamp-verify",
+			Pass:   true,
+			Detail: "skipped (dev-unsigned)",
+		})
+	} else if len(m.Timestamps) == 0 {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "timestamp-verify",
 			Pass:   false,
@@ -332,13 +432,24 @@ func VerifyBundle(bundlePath string) *VerifyResult {
 }
 
 // Print outputs the verification result in human-readable format.
+//
+// In dev-unsigned mode we deliberately refuse to print the plain
+// "PASS" banner — a dev-unsigned bundle is not evidence even when
+// every check passes. The recipient must see the disclaimer.
 func (r *VerifyResult) Print() {
 	fmt.Println("╔═══════════════════════════════════════════════════════════════╗")
 	fmt.Println("║            DEPOSE Evidence Bundle Verification Report          ║")
 	fmt.Println("╚═══════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 	fmt.Printf("  Bundle: %s\n", r.Bundle)
+	fmt.Printf("  Mode:   %s\n", r.Mode)
 	fmt.Println()
+
+	if r.Mode == "dev-unsigned" {
+		fmt.Println("  ⚠ THIS IS A DEVELOPMENT BUNDLE — NOT EVIDENCE")
+		fmt.Println("    No signature, no timestamp. Suitable for pipeline testing only.")
+		fmt.Println()
+	}
 
 	allPass := true
 	for _, check := range r.Checks {
@@ -355,13 +466,23 @@ func (r *VerifyResult) Print() {
 
 	fmt.Println()
 	if allPass {
-		fmt.Println("  ═══ RESULT: PASS ═══")
-		fmt.Println()
-		fmt.Println("  This bundle is cryptographically intact:")
-		fmt.Println("  - Every event matches its recorded hash chain")
-		fmt.Println("  - The manifest signature is valid")
-		fmt.Println("  - A trusted timestamp authority confirmed this bundle existed")
-		fmt.Println("  - No files have been added, removed, or modified since creation")
+		if r.Mode == "dev-unsigned" {
+			fmt.Println("  ═══ RESULT: PASS (dev-unsigned — not evidence) ═══")
+			fmt.Println()
+			fmt.Println("  All structural checks passed, but this bundle is NOT EVIDENCE:")
+			fmt.Println("  - signatures=[] and timestamps=[] (mode contract)")
+			fmt.Println("  - No trusted timestamp authority attested to its existence")
+			fmt.Println("  - Use mode=signed to produce an evidentiary bundle")
+		} else {
+			fmt.Println("  ═══ RESULT: PASS ═══")
+			fmt.Println()
+			fmt.Println("  This bundle is cryptographically intact:")
+			fmt.Println("  - Every event matches its recorded hash chain")
+			fmt.Println("  - The manifest signature is valid")
+			fmt.Println("  - A trusted timestamp authority confirmed this bundle existed")
+			fmt.Println("  - The embedded ruleset matches its declared hash")
+			fmt.Println("  - No files have been added, removed, or modified since creation")
+		}
 	} else {
 		fmt.Println("  ═══ RESULT: FAIL ═══")
 		fmt.Println()

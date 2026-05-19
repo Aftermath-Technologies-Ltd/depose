@@ -17,6 +17,23 @@ import { buildDestructiveOpsIndex, type DestructiveRule } from '@depose/core';
 
 // ── Manifest types (verbatim from BUILD_PLAN.md §4.3) ────────────────
 
+/**
+ * Bundle production mode.
+ *
+ * - `signed`: production / evidence. Requires a non-empty rootHash,
+ *   at least one Ed25519 signature, and at least one RFC 3161
+ *   timestamp. This is the only mode acceptable as evidence.
+ * - `dev-unsigned`: developer / pipeline-testing. signatures and
+ *   timestamps must be empty. The bundle's directory is named
+ *   `incident-unsigned-<id>` and verify.txt + narrative.md carry a
+ *   "NOT EVIDENCE" banner.
+ *
+ * The verifier consumes this field as a declared contract: it
+ * enforces the invariants for each mode and refuses to print a plain
+ * "PASS" for a `dev-unsigned` bundle.
+ */
+export type BundleMode = 'signed' | 'dev-unsigned';
+
 export interface Manifest {
   schemaVersion: 1;
   bundleId: string;
@@ -24,6 +41,7 @@ export interface Manifest {
   producer: {
     tool: 'depose';
     version: string;
+    mode: BundleMode;
     host: {
       os: string;
       arch: string;
@@ -89,6 +107,7 @@ export function buildManifest(
     bundleId: string;
     producedAt: string;
     version: string;
+    mode: BundleMode;
     sessionId: string;
     agentId: string;
     sessionStartedAt: string;
@@ -108,6 +127,7 @@ export function buildManifest(
     producer: {
       tool: 'depose',
       version: options.version,
+      mode: options.mode,
       host: {
         os: process.platform,
         arch: process.arch,

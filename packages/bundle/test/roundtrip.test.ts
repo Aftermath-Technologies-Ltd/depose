@@ -53,7 +53,7 @@ describe('roundtrip', () => {
       rules,
       rulesetBytes,
       outputDir: testOutputDir,
-      unsigned: true,
+      mode: 'dev-unsigned',
     });
 
     // Read back manifest
@@ -101,7 +101,7 @@ describe('roundtrip', () => {
       rules,
       rulesetBytes,
       outputDir: testOutputDir,
-      unsigned: true,
+      mode: 'dev-unsigned',
     });
 
     const dirs = [
@@ -146,7 +146,7 @@ describe('roundtrip', () => {
       rules,
       rulesetBytes,
       outputDir: testOutputDir,
-      unsigned: true,
+      mode: 'dev-unsigned',
     });
 
     const sigs = JSON.parse(readFileSync(pathJoin(depopPath, 'attestations', 'signatures.json'), 'utf-8'));
