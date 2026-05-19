@@ -15,7 +15,7 @@ import {
 import { writeBundle } from '../src/index.js';
 
 const fixturesDir = pathJoin(__dirname, '../../core/test/fixtures');
-const rulesPath = pathJoin(__dirname, '../../../rules/destructive.default.yaml');
+const rulesPath = pathJoin(__dirname, '../../cli/rules/destructive.default.yaml');
 const testOutputDir = pathJoin(__dirname, 'test-output-roundtrip');
 
 // ── Helper ───────────────────────────────────────────────────────────

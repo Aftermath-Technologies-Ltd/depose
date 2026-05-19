@@ -30,7 +30,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const fixturesDir = join(__dirname, 'fixtures');
-const rulesPath = join(__dirname, '../../../rules/destructive.default.yaml');
+const rulesPath = join(__dirname, '../../cli/rules/destructive.default.yaml');
 
 // ── Helper ───────────────────────────────────────────────────────────
 

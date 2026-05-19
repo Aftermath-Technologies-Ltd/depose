@@ -32,6 +32,7 @@ import {
 } from '@depose/core';
 import { writeBundle } from '@depose/bundle';
 import { loadOrGenerateKeyPair, type Ed25519KeyPair } from '@depose/chain';
+import { DEFAULT_RULES_PATH } from '../rules-default.js';
 
 // ── CLI args interface ─────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   // Resolve paths
   const resolvedJsonl = resolve(jsonlPath);
   const resolvedOutput = outputDir ? resolve(outputDir) : resolve('./depose-output');
-  const resolvedRules = rulesPath ? resolve(rulesPath) : resolve('../rules/destructive.default.yaml');
+  const resolvedRules = rulesPath ? resolve(rulesPath) : DEFAULT_RULES_PATH;
 
   // Validate input
   if (!existsSync(resolvedJsonl)) {

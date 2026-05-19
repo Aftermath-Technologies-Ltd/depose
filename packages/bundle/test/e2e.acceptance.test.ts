@@ -27,7 +27,7 @@ import { writeBundle } from '../src/index.js';
 import { generateEd25519KeyPair, verifyHashChain, verifyManifestSignature } from '@depose/chain';
 
 const fixturesDir = pathJoin(__dirname, '../../core/test/fixtures');
-const rulesPath = pathJoin(__dirname, '../../../rules/destructive.default.yaml');
+const rulesPath = pathJoin(__dirname, '../../cli/rules/destructive.default.yaml');
 const testOutputDir = pathJoin(__dirname, 'test-output-e2e');
 const verifyBinary = process.env.DEPOSE_VERIFY_PATH ||
   pathJoin(__dirname, '../../../apps/verify/build/depose-verify');

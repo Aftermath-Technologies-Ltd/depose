@@ -25,6 +25,7 @@ import {
   type Event,
   type AgentId,
 } from '@depose/core';
+import { DEFAULT_RULES_PATH } from '../rules-default.js';
 
 // ── CLI args interface ─────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ export async function handleExplain(args: ExplainCommandArgs): Promise<void> {
     return;
   }
 
-  const resolvedRules = rulesPath ? resolve(rulesPath) : resolve('../rules/destructive.default.yaml');
+  const resolvedRules = rulesPath ? resolve(rulesPath) : DEFAULT_RULES_PATH;
   const rules = loadDestructiveRules(resolvedRules);
 
   let events: Event[];
