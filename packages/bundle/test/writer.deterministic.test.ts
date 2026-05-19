@@ -17,7 +17,6 @@ import { join as pathJoin } from 'node:path';
 import {
   normalizeClaudeCodeJsonl,
   loadDestructiveRules,
-  sha256String,
 } from '@depose/core';
 import { writeBundle, type Manifest } from '../src/index.js';
 
@@ -50,7 +49,7 @@ describe('writeBundle (unsigned mode)', () => {
       });
       const { events } = normalizeClaudeCodeJsonl(jsonl);
       const rules = loadDestructiveRules(rulesPath);
-      const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+      const rulesetBytes = readFileSync(rulesPath);
       const { depopPath } = await writeBundle(events, rules, {
         sessionId: 'sess-test',
         agentId: 'claude-code',
@@ -59,7 +58,7 @@ describe('writeBundle (unsigned mode)', () => {
         sessionStartedAt: '2025-05-18T15:30:00.000Z',
         sessionEndedAt: '2025-05-18T15:31:00.000Z',
         rules,
-        rulesetHash,
+        rulesetBytes,
         outputDir: testOutputDir,
         unsigned: true,
       });
@@ -95,7 +94,7 @@ describe('writeBundle (unsigned mode)', () => {
       });
       const { events } = normalizeClaudeCodeJsonl(jsonl);
       const rules = loadDestructiveRules(rulesPath);
-      const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+      const rulesetBytes = readFileSync(rulesPath);
       const { manifest } = await writeBundle(events, rules, {
         sessionId: 'sess-test',
         agentId: 'claude-code',
@@ -104,7 +103,7 @@ describe('writeBundle (unsigned mode)', () => {
         sessionStartedAt: '2025-05-18T15:30:00.000Z',
         sessionEndedAt: '2025-05-18T15:31:00.000Z',
         rules,
-        rulesetHash,
+        rulesetBytes,
         outputDir: testOutputDir,
         unsigned: true,
       });
@@ -133,7 +132,7 @@ describe('writeBundle (unsigned mode)', () => {
       });
       const { events } = normalizeClaudeCodeJsonl(jsonl);
       const rules = loadDestructiveRules(rulesPath);
-      const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+      const rulesetBytes = readFileSync(rulesPath);
       const { depopPath } = await writeBundle(events, rules, {
         sessionId: 'sess-test',
         agentId: 'claude-code',
@@ -142,7 +141,7 @@ describe('writeBundle (unsigned mode)', () => {
         sessionStartedAt: '2025-05-18T15:30:00.000Z',
         sessionEndedAt: '2025-05-18T15:31:00.000Z',
         rules,
-        rulesetHash,
+        rulesetBytes,
         outputDir: testOutputDir,
         unsigned: true,
       });
@@ -167,7 +166,7 @@ describe('writeBundle (unsigned mode)', () => {
       });
       const { events } = normalizeClaudeCodeJsonl(jsonl);
       const rules = loadDestructiveRules(rulesPath);
-      const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+      const rulesetBytes = readFileSync(rulesPath);
       const { depopPath } = await writeBundle(events, rules, {
         sessionId: 'sess-test',
         agentId: 'claude-code',
@@ -176,7 +175,7 @@ describe('writeBundle (unsigned mode)', () => {
         sessionStartedAt: '2025-05-18T15:30:00.000Z',
         sessionEndedAt: '2025-05-18T15:31:00.000Z',
         rules,
-        rulesetHash,
+        rulesetBytes,
         outputDir: testOutputDir,
         unsigned: true,
       });
@@ -198,7 +197,7 @@ describe('writeBundle (unsigned mode)', () => {
       });
       const { events } = normalizeClaudeCodeJsonl(jsonl);
       const rules = loadDestructiveRules(rulesPath);
-      const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+      const rulesetBytes = readFileSync(rulesPath);
       const producedAt = '2025-05-18T16:00:00.000Z';
 
       const { depopPath: path1 } = await writeBundle(events, rules, {
@@ -209,7 +208,7 @@ describe('writeBundle (unsigned mode)', () => {
         sessionStartedAt: '2025-05-18T15:30:00.000Z',
         sessionEndedAt: '2025-05-18T15:31:00.000Z',
         rules,
-        rulesetHash,
+        rulesetBytes,
         outputDir: testOutputDir,
         unsigned: true,
       });
@@ -222,7 +221,7 @@ describe('writeBundle (unsigned mode)', () => {
         sessionStartedAt: '2025-05-18T15:30:00.000Z',
         sessionEndedAt: '2025-05-18T15:31:00.000Z',
         rules,
-        rulesetHash,
+        rulesetBytes,
         outputDir: testOutputDir,
         unsigned: true,
       });

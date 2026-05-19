@@ -22,7 +22,7 @@ The bundle must be a self-contained record where every file means what its name 
 
 **Touches.** `packages/cli/src/commands/main.ts:237`, `packages/cli/src/commands/package.ts:79`, `packages/cli/src/commands/explain.ts:83`, new `packages/cli/src/rules-default.ts`.
 
-### A2. Bundle must contain the actual ruleset, not the hash of it
+### A2. Bundle must contain the actual ruleset, not the hash of it [DONE]
 
 **Root cause.** `packages/bundle/src/writer.ts:266` writes `rulesetHash` (a hex string) to a file named `destructive.yaml`. The bundle no longer carries the ruleset; a third-party auditor cannot reconstruct what rules were applied.
 

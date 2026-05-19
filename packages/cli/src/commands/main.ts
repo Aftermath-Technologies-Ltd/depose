@@ -23,7 +23,6 @@ import {
   buildTimeline,
   formatTimelineSummary,
   loadDestructiveRules,
-  sha256String,
   generateUlid,
   ulidFromTime,
   sha256,
@@ -244,11 +243,10 @@ async function handleReconstruct(args: CliArgs): Promise<void> {
     return;
   }
 
-  // Load destructive rules
+  // Load destructive rules (bytes are also retained for the bundle so
+  // the verifier can re-hash them against manifest.rulesetHash).
   const rules = loadDestructiveRules(resolvedRules);
-  const rulesetHash = rules.length > 0
-    ? sha256String(readFileSync(resolvedRules, 'utf-8'))
-    : '';
+  const rulesetBytes = readFileSync(resolvedRules);
 
   // Read and normalize JSONL
   const jsonl = readFileSync(resolvedJsonl, 'utf-8');
@@ -349,7 +347,7 @@ async function handleReconstruct(args: CliArgs): Promise<void> {
     sessionStartedAt: sessionStarted,
     sessionEndedAt: sessionEnded,
     rules,
-    rulesetHash,
+    rulesetBytes,
     outputDir: resolvedOutput,
     unsigned: true,
   });

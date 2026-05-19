@@ -240,7 +240,50 @@ func VerifyBundle(bundlePath string) *VerifyResult {
 		})
 	}
 
-	// ── Check 6: Bundle completeness ─────────────────────────────────
+	// ── Check 6: Ruleset integrity ───────────────────────────────────
+	// The bundle must carry the actual destructive ruleset bytes, and
+	// SHA-256 of that file must match manifest.rulesetHash. This is
+	// what lets a third-party auditor reconstruct *which* rules were
+	// applied when the manifest's counts.destructiveOperations was
+	// computed.
+	rulesetPath := filepath.Join(bundlePath, "rules", "destructive.yaml")
+	rulesetBytes, err := os.ReadFile(rulesetPath)
+	if err != nil {
+		result.Checks = append(result.Checks, CheckResult{
+			Name:   "ruleset-integrity",
+			Pass:   false,
+			Detail: fmt.Sprintf("Cannot read rules/destructive.yaml: %v", err),
+		})
+		result.Pass = false
+	} else if m.RulesetHash == "" {
+		result.Checks = append(result.Checks, CheckResult{
+			Name:   "ruleset-integrity",
+			Pass:   false,
+			Detail: "manifest.rulesetHash is empty — cannot verify embedded ruleset",
+		})
+		result.Pass = false
+	} else {
+		computed := sha256.Sum256(rulesetBytes)
+		computedHex := hex.EncodeToString(computed[:])
+		if computedHex != m.RulesetHash {
+			result.Checks = append(result.Checks, CheckResult{
+				Name:   "ruleset-integrity",
+				Pass:   false,
+				Detail: fmt.Sprintf("rules/destructive.yaml hash mismatch: manifest=%s..., computed=%s...",
+					m.RulesetHash[:16], computedHex[:16]),
+			})
+			result.Pass = false
+		} else {
+			result.Checks = append(result.Checks, CheckResult{
+				Name:   "ruleset-integrity",
+				Pass:   true,
+				Detail: fmt.Sprintf("rules/destructive.yaml (%d bytes) matches manifest.rulesetHash %s...",
+					len(rulesetBytes), computedHex[:16]),
+			})
+		}
+	}
+
+	// ── Check 7: Bundle completeness ─────────────────────────────────
 	requiredPaths := []string{
 		"manifest.json",
 		"events.jsonl",
@@ -269,7 +312,7 @@ func VerifyBundle(bundlePath string) *VerifyResult {
 		})
 	}
 
-	// ── Check 7: Rekor (optional, skipped in air-gapped mode) ───────
+	// ── Check 8: Rekor (optional, skipped in air-gapped mode) ───────
 	if m.Rekor != nil && len(m.Rekor) > 0 {
 		skippedCount := 0
 		for _, entry := range m.Rekor {

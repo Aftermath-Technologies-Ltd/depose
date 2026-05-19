@@ -10,7 +10,6 @@ import { join as pathJoin } from 'node:path';
 import {
   normalizeClaudeCodeJsonl,
   loadDestructiveRules,
-  sha256String,
 } from '@depose/core';
 import { writeBundle } from '../src/index.js';
 
@@ -39,7 +38,7 @@ describe('roundtrip', () => {
     const jsonl = readFileSync(pathJoin(fixturesDir, 'terraform-destroy.jsonl'), 'utf-8');
     const { events: claudeEvents } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const sessionStarted = claudeEvents[0]?.wallTs || new Date().toISOString();
     const sessionEnded = claudeEvents[claudeEvents.length - 1]?.wallTs || new Date().toISOString();
     const producedAt = '2025-05-18T16:00:00.000Z';
@@ -52,7 +51,7 @@ describe('roundtrip', () => {
       sessionStartedAt: sessionStarted,
       sessionEndedAt: sessionEnded,
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       unsigned: true,
     });
@@ -91,7 +90,7 @@ describe('roundtrip', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const { depopPath } = await writeBundle(events, rules, {
       sessionId: 'sess-dir',
       agentId: 'claude-code',
@@ -100,7 +99,7 @@ describe('roundtrip', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       unsigned: true,
     });
@@ -136,7 +135,7 @@ describe('roundtrip', () => {
     });
     const { events } = normalizeClaudeCodeJsonl(jsonl);
     const rules = loadDestructiveRules(rulesPath);
-    const rulesetHash = sha256String(readFileSync(rulesPath, 'utf-8'));
+    const rulesetBytes = readFileSync(rulesPath);
     const { depopPath } = await writeBundle(events, rules, {
       sessionId: 'sess-attest',
       agentId: 'claude-code',
@@ -145,7 +144,7 @@ describe('roundtrip', () => {
       sessionStartedAt: '2025-05-18T15:30:00.000Z',
       sessionEndedAt: '2025-05-18T15:31:00.000Z',
       rules,
-      rulesetHash,
+      rulesetBytes,
       outputDir: testOutputDir,
       unsigned: true,
     });

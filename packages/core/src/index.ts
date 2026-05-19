@@ -42,6 +42,7 @@ export {
   sortKeys,
   sha256,
   sha256String,
+  sha256Bytes,
 } from './events/canonical-json.js';
 
 // Normalizers
