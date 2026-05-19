@@ -443,8 +443,12 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		}
 	}
 
-	// ── Check 5: Artifact integrity (SHA-256 spot checks) ─────────────
-	// Verify that events.jsonl hash is consistent with the chain
+	// ── Check 5: events.jsonl byte-integrity ─────────────────────────
+	// The producer hashes the literal UTF-8 bytes of events.jsonl into
+	// manifest.eventsJsonlSha256 *before* signing. We re-hash on read
+	// and compare — adding, removing, reordering, or any whitespace-
+	// level change to events.jsonl fails verification on top of the
+	// per-event payloadHash + chain checks above.
 	eventsPath := filepath.Join(bundlePath, "events.jsonl")
 	eventsData, err := os.ReadFile(eventsPath)
 	if err != nil {
@@ -456,11 +460,42 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		result.Pass = false
 	} else {
 		eventsHash := sha256.Sum256(eventsData)
-		result.Checks = append(result.Checks, CheckResult{
-			Name:   "artifact-events-jsonl",
-			Pass:   true,
-			Detail: fmt.Sprintf("events.jsonl present, sha256=%s...", hex.EncodeToString(eventsHash[:])[:16]),
-		})
+		computedHex := hex.EncodeToString(eventsHash[:])
+		switch {
+		case m.EventsJsonlSha256 == "" && m.Producer.Mode == "signed":
+			result.Checks = append(result.Checks, CheckResult{
+				Name: "artifact-events-jsonl",
+				Pass: false,
+				Detail: fmt.Sprintf(
+					"signed bundle missing manifest.eventsJsonlSha256 (computed sha256=%s...)",
+					computedHex[:16]),
+			})
+			result.Pass = false
+		case m.EventsJsonlSha256 == "":
+			// dev-unsigned: legacy bundles may have no field; report informationally.
+			result.Checks = append(result.Checks, CheckResult{
+				Name:   "artifact-events-jsonl",
+				Pass:   true,
+				Detail: fmt.Sprintf("events.jsonl sha256=%s... (no manifest pin in dev-unsigned)", computedHex[:16]),
+			})
+		case !strings.EqualFold(computedHex, m.EventsJsonlSha256):
+			result.Checks = append(result.Checks, CheckResult{
+				Name: "artifact-events-jsonl",
+				Pass: false,
+				Detail: fmt.Sprintf(
+					"events.jsonl sha256 mismatch: manifest=%s..., computed=%s...",
+					m.EventsJsonlSha256[:16], computedHex[:16]),
+			})
+			result.Pass = false
+		default:
+			result.Checks = append(result.Checks, CheckResult{
+				Name: "artifact-events-jsonl",
+				Pass: true,
+				Detail: fmt.Sprintf(
+					"events.jsonl (%d bytes) matches manifest.eventsJsonlSha256 %s...",
+					len(eventsData), computedHex[:16]),
+			})
+		}
 	}
 
 	// ── Check 6: Ruleset integrity ───────────────────────────────────

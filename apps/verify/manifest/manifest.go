@@ -23,11 +23,15 @@ type Manifest struct {
 	Producer      ProducerInfo     `json:"producer"`
 	Session       SessionInfo      `json:"session"`
 	RootHash      string           `json:"rootHash"`
-	Signatures    []SignatureBlock `json:"signatures"`
-	Timestamps    []Rfc3161Token   `json:"timestamps"`
-	Rekor         []RekorEntry     `json:"rekor,omitempty"`
-	Counts        Counts           `json:"counts"`
-	RulesetHash   string           `json:"rulesetHash"`
+	// EventsJsonlSha256 is the SHA-256 (lowercase hex) of the literal
+	// UTF-8 bytes of events.jsonl. Optional on older bundles; verifier
+	// requires it in `signed` mode.
+	EventsJsonlSha256 string           `json:"eventsJsonlSha256,omitempty"`
+	Signatures        []SignatureBlock `json:"signatures"`
+	Timestamps        []Rfc3161Token   `json:"timestamps"`
+	Rekor             []RekorEntry     `json:"rekor,omitempty"`
+	Counts            Counts           `json:"counts"`
+	RulesetHash       string           `json:"rulesetHash"`
 }
 
 type ProducerInfo struct {

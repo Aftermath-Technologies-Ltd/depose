@@ -64,6 +64,24 @@ export interface Manifest {
     endedAt: string;
   };
   rootHash: string;
+  /**
+   * SHA-256 (lowercase hex) of the literal UTF-8 bytes of events.jsonl
+   * as embedded in this bundle. The verifier re-reads events.jsonl
+   * and compares — adding events, removing events, re-ordering lines,
+   * or any whitespace-level change inside the file fails verification
+   * even when the chain-replay path would otherwise survive.
+   *
+   * Belt-and-suspenders for the IRONROOT chain: the chain authenticates
+   * per-event content via payloadHash + metadata, but cannot detect
+   * line-level reordering of events that already have a self-consistent
+   * chain (e.g. a parallel chain forged with the producer's key). This
+   * hash pins the exact bytes the verifier must see.
+   *
+   * Empty string is allowed for dev-unsigned bundles produced before
+   * this field existed; the verifier accepts empty in dev-unsigned mode
+   * but requires a non-empty value in signed mode.
+   */
+  eventsJsonlSha256: string;
   signatures: SignatureBlock[];
   timestamps: Rfc3161Token[];
   rekor?: RekorEntry[];
@@ -123,6 +141,7 @@ export function buildManifest(
     sessionEndedAt: string;
     rulesetHash: string;
     rootHash: string;
+    eventsJsonlSha256: string;
     keyFingerprint?: string;
   }
 ): Manifest {
@@ -152,6 +171,7 @@ export function buildManifest(
       endedAt: options.sessionEndedAt,
     },
     rootHash: options.rootHash,
+    eventsJsonlSha256: options.eventsJsonlSha256,
     signatures: [],
     timestamps: [],
     counts: {
