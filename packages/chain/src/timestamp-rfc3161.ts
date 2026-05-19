@@ -338,75 +338,13 @@ export async function requestTimestamps(
   return tokens;
 }
 
-/**
- * Verify an RFC 3161 timestamp token.
- *
- * In a full verification, this would:
- * 1. Parse the TSR's signed data structure
- * 2. Verify the TSA's signature over the TSTInfo
- * 3. Verify the TSA certificate chain
- * 4. Check that the messageImprint matches the expected hash
- *
- * For Phase 2, we do a simplified verification:
- * - Check that the token is valid DER
- * - Check that the embedded hash matches the expected hash
- *
- * Full x509 verification is deferred to the Go verifier binary.
- */
-export function verifyTimestamp(
-  tokenBase64: string,
-  expectedHashHex: string
-): {
-  valid: boolean;
-  detail: string;
-} {
-  try {
-    const tsrDer = Buffer.from(tokenBase64, 'base64');
-
-    // Basic DER structure check: should start with SEQUENCE tag
-    if (tsrDer.length < 2 || tsrDer[0] !== 0x30) {
-      return {
-        valid: false,
-        detail: 'Invalid DER structure: expected SEQUENCE tag',
-      };
-    }
-
-    // Extract the embedded messageImprint hash
-    // Look for the SHA-256 OID followed by the hash
-    const hashHex = expectedHashHex.toLowerCase();
-    const hashBytes = Buffer.from(hashHex, 'hex');
-
-    // Search for the hash in the DER blob
-    let found = false;
-    for (let i = 0; i <= tsrDer.length - hashBytes.length; i++) {
-      let match = true;
-      for (let j = 0; j < hashBytes.length; j++) {
-        if (tsrDer[i + j] !== hashBytes[j]) {
-          match = false;
-          break;
-        }
-      }
-      if (match) {
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      return {
-        valid: false,
-        detail: `MessageImprint hash mismatch: expected ${hashHex}`,
-      };
-    }
-
-    return {
-      valid: true,
-      detail: 'RFC 3161 token structure valid, messageImprint matches',
-    };
-  } catch (err) {
-    return {
-      valid: false,
-      detail: `Failed to parse TSR: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-}
+// NOTE: A TS-side `verifyTimestamp` lived here previously and did a
+// byte-substring scan over the DER blob looking for the expected
+// hash. That is forgeable trivially (append the hash to any DER),
+// and it had no production callers — the Go verifier
+// (apps/verify/timestamp/rfc3161.go) performs the real RFC 3161
+// check: ASN.1 parse, hashAlgorithm == SHA-256 enforcement,
+// TSTInfo.HashedMessage compare, PKCS7 signature + cert chain
+// validation against an embedded FreeTSA root + system pool. We
+// removed the TS-side function rather than leaving a misleading
+// helper exported.
