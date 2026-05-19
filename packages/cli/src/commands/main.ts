@@ -32,7 +32,6 @@ import {
   type AgentId,
 } from '@depose/core';
 import { writeBundle } from '@depose/bundle';
-import { loadOrGenerateKeyPair, type Ed25519KeyPair } from '@depose/chain';
 import { handlePackage, type PackageCommandArgs } from './package.js';
 import { handleExplain, type ExplainCommandArgs } from './explain.js';
 import { DEFAULT_RULES_PATH } from '../rules-default.js';
@@ -43,7 +42,6 @@ import {
   uninstallClaudeHook,
   uninstallShellShims,
   SHIM_ALLOWLIST,
-  DEFAULT_DEPOSE_BIN_DIR,
   DEFAULT_CAPTURE_DIR,
 } from './install.js';
 

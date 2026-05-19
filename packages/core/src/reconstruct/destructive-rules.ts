@@ -20,7 +20,6 @@ import { parse as parseYaml } from './yaml-parser.js';
 import type {
   Event,
   ShellCommandPrePayload,
-  ProcessNode,
 } from '../events/schema.js';
 
 // ── Ruleset types ────────────────────────────────────────────────────

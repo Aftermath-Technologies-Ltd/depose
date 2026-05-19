@@ -17,7 +17,6 @@ import {
   formatTimelineSummary,
   loadDestructiveRules,
   type Event,
-  type DestructiveRule,
 } from '../src/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -27,7 +26,7 @@ const rulesPath = join(__dirname, '../../cli/rules/destructive.default.yaml');
 
 // ── Helper ───────────────────────────────────────────────────────────
 
-function countType(events: Event[], type: string): number {
+function _countType(events: Event[], type: string): number {
   return events.filter((e) => e.type === type).length;
 }
 
@@ -50,7 +49,7 @@ describe('buildTimeline', () => {
       const jsonl = readFileSync(join(fixturesDir, 'terraform-destroy.jsonl'), 'utf-8');
       const { events: claudeEvents } = normalizeClaudeCodeJsonl(jsonl);
       const rules = loadDestructiveRules(rulesPath);
-      const timeline = buildTimeline(claudeEvents, rules);
+      const _timeline = buildTimeline(claudeEvents, rules);
       // The terraform destroy and terraform apply -auto-approve should be
       // flagged as destructive (though they appear as tool_result, not
       // shell_command_pre — so destructive ops index may be 0 for this

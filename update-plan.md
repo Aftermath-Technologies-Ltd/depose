@@ -224,7 +224,7 @@ These are debt items. None of them adds features. All of them make the codebase 
 
 **Verify.** Existing tests for both commands pass without modification (they exercise the same pipeline).
 
-### D5. Consolidate ESLint config; fail on warnings
+### D5. Consolidate ESLint config; fail on warnings [DONE]
 
 **Root cause.** `.eslintrc.cjs` and `eslint.config.mjs` coexist; v9 uses the flat config and silently drops the legacy. The flat config is weaker (no `eslint:recommended`, severity warn). Result: 55 warnings, 0 errors, including stale imports everywhere.
 

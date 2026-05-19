@@ -14,7 +14,7 @@ import type {
   ShellCommandPrePayload,
   AgentId,
 } from '../events/schema.js';
-import { generateUlid, ulidFromTime } from '../events/ids.js';
+import { generateUlid } from '../events/ids.js';
 import { sha256 } from '../events/canonical-json.js';
 
 // ── Capture record normalizer ────────────────────────────────────────

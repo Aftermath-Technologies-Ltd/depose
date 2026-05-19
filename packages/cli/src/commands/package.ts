@@ -30,7 +30,7 @@ import {
   type AgentId,
 } from '@depose/core';
 import { writeBundle } from '@depose/bundle';
-import { loadOrGenerateKeyPair, type Ed25519KeyPair } from '@depose/chain';
+import { loadOrGenerateKeyPair } from '@depose/chain';
 import { DEFAULT_RULES_PATH } from '../rules-default.js';
 
 // ── CLI args interface ─────────────────────────────────────────────

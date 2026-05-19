@@ -20,11 +20,9 @@ import {
   buildDestructiveOpsIndex,
   sha256,
   ulidFromTime,
-  type DestructiveRule,
   type Event,
   type ShellCommandPrePayload,
 } from '../src/index.js';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const rulesPath = join(__dirname, '../../cli/rules/destructive.default.yaml');

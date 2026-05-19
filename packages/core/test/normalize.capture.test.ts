@@ -113,7 +113,7 @@ describe('Phase 3 acceptance: normalizeCaptureRecords', () => {
     };
 
     // Merge: capture events + tool result
-    const { events: merged, gapCount, linkedCount } = mergeEvents(
+    const { events: merged, gapCount: _gapCount, linkedCount } = mergeEvents(
       { captureEvents: captureResult.events, claudeCodeEvents: [toolResultEvent] },
       { sessionId: 'acceptance-test-1' }
     );

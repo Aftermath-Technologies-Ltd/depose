@@ -15,6 +15,8 @@
 // The hook is observation-only; never deny or modify.
 // Denial is governance; DEPOSE is forensics.
 
+import { hostname } from 'node:os';
+import { execSync } from 'node:child_process';
 import { generateUlid } from '@depose/core';
 import type { ShellCommandPrePayload, ProcessNode } from '@depose/core';
 import { filterEnv, parseExtraAllowlist } from './env-allowlist.js';
@@ -80,7 +82,7 @@ export async function handlePreToolUse(
     envSubset,
     ttyId: resolveTty(),
     user: process.env.USER || process.env.LOGNAME || '',
-    hostname: process.env.HOSTNAME || require('node:os').hostname(),
+    hostname: process.env.HOSTNAME || hostname(),
     parentProcessTree,
     fileArgs: fileArgs.map((fa) => ({
       path: fa.path,
@@ -167,7 +169,6 @@ function walkProcessTree(): ProcessNode[] {
  */
 function getProcessNode(pid: number): ProcessNode | null {
   try {
-    const { execSync } = require('node:child_process');
     const output = execSync(
       `ps -o ppid=,comm= -p ${pid} 2>/dev/null`,
       { encoding: 'utf-8', timeout: 2000 }
@@ -188,7 +189,6 @@ function getProcessNode(pid: number): ProcessNode | null {
  */
 function resolveTty(): string | null {
   try {
-    const { execSync } = require('node:child_process');
     const tty = execSync('tty 2>/dev/null', { encoding: 'utf-8' }).trim();
     return tty || null;
   } catch {

@@ -54,7 +54,7 @@ function makeToolCallIntent(id: string): Event {
   return { ...BASE, id, type: 'tool_call_intent' as const, payload, monoNs: 3 };
 }
 
-function makeToolResult(id: string): Event {
+function _makeToolResult(id: string): Event {
   const payload: ToolResultPayload = { toolName: 'Bash', output: 'file1\nfile2', exitCode: 0, linkedShellCommandPreId: null };
   return { ...BASE, id, type: 'tool_result' as const, payload, monoNs: 4 };
 }

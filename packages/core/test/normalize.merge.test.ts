@@ -21,8 +21,6 @@ import {
   loadDestructiveRules,
   matchDestructiveRules,
   type Event,
-  type GapPayload,
-  sha256String,
   sha256,
   ulidFromTime,
 } from '../src/index.js';
@@ -138,7 +136,7 @@ describe('mergeEvents', () => {
           payloadHash: sha256({ argv: cmd.argv }),
         });
       }
-      const { events: merged, gapCount } = mergeEvents(
+      const { events: merged, gapCount: _gapCount } = mergeEvents(
         { shellHistoryEvents: shellEvents },
         { sessionId: 'sess-1' }
       );
@@ -187,7 +185,7 @@ describe('mergeEvents', () => {
       };
       const { events: merged } = mergeEvents(
         {
-          claudeCodeEvents: [laterEvents[0], earlier as any],
+          claudeCodeEvents: [laterEvents[0], earlier as Event],
         },
         { sessionId: 'sess-1' }
       );

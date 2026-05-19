@@ -5,7 +5,7 @@
 // See BUILD_PLAN.md §6 (Phase 3) for acceptance criteria.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -16,8 +16,6 @@ import {
   type Event,
   type ShellCommandPrePayload,
 } from '@depose/core';
-import { writeBundle } from '../src/index.js';
-
 // ── Test fixtures ────────────────────────────────────────────────────
 
 let testDir: string;

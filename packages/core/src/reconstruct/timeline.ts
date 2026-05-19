@@ -16,10 +16,7 @@ import type {
   ShellCommandPrePayload,
   ToolCallIntentPayload,
   ToolResultPayload,
-  FileDiffPayload,
   GapPayload,
-  ProcessSpawnPayload,
-  ErrorPayload,
 } from '../events/schema.js';
 import { buildDestructiveOpsIndex, type DestructiveRule } from './destructive-rules.js';
 
@@ -208,7 +205,7 @@ function buildTree(
 // ── Inline rule matching (avoid circular dependency) ─────────────────
 
 function matchesRule(rule: DestructiveRule, payload: ShellCommandPrePayload): boolean {
-  const { argv, fileArgs } = payload;
+  const { argv } = payload;
   const { argvHead, argvContainsAny, anyArgvRegex } = rule.matcher;
 
   // argvHead (prefix match)

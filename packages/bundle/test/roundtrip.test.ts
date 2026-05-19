@@ -43,7 +43,7 @@ describe('roundtrip', () => {
     const sessionEnded = claudeEvents[claudeEvents.length - 1]?.wallTs || new Date().toISOString();
     const producedAt = '2025-05-18T16:00:00.000Z';
 
-    const { depopPath, manifest, events: writtenEvents } = await writeBundle(claudeEvents, rules, {
+    const { depopPath, manifest: _manifest, events: writtenEvents } = await writeBundle(claudeEvents, rules, {
       sessionId: 'sess-roundtrip',
       agentId: 'claude-code',
       version: '0.1.0',
