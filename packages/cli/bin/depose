@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+// packages/cli/bin/depose — CLI entrypoint
+//
+// Invoked by pnpm via packages/cli/package.json "bin" field.
+// Delegates to the compiled main() function.
+
+import { main } from '../dist/commands/main.js';
+
+main(process.argv.slice(2));
