@@ -72,7 +72,7 @@ The bundle must be a self-contained record where every file means what its name 
 
 ## Workstream B — cryptographic verification is real
 
-### B1. RFC 3161: parse the token, verify the chain, verify the signature
+### B1. RFC 3161: parse the token, verify the chain, verify the signature [DONE]
 
 **Root cause.** `apps/verify/timestamp/rfc3161.go:97-110` "verifies" a TSA token by **byte-substring scan over the DER blob** for the expected hash. No ASN.1 parsing, no certificate chain validation, no signature verification on `TSTInfo`. A forger can append the expected hash to any DER and pass. This is the most embarrassing defect in the codebase.
 
