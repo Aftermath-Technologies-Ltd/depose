@@ -1,17 +1,15 @@
 // packages/core/src/events/canonical-json.ts
 //
-// Deterministic JSON canonicalization (RFC 8785 JCS-like).
-// Used for computing payloadHash and chainHash — every identical
-// payload must produce identical byte output so SHA-256 is stable.
+// RFC 8785 JSON Canonicalization Scheme (JCS). See
+// docs/canonical-json.md for the spec we follow. Conformance vectors
+// in tests/conformance/canonical-json-vectors.json run against both
+// this implementation and apps/verify/canonical/jcs.go — any
+// divergence breaks cross-language signature verification.
 //
-// Rules:
-//   1. Sort object keys lexicographically (deep, recursive).
-//   2. No whitespace (minified).
-//   3. UTF-8 encoded.
-//   4. Numbers serialized as-is (JSON.stringify behavior).
-//   5. null, true, false as lowercase.
-//   6. Arrays preserved (order matters).
-//   7. Strings escaped per JSON spec (including unicode).
+// Node's JSON.stringify already produces the right number form, the
+// JSON minimum escape set, and literal UTF-8 for non-ASCII printable
+// characters. The only preprocessing we need is recursive object
+// key sort (sortKeys).
 
 import { createHash } from 'node:crypto';
 
