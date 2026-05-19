@@ -277,9 +277,15 @@ describe('buildTimeline', () => {
     expect(timeline.gaps.length).toBe(0);
     expect(timeline.fileChanges.length).toBe(1);
     expect(timeline.errors.length).toBe(0);
-    // No shell_command_pre events in this fixture (tool_call_intent ≠ shell_command_pre),
-    // so destructiveOps is 0 for claude-code-only normalization
-    expect(timeline.destructiveOps.length).toBe(0);
+    // The fixture's tool_call_intent contains `terraform destroy
+    // -auto-approve`. After the tool_call_intent fix, the destructive
+    // matcher fires on that intent (rules: terraform-destroy +
+    // terraform-apply-auto-approve), so we expect ≥1 destructive op.
+    expect(timeline.destructiveOps.length).toBeGreaterThan(0);
+    const ruleIds = timeline.destructiveOps.flatMap((op) =>
+      op.matches.map((m) => m.ruleId)
+    );
+    expect(ruleIds).toContain('terraform-destroy');
   });
 
   it('builds a correct timeline from session-with-gaps.jsonl', () => {

@@ -18,7 +18,11 @@ import type {
   ToolResultPayload,
   GapPayload,
 } from '../events/schema.js';
-import { buildDestructiveOpsIndex, type DestructiveRule } from './destructive-rules.js';
+import {
+  buildDestructiveOpsIndex,
+  matchDestructiveRules,
+  type DestructiveRule,
+} from './destructive-rules.js';
 
 // ── Timeline types ───────────────────────────────────────────────────
 
@@ -171,23 +175,16 @@ function buildTree(
     throw new Error(`Event not found: ${eventId}`);
   }
 
-  // Destructive matches
+  // Destructive matches — delegate to the shared matcher so
+  // tool_call_intent (reconstruction from JSONL alone) is covered
+  // identically to shell_command_pre (active capture).
   const destructiveMatches: Array<{
     ruleId: string;
     severity: 'critical' | 'high' | 'medium' | 'low';
-  }> = [];
-  if (event.type === 'shell_command_pre') {
-    const matches = rules
-      .filter((r) => {
-        const payload = event.payload as ShellCommandPrePayload;
-        return matchesRule(r, payload);
-      })
-      .map((r) => ({
-        ruleId: r.id,
-        severity: r.severity,
-      }));
-    destructiveMatches.push(...matches);
-  }
+  }> = matchDestructiveRules(event, rules).map((m) => ({
+    ruleId: m.ruleId,
+    severity: m.severity,
+  }));
 
   // Children
   const childIds = childrenMap.get(eventId) || [];
@@ -202,43 +199,26 @@ function buildTree(
   };
 }
 
-// ── Inline rule matching (avoid circular dependency) ─────────────────
-
-function matchesRule(rule: DestructiveRule, payload: ShellCommandPrePayload): boolean {
-  const { argv } = payload;
-  const { argvHead, argvContainsAny, anyArgvRegex } = rule.matcher;
-
-  // argvHead (prefix match)
-  if (argvHead && argvHead.length > 0) {
-    const head = argv.slice(0, argvHead.length);
-    if (argvHead.every((term, i) => head[i]?.toLowerCase() === term.toLowerCase())) {
-      return true;
-    }
-  }
-
-  // argvContainsAny
-  if (argvContainsAny && argvContainsAny.length > 0) {
-    if (argv.some((arg) => argvContainsAny.some((term) => arg.includes(term)))) {
-      return true;
-    }
-  }
-
-  // anyArgvRegex
-  if (anyArgvRegex) {
-    try {
-      const regex = new RegExp(anyArgvRegex);
-      if (argv.some((arg) => regex.test(arg))) {
-        return true;
-      }
-    } catch {
-      // Invalid regex
-    }
-  }
-
-  return false;
-}
-
 // ── Timeline formatting (for narrative output) ───────────────────────
+
+/**
+ * Render the command line for a destructive-ops summary entry. We
+ * accept either shell_command_pre (argv pre-tokenized) or
+ * tool_call_intent (free-form `toolInput.command` string) and return
+ * the best human-readable form.
+ */
+function commandTextFor(event: Event): string {
+  if (event.type === 'shell_command_pre') {
+    return (event.payload as ShellCommandPrePayload).argv.join(' ');
+  }
+  if (event.type === 'tool_call_intent') {
+    const p = event.payload as ToolCallIntentPayload;
+    const input = p?.toolInput as { command?: unknown } | null | undefined;
+    if (input && typeof input.command === 'string') return input.command;
+    return `[${p?.toolName ?? 'tool'}]`;
+  }
+  return `[${event.type}]`;
+}
 
 /**
  * Format a timeline as a plain-text summary (for debugging and narrative).
@@ -271,9 +251,8 @@ export function formatTimelineSummary(timeline: ReconstructionTimeline): string 
   if (timeline.destructiveOps.length > 0) {
     lines.push('Destructive operations:');
     for (const { event, matches } of timeline.destructiveOps) {
-      const payload = event.payload as ShellCommandPrePayload;
       const severity = matches.map((m) => m.severity).join(', ');
-      const cmd = payload.argv.join(' ');
+      const cmd = commandTextFor(event);
       lines.push(`  [${severity}] ${event.wallTs}: ${cmd}`);
       for (const match of matches) {
         lines.push(`    → Rule: ${match.ruleId}`);
