@@ -182,23 +182,40 @@ that contain sensitive but non-evidentiary content.
 
 **What they can do:**
 
-- Sign arbitrary bundles claiming to be from the producer.
+- Sign arbitrary bundles claiming to be from the producer's key.
 - Create bundles with fabricated events that verify successfully
   against the compromised key.
 
 **What they cannot do:**
 
-- Backdate signatures to before the key was compromised (RFC 3161
-  timestamps from independent TSAs would not match).
+- Backdate signatures to before the key was compromised. The
+  verifier's `timestamp-backdating` check fails any bundle whose
+  `producedAt` is more than one second after every embedded RFC
+  3161 timestamp (the one-second tolerance covers TSA whole-second
+  truncation; see `apps/verify/timestamp/rfc3161.go`).
 - Produce a valid RFC 3161 timestamp for a fabricated root hash
-  without access to a TSA's signing key.
+  without access to a TSA's signing key. The verifier's
+  `timestamp-verify` check ASN.1-parses the TimeStampToken,
+  validates the embedded TSA cert chain against an embedded trust
+  pool (FreeTSA + system roots), and verifies the PKCS7 signature
+  over `TSTInfo`. The previous byte-substring scan that B1 closed
+  could be forged trivially; the current check cannot.
+- Pass the recipient's key-fingerprint pin if the recipient is
+  running `depose-verify --expected-key-fingerprint <hex>` against
+  the producer's out-of-band-published fingerprint. The
+  `key-fingerprint-pin` check rejects any mismatch.
 
-**Mitigation:** Key compromise is detected by comparing RFC 3161
-timestamps. If a bundle is signed with timestamps that post-date
-a known key compromise, the bundle is suspect. Sigstore/Fulcio
-keyless signing mitigates this by binding signatures to ephemeral
-certificates with short lifetimes. Organizations with high-sensitivity
-needs should prefer sigstore over long-lived Ed25519 keys.
+**Mitigation:**
+
+- **Air-gapped (today).** The producer publishes their key
+  fingerprint out-of-band; recipients pin it with
+  `--expected-key-fingerprint`. See `docs/key-management.md`.
+- **Sigstore keyless (preferred when available).** A producer
+  running under OIDC (CI, federated identity) signs with an
+  ephemeral key bound to a short-lived Fulcio cert. There is no
+  long-lived key to compromise. The producer-side path is
+  scaffolded in `packages/chain/src/sign-sigstore.ts`; the
+  verifier already accepts `--signer-identity <regex>`.
 
 ### 3.4 Attacker who can modify the verifier binary
 
@@ -209,13 +226,36 @@ needs should prefer sigstore over long-lived Ed25519 keys.
 
 **What they cannot do (if the recipient has the genuine binary):**
 
-- The genuine binary will correctly detect tampering.
+- The genuine binary will correctly detect tampering. The bundle
+  itself does not change based on which verifier runs against it.
 
-**Mitigation:** The verifier binary is statically linked,
-deterministically built, and its expected checksum is published.
-A recipient can verify the verifier itself against the published
-checksum before running it. The build process is reproducible:
-building from source should produce a bit-identical binary.
+**Mitigation.** Releases of `depose-verify` are produced by the
+tag-driven GitHub Actions workflow `.github/workflows/release.yml`:
+
+- Cross-compiled for darwin/linux × arm64/amd64 with a stripped
+  Go build (`-ldflags "-s -w"`) so the same source produces a
+  bit-identical binary on the same toolchain.
+- `SHA256SUMS` is generated over the binaries.
+- `cosign sign-blob` (keyless, GitHub OIDC → Fulcio → Rekor) emits
+  `SHA256SUMS.sig` and `SHA256SUMS.pem`. There is no long-lived
+  signing key.
+- An SLSA L3 in-toto provenance attestation is also published.
+
+Recipients verify with:
+
+```
+cosign verify-blob \
+  --certificate SHA256SUMS.pem \
+  --signature SHA256SUMS.sig \
+  --certificate-identity-regexp '^https://github.com/Aftermath-Technologies-Ltd/depose/' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  SHA256SUMS
+```
+
+then check their downloaded binary's SHA-256 against `SHA256SUMS`.
+The cosign verification ties the binary to *this* repository's
+release workflow on the matching tag. A binary built by anyone
+else cannot pass.
 
 ### 3.5 Attacker who controls the host during a session
 
@@ -356,7 +396,57 @@ capture for the relevant file paths.
 
 ---
 
-## 7. Summary
+## 7. Mode contract: signed vs dev-unsigned
+
+A DEPOSE bundle declares `manifest.producer.mode`, and the
+verifier enforces the invariants of that declaration
+(`apps/verify/cmd/verify.go`, `mode-declaration` and
+`mode-contract` checks):
+
+- **`signed`** — the only mode admissible as evidence. Requires a
+  non-empty `rootHash`, at least one Ed25519 signature, and at
+  least one RFC 3161 timestamp. The verifier rejects a bundle
+  declaring `signed` but missing either.
+- **`dev-unsigned`** — pipeline-testing bundles. `signatures` and
+  `timestamps` must both be empty (the mode contract). The bundle
+  directory is named `incident-unsigned-<id>` (not
+  `incident-<id>`), and `verify.txt` plus `narrative.md` /
+  `narrative.html` carry a "NOT EVIDENCE" banner. The verifier
+  refuses to print plain "PASS" for a dev-unsigned bundle, even
+  when every check is green, and instead emits
+  `PASS (dev-unsigned — not evidence)`.
+
+A dev-unsigned bundle that smuggles a signature in is caught by
+the `mode-contract` check and fails verification.
+
+## 8. Out of scope (explicit non-goals)
+
+These are scenarios DEPOSE does **not** defend against. They are
+called out so the reader does not infer protection that isn't there:
+
+- **Producer-host compromise during the session.** DEPOSE captures
+  what the host shows. If the kernel, init system, or shell
+  binary lies, DEPOSE faithfully records the lie. The bundle
+  proves what the capture layer observed, not ground truth on a
+  rooted machine. See §3.5.
+- **Replay attacks on RFC 3161 tokens.** A TSA cert is treated as
+  trusted for its declared validity window. We do not implement
+  TSA cert revocation lookups or short-lifetime root pinning. A
+  TSA whose key is compromised within its validity window can
+  retroactively forge timestamps; we accept this risk because the
+  alternative (running our own TSA) is worse.
+- **Windows producers.** The shim and capture-hook paths are
+  developed against macOS and Linux. Windows is not tested.
+  Windows recipients running `depose-verify.exe` against a
+  Linux-produced bundle are supported.
+- **Storage privacy at rest.** A `.depo` bundle is not encrypted.
+  If confidentiality is required, encrypt at the transport layer
+  (age, GPG, S3 SSE).
+- **Real-time tamper resistance.** DEPOSE is post-hoc evidence,
+  not an EDR. It does not block or alert on destructive actions
+  in the moment.
+
+## 9. Summary
 
 | Threat | Impact | Mitigation | Residual risk |
 |--------|--------|------------|---------------|
