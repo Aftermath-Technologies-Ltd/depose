@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { main } from '../src/commands/main.js';
-import { readFileSync, existsSync, rmSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, rmSync, mkdirSync, readdirSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
 
 const fixturesDir = pathJoin(__dirname, '../../core/test/fixtures');
