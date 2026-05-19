@@ -127,7 +127,7 @@ The bundle must be a self-contained record where every file means what its name 
 
 The verifier is the artifact non-producers trust. Today that trust path has no foundation: there are no releases, the verify.txt URL is wrong, and the license forbids use.
 
-### C1. LICENSE file with explicit terms
+### C1. LICENSE file with explicit terms [DONE]
 
 **Root cause.** README says "Proprietary — all rights reserved" but no LICENSE file exists. A public repo with no license grants no rights — even reading the code for evaluation is technically unlicensed.
 

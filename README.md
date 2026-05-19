@@ -14,7 +14,7 @@
   <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5.9-3178c6?logo=typescript&logoColor=white">
   <img alt="Go" src="https://img.shields.io/badge/go-1.22-00ADD8?logo=go&logoColor=white">
   <img alt="pnpm" src="https://img.shields.io/badge/pnpm-9-F69220?logo=pnpm&logoColor=white">
-  <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
+  <img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0--only-blue">
 </p>
 
 <p align="center">
@@ -226,4 +226,5 @@ both example bundles.
 
 ## License
 
-Proprietary — all rights reserved. © Aftermath Technologies Ltd.
+[GNU Affero General Public License v3.0 only](LICENSE) (SPDX: `AGPL-3.0-only`).
+© Aftermath Technologies Ltd. and contributors.
