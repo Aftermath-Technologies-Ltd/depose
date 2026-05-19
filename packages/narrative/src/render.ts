@@ -303,14 +303,22 @@ export function buildNarrativeData(
   }));
 
   const destructiveOps = timeline.destructiveOps.map((op) => {
-    // The destructive op event could be any type with a command-like payload
+    // shell_command_pre carries argv already; tool_call_intent (the
+    // reconstruct-from-JSONL path) carries a free-form command string
+    // under toolInput.command. Render the command verbatim when we
+    // can find it; otherwise show the tool + stringified input.
     let command = '(unknown)';
-    if ('argv' in op.event.payload && Array.isArray((op.event.payload as { argv?: unknown }).argv)) {
-      command = (op.event.payload as { argv: string[] }).argv.join(' ');
-    } else if ('toolName' in op.event.payload) {
-      const p = op.event.payload as { toolName: string; toolInput?: unknown };
-      const input = p.toolInput ? JSON.stringify(p.toolInput) : '';
-      command = `${p.toolName} ${input.slice(0, 80)}`;
+    const payload = op.event.payload as unknown as Record<string, unknown>;
+    if (Array.isArray(payload.argv)) {
+      command = (payload.argv as string[]).join(' ');
+    } else if (typeof payload.toolName === 'string') {
+      const input = payload.toolInput as { command?: unknown } | null | undefined;
+      if (input && typeof input.command === 'string') {
+        command = input.command;
+      } else {
+        const stringified = payload.toolInput ? JSON.stringify(payload.toolInput) : '';
+        command = `${payload.toolName} ${stringified.slice(0, 80)}`;
+      }
     }
     return {
       severity: op.matches[0]?.severity ?? 'medium',

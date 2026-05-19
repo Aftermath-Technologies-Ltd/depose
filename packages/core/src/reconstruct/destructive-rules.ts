@@ -20,6 +20,7 @@ import { parse as parseYaml } from 'yaml';
 import type {
   Event,
   ShellCommandPrePayload,
+  ToolCallIntentPayload,
 } from '../events/schema.js';
 
 // ── Ruleset types ────────────────────────────────────────────────────
@@ -171,13 +172,30 @@ export function matchDestructiveRules(
   event: Event,
   rules: DestructiveRule[]
 ): RuleMatch[] {
-  if (event.type !== 'shell_command_pre') {
+  // Two sources of "the agent tried to run a destructive shell command":
+  //   1. shell_command_pre — produced when the active capture layer
+  //      (Claude PreToolUse hook or shell shim) intercepts the
+  //      execution. Best quality: argv is already pre-tokenized.
+  //   2. tool_call_intent — produced when we reconstruct from the
+  //      Claude Code JSONL alone (no active capture). The command
+  //      is a free-form string the agent emitted; we tokenize it
+  //      ourselves so the headline use case ("agent ran `rm -rf`
+  //      against your prod data") doesn't silently report 0
+  //      destructive operations just because the user wasn't
+  //      running the active hook at the time.
+  let payload: ShellCommandPrePayload | null = null;
+
+  if (event.type === 'shell_command_pre') {
+    payload = event.payload as ShellCommandPrePayload;
+  } else if (event.type === 'tool_call_intent') {
+    payload = synthShellPayloadFromToolCallIntent(event.payload as ToolCallIntentPayload);
+  }
+
+  if (!payload) {
     return [];
   }
 
-  const payload = event.payload as ShellCommandPrePayload;
   const matches: RuleMatch[] = [];
-
   for (const rule of rules) {
     const match = matchRuleAgainstPayload(rule, payload);
     if (match) {
@@ -186,6 +204,94 @@ export function matchDestructiveRules(
   }
 
   return matches;
+}
+
+/**
+ * Build a synthetic ShellCommandPrePayload from a tool_call_intent
+ * event when the tool is a shell-like tool (Bash) with a `command`
+ * string. Returns null when the intent isn't shell-like, so non-shell
+ * tools (Edit, Write, Read, etc.) don't waste rule cycles.
+ *
+ * The argv tokenizer is a small POSIX-shell-ish splitter: whitespace
+ * separates tokens, single and double quotes group; backslash-escapes
+ * are passed through unchanged inside the token (good enough for the
+ * destructive patterns DEPOSE cares about — `rm -rf`, `terraform
+ * destroy`, `psql -c "DROP TABLE …"`). Anything fancier would risk
+ * false negatives by silently dropping characters.
+ */
+function synthShellPayloadFromToolCallIntent(
+  intent: ToolCallIntentPayload
+): ShellCommandPrePayload | null {
+  if (!intent || typeof intent.toolName !== 'string') return null;
+  if (intent.toolName.toLowerCase() !== 'bash') return null;
+  const input = intent.toolInput as { command?: unknown } | null | undefined;
+  if (!input || typeof input.command !== 'string' || input.command.length === 0) {
+    return null;
+  }
+  const argv = tokenizeShellCommand(input.command);
+  if (argv.length === 0) return null;
+  return {
+    argv,
+    cwd: '',
+    envHash: '',
+    envSubset: {},
+    ttyId: null,
+    user: '',
+    hostname: '',
+    parentProcessTree: [],
+    fileArgs: [],
+    source: 'claude-pretooluse',
+    captureSchemaVersion: 1,
+  };
+}
+
+/**
+ * Whitespace-and-quote tokenizer for shell command strings.
+ *
+ * Goal is to faithfully reproduce the argv a POSIX shell would have
+ * built for the patterns destructive rules look for. Single quotes
+ * preserve content literally; double quotes preserve content but
+ * still respect a trailing close quote; everything else is grouped
+ * on whitespace boundaries. Quotes are stripped from the emitted
+ * token (so `psql -c "DROP TABLE x"` yields argv[2] = "DROP TABLE x").
+ */
+export function tokenizeShellCommand(cmd: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < cmd.length) {
+    // Skip leading whitespace.
+    while (i < cmd.length && /\s/.test(cmd[i]!)) i++;
+    if (i >= cmd.length) break;
+
+    let token = '';
+    let inSingle = false;
+    let inDouble = false;
+    while (i < cmd.length) {
+      const c = cmd[i]!;
+      if (!inSingle && !inDouble && /\s/.test(c)) break;
+      if (c === "'" && !inDouble) {
+        inSingle = !inSingle;
+        i++;
+        continue;
+      }
+      if (c === '"' && !inSingle) {
+        inDouble = !inDouble;
+        i++;
+        continue;
+      }
+      // Backslash inside double quotes escapes the next character;
+      // outside quotes also escapes (joins next char into token).
+      if (c === '\\' && !inSingle && i + 1 < cmd.length) {
+        token += cmd[i + 1];
+        i += 2;
+        continue;
+      }
+      token += c;
+      i++;
+    }
+    out.push(token);
+  }
+  return out;
 }
 
 /**
