@@ -258,7 +258,7 @@ CI must prove every claim the README makes. Today, the verify-examples job claim
 
 **Touches.** `.github/workflows/verify-examples.yml`, `examples/*/produce.sh`, possibly `apps/verify/timestamp/test_roots.go`.
 
-### E2. Cross-language conformance suite in CI
+### E2. Cross-language conformance suite in CI [DONE — see A4]
 
 (See A4.) Separate job runs `tests/conformance/` vectors against both the TS canonical-JSON impl and the Go re-marshal. Blocks merges on divergence.
 
@@ -272,7 +272,7 @@ CI must prove every claim the README makes. Today, the verify-examples job claim
 
 Fails the build if any of those paths import non-CSPRNG randomness.
 
-### E4. Verifier-on-bundle test in the producer's test suite
+### E4. Verifier-on-bundle test in the producer's test suite [DONE — writer.mode-contract.test.ts exercises both modes]
 
 Already exists at `packages/bundle/test/e2e.acceptance.test.ts`. Extend to cover both `signed` and `dev-unsigned` modes after A3.
 
