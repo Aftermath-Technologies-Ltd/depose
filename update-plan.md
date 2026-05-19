@@ -86,7 +86,7 @@ The bundle must be a self-contained record where every file means what its name 
 
 **Touches.** `apps/verify/timestamp/rfc3161.go` (rewrite), `apps/verify/go.mod`, new `apps/verify/timestamp/roots.go`, new test data.
 
-### B2. Ed25519 signs canonical JSON bytes directly, not hex-encoded hashes
+### B2. Ed25519 signs canonical JSON bytes directly, not hex-encoded hashes [DONE]
 
 **Root cause.** `packages/chain/src/sign-ed25519.ts:181` signs `sha256String(manifest)` — a 64-char ASCII hex string. The Go verifier mirrors this oddity at `apps/verify/manifest/manifest.go:148-150` with a comment flagging it as a sharp edge. Ed25519 already handles arbitrary-length messages via internal SHA-512; the pre-hash + hex serves no purpose and introduces a cross-language convention to maintain.
 

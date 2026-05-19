@@ -4,7 +4,6 @@ package manifest
 import (
 	"bytes"
 	"crypto/ed25519"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -131,27 +130,21 @@ func VerifySignature(m *Manifest, rawManifestBytes []byte) error {
 			return fmt.Errorf("signature[%d]: not an Ed25519 key", i)
 		}
 
-		// Decode the base64 signature
 		sigBytes, err := base64.StdEncoding.DecodeString(sig.Signature)
 		if err != nil {
 			return fmt.Errorf("signature[%d]: decode base64: %w", i, err)
 		}
 
-		// The signature is over SHA-256(canonical JSON of unsigned manifest)
-		// We need to strip signatures and timestamps before hashing
+		// Reconstruct the unsigned-form canonical JSON bytes that the
+		// producer signed. Ed25519 (pure) hashes the message itself
+		// per RFC 8032, so we sign/verify the canonical JSON bytes
+		// directly — no pre-hash, no hex encoding step.
 		unsignedManifest, err := StripSignatureFields(rawManifestBytes)
 		if err != nil {
 			return fmt.Errorf("signature[%d]: prepare unsigned manifest: %w", i, err)
 		}
-		manifestHashBytes := sha256.Sum256(unsignedManifest)
 
-		// IMPORTANT: The TypeScript signer signs the hex-encoded hash as UTF-8
-		// bytes (64 ASCII chars), NOT the raw 32-byte hash. This matches the
-		// convention in sign-ed25519.ts where data = sha256String(...) returns
-		// a hex string, and signEd25519 signs Buffer.from(data, 'utf-8').
-		manifestHashHex := fmt.Sprintf("%x", manifestHashBytes)
-
-		if !ed25519.Verify(ed25519Pub, []byte(manifestHashHex), sigBytes) {
+		if !ed25519.Verify(ed25519Pub, unsignedManifest, sigBytes) {
 			return fmt.Errorf("signature[%d]: INVALID — signature does not match manifest", i)
 		}
 	}
