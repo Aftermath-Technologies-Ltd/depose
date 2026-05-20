@@ -29,7 +29,13 @@ import {
 import { writeBundle } from '@depose/bundle';
 import { handlePackage, type PackageCommandArgs } from './package.js';
 import { handleExplain, type ExplainCommandArgs } from './explain.js';
-import { handleKeyFingerprint, type KeyCommandArgs } from './key.js';
+import {
+  handleKeyFingerprint,
+  handleKeyRotate,
+  handleKeyRevoke,
+  handleKeyCatalog,
+  type KeyCommandArgs,
+} from './key.js';
 import { DEFAULT_RULES_PATH } from '../rules-default.js';
 import { VERIFIER_DOWNLOAD_URL } from '@depose/bundle';
 import { loadAndMergeEvents } from '../pipeline.js';
@@ -206,6 +212,32 @@ export async function main(argv: string[]): Promise<void> {
     .option('--ssh', 'Format as ssh-style SHA256:<base64> instead of hex')
     .action(async function (this: Command) {
       await handleKeyFingerprint(optsToArgs(this.opts()) as unknown as KeyCommandArgs);
+    });
+  keyCmd
+    .command('rotate')
+    .description('Archive the active key and generate a new active one')
+    .option('--key-dir <path>', 'Ed25519 key directory')
+    .action(async function (this: Command) {
+      await handleKeyRotate(optsToArgs(this.opts()) as unknown as KeyCommandArgs);
+    });
+  keyCmd
+    .command('revoke <fingerprint>')
+    .description('Mark a fingerprint as revoked in the local catalog')
+    .requiredOption('--reason <text>', 'Reason for revocation (required)')
+    .option('--key-dir <path>', 'Ed25519 key directory')
+    .action(async function (this: Command, fingerprint: string) {
+      await handleKeyRevoke(
+        fingerprint,
+        optsToArgs(this.opts()) as unknown as KeyCommandArgs,
+      );
+    });
+  keyCmd
+    .command('catalog')
+    .description('Print or export the local key catalog')
+    .option('--key-dir <path>', 'Ed25519 key directory')
+    .option('--export <path>', 'Write the catalog to <path> instead of stdout')
+    .action(async function (this: Command) {
+      await handleKeyCatalog(optsToArgs(this.opts()) as unknown as KeyCommandArgs);
     });
 
   program

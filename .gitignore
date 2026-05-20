@@ -1,9 +1,13 @@
 node_modules/
 dist/
+dist-bundle/
 *.tsbuildinfo
 *.depo
 depose-output/
 .turbo/
+
+# Pack artifacts
+*.tgz
 
 # Go binaries
 depose-shim

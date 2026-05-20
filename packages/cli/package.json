@@ -1,26 +1,35 @@
 {
   "name": "@depose/cli",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
+  "description": "depose CLI — produce signed, hash-chained evidence bundles from Claude Code sessions.",
+  "license": "AGPL-3.0-only",
+  "files": [
+    "dist-bundle",
+    "bin",
+    "rules"
+  ],
   "bin": {
-    "depose": "./bin/depose",
-    "depose-hook": "./bin/depose-hook"
+    "depose": "./dist-bundle/depose.mjs",
+    "depose-hook": "./dist-bundle/depose-hook.mjs"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:bundle",
+    "build:bundle": "node scripts/build-bundle.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
-  "dependencies": {
+  "comment": "Workspace + esbuild-bundled deps live in devDependencies. The dist-bundle/*.mjs files inline @depose/* and commander, so consumers of the published tarball need no runtime deps.",
+  "devDependencies": {
     "@depose/bundle": "workspace:*",
     "@depose/capture-claude": "workspace:*",
     "@depose/chain": "workspace:*",
     "@depose/core": "workspace:*",
-    "commander": "^14.0.3"
-  },
-  "devDependencies": {
     "@types/node": "^24.0.10",
+    "commander": "^14.0.3",
+    "esbuild": "^0.28.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

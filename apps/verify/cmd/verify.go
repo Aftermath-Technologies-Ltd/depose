@@ -43,6 +43,27 @@ type VerifyOpts struct {
 	// signer cert identity must match. Currently a placeholder —
 	// the Sigstore code path is staged but not yet wired in.
 	SignerIdentityRegex string
+	// RevocationListPath, when non-empty, points at a producer key
+	// catalog (the JSON file emitted by `depose key catalog --export`).
+	// If the manifest's keyFingerprint appears in the catalog with
+	// status="revoked", verification fails closed. Other statuses
+	// (active, rotated) do not fail.
+	RevocationListPath string
+}
+
+// keyCatalogEntry mirrors the shape of packages/chain/src/key-catalog.ts.
+// Kept here (rather than in its own package) because this is the only
+// consumer in Go; if other tools need it, lift it.
+type keyCatalogEntry struct {
+	Fingerprint string `json:"fingerprint"`
+	Status      string `json:"status"`
+	Reason      string `json:"reason,omitempty"`
+	RevokedAt   string `json:"revokedAt,omitempty"`
+}
+
+type keyCatalog struct {
+	SchemaVersion int               `json:"schemaVersion"`
+	Entries       []keyCatalogEntry `json:"entries"`
 }
 
 // VerifyResult represents the overall verification result.
@@ -209,6 +230,45 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 				Name:   "key-fingerprint-pin",
 				Pass:   true,
 				Detail: fmt.Sprintf("manifest key fingerprint matches expectation (%s...)", truncHex(got, 16)),
+			})
+		}
+	}
+
+	// ── Check 1d': revocation list (optional) ────────────────────────
+	// When the recipient passes --revocation-list, load the producer's
+	// key catalog and reject the bundle if its keyFingerprint appears
+	// with status=revoked. Active and rotated keys verify normally —
+	// rotation is "old but valid", revocation is "do not trust".
+	if opt.RevocationListPath != "" {
+		entry, loadErr := lookupRevocation(opt.RevocationListPath, m.Producer.KeyFingerprint)
+		switch {
+		case loadErr != nil:
+			result.Checks = append(result.Checks, CheckResult{
+				Name:   "revocation-list",
+				Pass:   false,
+				Detail: fmt.Sprintf("Failed to load revocation list %q: %v", opt.RevocationListPath, loadErr),
+			})
+			result.Pass = false
+		case entry != nil && entry.Status == "revoked":
+			result.Checks = append(result.Checks, CheckResult{
+				Name: "revocation-list",
+				Pass: false,
+				Detail: fmt.Sprintf(
+					"key fingerprint %s... is REVOKED in %s (reason: %q, revokedAt: %s)",
+					truncHex(m.Producer.KeyFingerprint, 16),
+					filepath.Base(opt.RevocationListPath),
+					entry.Reason, entry.RevokedAt),
+			})
+			result.Pass = false
+		default:
+			detail := "key fingerprint not present in revocation list (accepted)"
+			if entry != nil {
+				detail = fmt.Sprintf("key fingerprint present, status=%s (accepted)", entry.Status)
+			}
+			result.Checks = append(result.Checks, CheckResult{
+				Name:   "revocation-list",
+				Pass:   true,
+				Detail: detail,
 			})
 		}
 	}
@@ -665,4 +725,29 @@ func (r *VerifyResult) JSON() (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+// lookupRevocation reads a producer key catalog from disk and returns
+// the entry matching `fingerprint` (case-insensitive hex), or nil if
+// the fingerprint is not present. A non-existent catalog file is an
+// error — the caller asked for revocation enforcement and we refuse
+// to silently accept "list missing → nothing revoked".
+func lookupRevocation(path, fingerprint string) (*keyCatalogEntry, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var cat keyCatalog
+	if err := json.Unmarshal(raw, &cat); err != nil {
+		return nil, fmt.Errorf("malformed catalog JSON: %w", err)
+	}
+	if cat.SchemaVersion == 0 {
+		return nil, fmt.Errorf("catalog is missing schemaVersion")
+	}
+	for i := range cat.Entries {
+		if strings.EqualFold(cat.Entries[i].Fingerprint, fingerprint) {
+			return &cat.Entries[i], nil
+		}
+	}
+	return nil, nil
 }

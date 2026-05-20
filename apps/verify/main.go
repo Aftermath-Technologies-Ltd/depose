@@ -25,6 +25,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fmt.Fprintf(os.Stderr, "  --expected-key-fingerprint <hex>    Reject the bundle if the producer key fingerprint doesn't match.\n")
+		fmt.Fprintf(os.Stderr, "  --revocation-list <path>            Reject if the producer key fingerprint is marked revoked in the catalog.\n")
 		fmt.Fprintf(os.Stderr, "  --signer-identity <regex>           (Future) Sigstore signer identity binding.\n")
 		fmt.Fprintf(os.Stderr, "\n")
 		fmt.Fprintf(os.Stderr, "Commands:\n")
@@ -41,6 +42,7 @@ func main() {
 		var bundlePath string
 		var expectedFingerprint string
 		var signerIdentity string
+		var revocationList string
 		for i := 2; i < len(os.Args); i++ {
 			arg := os.Args[i]
 			switch {
@@ -49,6 +51,11 @@ func main() {
 				i++
 			case strings.HasPrefix(arg, "--expected-key-fingerprint="):
 				expectedFingerprint = strings.TrimPrefix(arg, "--expected-key-fingerprint=")
+			case arg == "--revocation-list" && i+1 < len(os.Args):
+				revocationList = os.Args[i+1]
+				i++
+			case strings.HasPrefix(arg, "--revocation-list="):
+				revocationList = strings.TrimPrefix(arg, "--revocation-list=")
 			case arg == "--signer-identity" && i+1 < len(os.Args):
 				signerIdentity = os.Args[i+1]
 				i++
@@ -78,6 +85,7 @@ func main() {
 		result := cmd.VerifyBundle(absPath, cmd.VerifyOpts{
 			ExpectedKeyFingerprint: expectedFingerprint,
 			SignerIdentityRegex:    signerIdentity,
+			RevocationListPath:     revocationList,
 		})
 		result.Print()
 		if !result.Pass {

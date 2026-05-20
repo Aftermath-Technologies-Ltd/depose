@@ -1,0 +1,70 @@
+# Changelog
+
+All notable changes to DEPOSE are documented here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- **CLI bundling.** `pnpm build` now emits a single self-contained
+  `depose.mjs` and `depose-hook.mjs` under `packages/cli/dist-bundle/`
+  via esbuild. The published tarball no longer depends on private
+  `@depose/*` workspace packages and `npm install -g <tarball>` works
+  without registry lookups.
+- **Key management commands.** `depose key rotate`, `depose key revoke`,
+  and `depose key catalog` provide a minimal-viable key lifecycle:
+  archive an old key, mark a fingerprint as revoked with reason/date,
+  and emit a signed fingerprint catalog.
+- **Verifier revocation check.** `depose-verify verify --revocation-list
+  <path>` fails closed if the producer key fingerprint appears in the
+  catalog. Without the flag, behavior is unchanged.
+- **macOS CI.** The `lint-typecheck-test` job now runs on both
+  `ubuntu-latest` and `macos-latest` so POSIX mode-bit and
+  shim-resolution paths are exercised on both supported OSes.
+- **SECURITY.md** with the vulnerability-disclosure address.
+- **SBOM emission in CI.** `cyclonedx-npm` (TS) and `cyclonedx-gomod`
+  (Go) generate SBOMs uploaded as build artifacts on every push and
+  attached to tagged releases.
+- **Install-from-pack E2E test in CI.** `scripts/install-from-pack-test.sh`
+  packs the CLI, installs it into an isolated prefix, runs
+  `depose package` against a synthetic JSONL, verifies the bundle with
+  `depose-verify`, and smoke-tests `depose-hook` for module-resolution
+  regressions.
+
+### Changed
+
+- **`VERIFIER_DOWNLOAD_URL`** is now pinned at build time via the
+  `DEPOSE_RELEASE_TAG` environment variable. The release workflow sets
+  it to `${GITHUB_REF_NAME}`; dev builds fall back to `releases/latest`.
+  Bundles produced from a tagged release now point recipients at the
+  verifier release that matched their production, not at the moving
+  `latest`.
+
+### Fixed
+
+- **Shim install would create dangling `rm` symlink.** If
+  `apps/capture-shim/depose-shim` was not built, `depose install --shell`
+  silently created symlinks (including `rm`) pointing to a non-existent
+  binary. Once the user added the bin dir to `PATH`, their shell's `rm`
+  was broken. Now fails closed with a clear error pointing at the
+  Makefile.
+- **`depose install --claude` wrote a non-functional command.**
+  `resolveHookBinary()` returned the calling `depose` binary instead of
+  the separate `depose-hook` binary; settings.json registered
+  `"…/bin/depose" pretooluse` (a subcommand that doesn't exist on
+  `depose`). The hook would silently fail every Claude tool call. Hook
+  lookup is now anchored on `import.meta.url`.
+- **`depose-hook` couldn't load `@depose/capture-claude` after install.**
+  The CLI package didn't declare the dep, so workspace hoisting was
+  masking a real bug. Either bundled (default) or declared (fallback).
+- **Determinism test was non-hermetic.** `scripts/determinism-test.sh`
+  used the default `~/.depose/captures` directory; any developer who'd
+  ever used the hook would see a false determinism failure. Now uses an
+  ephemeral `--capture-dir`.
+
+## [0.1.0] - prior to first tagged release
+
+Initial public surface. See `docs/architecture.md` for the design.

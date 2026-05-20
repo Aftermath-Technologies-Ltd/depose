@@ -13,7 +13,10 @@
     "linux"
   ],
   "scripts": {
-    "build": "tsc --build",
+    "build": "tsc --build && npm run build:shim && npm run build:bundle",
+    "build:ts": "tsc --build",
+    "build:shim": "cd apps/capture-shim && make build-local",
+    "build:bundle": "cd packages/cli && npm run build:bundle",
     "test": "vitest run",
     "test:go": "(cd apps/verify && go test ./...) && (cd apps/capture-shim && go test ./... 2>/dev/null || true)",
     "test:all": "vitest run && npm run test:go",
@@ -22,12 +25,13 @@
     "typecheck": "tsc --build --noEmit"
   },
   "devDependencies": {
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4",
     "@types/node": "^24.0.10",
-    "eslint": "^9.31.0",
     "@typescript-eslint/eslint-plugin": "^8.59.2",
     "@typescript-eslint/parser": "^8.59.2",
-    "prettier": "^3.6.2"
+    "esbuild": "^0.28.0",
+    "eslint": "^9.31.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }
