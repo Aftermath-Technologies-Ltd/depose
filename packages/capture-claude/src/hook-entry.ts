@@ -20,7 +20,7 @@ import { execSync } from 'node:child_process';
 import { generateUlid } from '@depose/core';
 import type { ShellCommandPrePayload, ProcessNode } from '@depose/core';
 import { filterEnv, parseExtraAllowlist, type FilterEnvOptions } from './env-allowlist.js';
-import { hashFileArgs, shouldHashForTool, type FileArg } from './file-hash.js';
+import { hashFileArgs, type FileArg } from './file-hash.js';
 import { writeCaptureRecord } from './capture-record.js';
 
 // ── Hook input schema ────────────────────────────────────────────────

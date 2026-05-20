@@ -73,8 +73,6 @@ export function parseBashHistory(content: string): ShellHistoryCommand[] {
   const lines = content.split('\n').filter((l) => l.trim().length > 0);
   const commands: ShellHistoryCommand[] = [];
   const cwd = process.cwd();
-  const user = process.env.USER || '';
-  const hostname = process.env.HOSTNAME || '';
 
   for (const line of lines) {
     const trimmed = line.trim();

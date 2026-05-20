@@ -216,15 +216,13 @@ export function buildTimeStampReq(hashHex: string): TimeStampReqResult {
 // Walks the DER structure to find TSTInfo.genTime, messageImprint, and
 // nonce.  This replaces the old heuristic byte-scan for 0x18 (F-04).
 
-// Universal tag numbers
-const TAG_BOOLEAN = 0x01;
+// Universal tag numbers (only those referenced inline are kept;
+// others were removed to satisfy strict no-unused-vars lint).
 const TAG_INTEGER = 0x02;
 const TAG_OCTET_STRING = 0x04;
-const TAG_NULL = 0x05;
 const TAG_OID = 0x06;
 const TAG_GENERALIZED_TIME = 0x18;
 const TAG_SEQUENCE = 0x30;
-const TAG_SET = 0x31;
 
 // Tag class constants
 // const TAG_CLASS_UNIVERSAL = 0;  // not currently referenced inline

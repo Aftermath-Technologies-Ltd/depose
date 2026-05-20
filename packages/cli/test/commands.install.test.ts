@@ -13,7 +13,6 @@ import {
   uninstallShellShims,
   SHIM_ALLOWLIST,
   buildHookCommand,
-  resolveHookBinary,
 } from '../src/commands/install.js';
 
 // ── Test fixtures ────────────────────────────────────────────────────
