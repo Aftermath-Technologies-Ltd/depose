@@ -46,7 +46,6 @@ const DEV_UNSIGNED_BANNER = [
 const MANIFEST_PATH = 'manifest.json';
 const EVENTS_PATH = 'events.jsonl';
 const RAW_DIR = 'raw';
-const ARTIFACTS_DIR = 'artifacts';
 const ATTESTATIONS_DIR = 'attestations';
 const RULES_DIR = 'rules';
 const NARRATIVE_MD = 'narrative.md';

@@ -89,6 +89,9 @@ importers:
       '@depose/bundle':
         specifier: workspace:*
         version: link:../bundle
+      '@depose/capture-claude':
+        specifier: workspace:*
+        version: link:../capture-claude
       '@depose/chain':
         specifier: workspace:*
         version: link:../chain

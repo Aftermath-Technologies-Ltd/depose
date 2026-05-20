@@ -22,9 +22,13 @@ SESSION_JSONL="$REPO_ROOT/examples/datatalks-reconstruction/session.synthetic.js
 FIXED_SEED=1716043800000
 PRODUCED_AT="2025-05-18T16:00:00.000Z"
 
-# Use a consistent key directory so the same Ed25519 key is used in both runs.
+# Use consistent key + capture dirs so neither host state nor prior
+# capture records leak into the bundles. (The default capture-dir is
+# ~/.depose/captures, which a developer running the hook will have
+# populated — pin an empty one here so the test is self-contained.)
 KEY_DIR=$(mktemp -d)
-trap 'rm -rf "$KEY_DIR" "$REPO_ROOT/tmp-determinism-run1" "$REPO_ROOT/tmp-determinism-run2"' EXIT
+EMPTY_CAPTURE_DIR=$(mktemp -d)
+trap 'rm -rf "$KEY_DIR" "$EMPTY_CAPTURE_DIR" "$REPO_ROOT/tmp-determinism-run1" "$REPO_ROOT/tmp-determinism-run2"' EXIT
 
 OUT1="$REPO_ROOT/tmp-determinism-run1"
 OUT2="$REPO_ROOT/tmp-determinism-run2"
@@ -39,6 +43,7 @@ echo "--- Run 1 ---"
   --fixed-seed "$FIXED_SEED" \
   --produced-at "$PRODUCED_AT" \
   --key-dir "$KEY_DIR" \
+  --capture-dir "$EMPTY_CAPTURE_DIR" \
   --session-id "determinism-test"
 
 echo ""
@@ -50,6 +55,7 @@ echo "--- Run 2 ---"
   --fixed-seed "$FIXED_SEED" \
   --produced-at "$PRODUCED_AT" \
   --key-dir "$KEY_DIR" \
+  --capture-dir "$EMPTY_CAPTURE_DIR" \
   --session-id "determinism-test"
 
 echo ""

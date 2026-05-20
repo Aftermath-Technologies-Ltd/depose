@@ -12,6 +12,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, symlinkSync, unlinkSync, lstatSync, readlinkSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -52,21 +53,38 @@ export const HOOK_COMMAND = buildHookCommand();
 
 /**
  * Resolve the absolute path to the depose-hook binary.
- * Prefers the current script's resolved path; falls back to PATH lookup.
+ *
+ * The hook binary is `depose-hook` — a separate entrypoint from `depose`.
+ * Two lookup paths:
+ *   1. Next to the @depose/cli package itself (anchored via import.meta.url).
+ *      This is the canonical path and works whether depose was installed
+ *      globally, from a workspace, or run from the repo.
+ *   2. Next to the entrypoint script (process.argv[1]) — covers the case
+ *      where the caller already *is* depose-hook.
  */
 export function resolveHookBinary(): string | null {
-  // When running from the installed bin, process.argv[1] points to the actual script.
+  // 1. Anchor on this module's own location.
+  //    dist/commands/install.js → ../../bin/depose-hook
+  try {
+    const here = fileURLToPath(import.meta.url);
+    const pkgRoot = resolve(dirname(here), '..', '..');
+    const hookCandidate = join(pkgRoot, 'bin', 'depose-hook');
+    if (existsSync(hookCandidate)) return hookCandidate;
+  } catch {
+    // import.meta.url may be unavailable in some contexts; fall through.
+  }
+
+  // 2. Self-install case: caller is depose-hook itself.
   const arg0 = process.argv[1];
   if (arg0) {
     const resolved = resolve(arg0);
-    if (existsSync(resolved)) return resolved;
+    if (resolved.endsWith('/depose-hook') && existsSync(resolved)) {
+      return resolved;
+    }
+    const binDir = dirname(resolved);
+    const sibling = join(binDir, 'depose-hook');
+    if (existsSync(sibling)) return sibling;
   }
-
-  // Fallback: check for depose-hook alongside the depose binary.
-  const deposeBin = process.argv[0]; // node
-  const binDir = dirname(resolve(process.argv[1] || process.cwd()));
-  const hookCandidate = join(binDir, 'depose-hook');
-  if (existsSync(hookCandidate)) return hookCandidate;
 
   return null;
 }
