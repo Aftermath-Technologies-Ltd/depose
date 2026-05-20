@@ -159,17 +159,18 @@ Integrity is the cryptography layer. It makes the bundle tamper-evident:
   ```
 
 - **Signing**: Ed25519 (default, local keypair). Sigstore Fulcio (not yet
-  implemented, opt-in, keyless via OIDC). The signature covers `manifest.json`, which contains
-  `rootHash`.
+  implemented, opt-in, keyless via OIDC). The signature covers `manifest.json`,
+  which contains `rootHash`.
 
 - **RFC 3161 timestamps**: The bundle is submitted to a Time Stamp Authority
   (FreeTSA primary, DigiCert fallback) at packaging time. The `.tsr` tokens
   prove that the bundle existed at a specific time, as certified by a trusted
   third party.
 
-- **Rekor** (not yet implemented): Transparency log entry for public auditability.
-  The code path is scaffolded but throws on every call. Ed25519 + RFC 3161 is
-  the only signing path today.
+- **Rekor (planned, not on the critical path)**: Transparency-log submission is
+  a scaffold today (`packages/chain/src/rekor.ts` throws on call). The verifier
+  treats `manifest.rekor` as optional. Ed25519 + RFC 3161 is the only signing
+  path today; Rekor will be additive when it lands.
 
 ### 2.5 Layer 5: Bundle
 
@@ -341,16 +342,16 @@ logic is simple enough to audit by hand.
 
 ## 5. Package map
 
-| Package              | Layer(s)        | Language   | Key files                                    |
-|----------------------|-----------------|------------|----------------------------------------------|
-| `packages/core`      | Normalize + Reconstruct | TS  | `schema.ts`, `merge.ts`, `timeline.ts`      |
-| `packages/chain`     | Integrity       | TS         | `hash-chain.ts`, `sign-ed25519.ts`          |
-| `packages/bundle`   | Bundle          | TS         | `manifest.ts`, `writer.ts`, `layout.ts`     |
-| `packages/capture-claude` | Capture  | TS         | `hook-entry.ts`, `capture-record.ts`        |
-| `packages/cli`      | All (orchestration) | TS    | `commands/reconstruct.ts`, `package.ts`    |
-| `packages/narrative` | Narrative      | TS         | `render.ts`, `template.md.hbs`              |
-| `apps/verify`       | Verification   | Go         | `cmd/verify.go`, `chain/replay.go`          |
-| `apps/capture-shim` | Capture (shell) | Go        | `main.go`, `exec.go`, `record.go`           |
+| Package                   | Layer(s)                | Language | Key files                                                  |
+|---------------------------|-------------------------|----------|------------------------------------------------------------|
+| `packages/core`           | Normalize + Reconstruct | TS       | `events/schema.ts`, `normalize/merge.ts`, `reconstruct/timeline.ts` |
+| `packages/chain`          | Integrity               | TS       | `hash-chain.ts`, `sign-ed25519.ts`, `key-catalog.ts`, `timestamp-rfc3161.ts` |
+| `packages/bundle`         | Bundle                  | TS       | `manifest.ts`, `writer.ts`, `layout.ts`, `constants.ts`    |
+| `packages/capture-claude` | Capture                 | TS       | `hook-entry.ts`, `capture-record.ts`, `env-allowlist.ts`   |
+| `packages/cli`            | All (orchestration)     | TS       | `commands/main.ts`, `commands/package.ts`, `commands/key.ts` |
+| `packages/narrative`      | Narrative               | TS       | `render.ts`, `template.md.hbs`, `template.html.hbs`        |
+| `apps/verify`             | Verification            | Go       | `cmd/verify.go`, `chain/`, `canonical/`, `timestamp/`, `manifest/` |
+| `apps/capture-shim`       | Capture (shell)         | Go       | `main.go`, `exec.go`, `record.go`, `resolve.go`            |
 
 ---
 

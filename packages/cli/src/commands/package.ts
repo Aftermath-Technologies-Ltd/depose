@@ -21,7 +21,7 @@ import {
   type AgentId,
 } from '@depose/core';
 import { writeBundle } from '@depose/bundle';
-import { loadOrGenerateKeyPair } from '@depose/chain';
+import { loadOrGenerateKeyPair, fingerprintPublicKeyPem } from '@depose/chain';
 import { DEFAULT_RULES_PATH } from '../rules-default.js';
 import { loadAndMergeEvents } from '../pipeline.js';
 
@@ -94,7 +94,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   // Load or generate Ed25519 key pair
   console.log('Loading Ed25519 signing key...');
   const keyPair = loadOrGenerateKeyPair(keyDir);
-  console.log(`Public key: ${keyPair.publicKeyPem.split('\n')[1]?.slice(0, 20)}...`);
+  console.log(`Key fingerprint: ${fingerprintPublicKeyPem(keyPair.publicKeyPem)}`);
 
   // Load destructive rules. Bytes are passed verbatim to the
   // bundle writer so the verifier can re-hash them against

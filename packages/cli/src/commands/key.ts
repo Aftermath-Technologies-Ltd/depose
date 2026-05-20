@@ -101,10 +101,22 @@ export async function handleKeyRotate(args: KeyCommandArgs): Promise<void> {
     catalog = markRotated(catalog, oldFp);
 
     const archiveDir = join(keyDir, 'archive', oldFp);
+    // Refuse to overwrite archived material. If archive/<oldFp>/
+    // already contains a signing.key or signing.pub, a previous
+    // rotate likely failed or was redone manually; demand the user
+    // resolve it rather than silently clobbering.
+    const archivedPriv = join(archiveDir, SIGNING_KEY_FILE);
+    const archivedPub = join(archiveDir, PUBLIC_KEY_FILE);
+    if (existsSync(archivedPriv) || existsSync(archivedPub)) {
+      throw new Error(
+        `Refusing to rotate: archive entry already exists for ${oldFp} at ${archiveDir}. ` +
+          `Move or remove it manually, then re-run depose key rotate.`,
+      );
+    }
     mkdirSync(archiveDir, { recursive: true });
-    renameSync(privPath, join(archiveDir, SIGNING_KEY_FILE));
-    renameSync(pubPath, join(archiveDir, PUBLIC_KEY_FILE));
-    console.log(`Archived previous key ${oldFp} → ${archiveDir}`);
+    renameSync(privPath, archivedPriv);
+    renameSync(pubPath, archivedPub);
+    console.log(`Archived previous key ${oldFp} -> ${archiveDir}`);
   } else {
     console.log('No existing key to rotate; generating fresh active key.');
   }
@@ -142,9 +154,17 @@ export async function handleKeyRevoke(
   const catPath = catalogPath(args);
   let catalog = loadCatalog(catPath);
 
+  // If the user is revoking the currently-active key, warn so they
+  // don't accidentally sign new bundles under a fingerprint the
+  // catalog now says is revoked. The revocation still applies; the
+  // operator chose to do it. The warning surfaces the operational
+  // next step so it isn't easy to miss.
+  const target = findEntry(catalog, fingerprint);
+  const wasActive = target?.status === 'active';
+
   // If the user is revoking a key that's not in the catalog yet (e.g.
-  // a long-archived one), be helpful: surface a clear error from
-  // markRevoked() rather than silently no-op'ing.
+  // a long-archived one), surface a clear error from markRevoked()
+  // rather than silently no-op'ing.
   catalog = markRevoked(catalog, fingerprint, reason);
   saveCatalog(catPath, catalog);
 
@@ -154,6 +174,13 @@ export async function handleKeyRevoke(
   console.log('');
   console.log('Share the updated catalog with recipients so depose-verify');
   console.log('--revocation-list rejects bundles signed under this key.');
+  if (wasActive) {
+    console.log('');
+    console.log('WARNING: you revoked the currently-active key. Run');
+    console.log('  depose key rotate');
+    console.log('immediately to install a fresh active key. Until you do, new');
+    console.log('bundles will be signed under a fingerprint the catalog marks revoked.');
+  }
 }
 
 // ── catalog ────────────────────────────────────────────────────────

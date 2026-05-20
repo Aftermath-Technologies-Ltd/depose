@@ -75,3 +75,36 @@ Per BUILD_PLAN.md §6 (Phase 3), the shell shim is best-effort:
 | Cross-correlation with captures | No | Yes |
 
 Phase 3's active capture layer is the **unique-value layer** of DEPOSE. It transforms the bundle from "inferred reconstruction" to "captured evidence."
+
+## Tuning capture behavior at runtime
+
+Two environment variables let the producer adjust capture behavior
+without rebuilding:
+
+| Variable | What it does | Default |
+|---|---|---|
+| `DEPOSE_CAPTURE_DIR` | Directory where the hook and shim write capture records. Read by both producer-side TS and the Go shim. | `~/.depose/captures` |
+| `DEPOSE_ENV_ALLOWLIST` | Comma-separated extra env-variable prefixes captured into `envSubset` beyond the built-in defaults (`AWS_`, `GH_`, `OPENAI_`, `ANTHROPIC_`, `RAILWAY_`). Example: `DEPOSE_ENV_ALLOWLIST=DD_,DOPPLER_`. | (none) |
+| `DEPOSE_CAPTURE_SECRET_VALUES` | Set to `1` to store secret-named env values in plaintext. The default redacts any value whose key matches `SECRET|TOKEN|KEY|PASSWORD|CREDENTIALS` to `sha256:<hex>`. Enable only for debugging in a trusted local environment; the bundle is then unsafe to share. | `0` (redacted) |
+
+The shim's built-in allowlist (the binary names it intercepts via
+PATH) is fixed at build time. To intercept additional commands,
+add a symlink to `depose-shim` under the desired name (see
+`docs/shim-installation.md`).
+
+## What a gap event looks like
+
+When a `tool_result` lands without a matching pre-execution capture,
+the merger emits an event of `type: gap` with one of:
+
+- `tool_result_without_pre_capture` — saw an after but no before.
+- `pre_capture_without_tool_result` — saw a before but no after.
+- `shell_history_without_jsonl_correlation` — shell-history entry
+  that doesn't correlate to anything in the Claude Code session.
+- `reflog_change_without_command` — git reflog change with no
+  observed command.
+
+The verifier replays the chain, including gap events, exactly as the
+producer wrote them. A bundle whose `counts.gaps` is zero is a
+bundle where every observable action could be cross-correlated. A
+bundle with gaps is more honest than a bundle that hides them.

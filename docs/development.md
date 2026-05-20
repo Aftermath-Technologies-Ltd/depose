@@ -60,6 +60,31 @@ timestamps then diffs the outputs. Any nondeterminism (clock leaks,
 map iteration order, default `~/.depose/captures` bleed-through, etc.)
 fails the build.
 
+### Known determinism boundary: capture record wallTs
+
+`packages/core/src/normalize/capture.ts` accepts a `clock` option and
+defaults to `Date.now`. When the producer is invoked with a non-empty
+capture directory, each capture record's `wallTs` is set from
+`clock()` at normalize time. The pipeline does not currently inject
+the clock from `--fixed-seed` or `--produced-at`, so two consecutive
+`depose package` runs against the same capture directory produce
+different `wallTs` (and therefore different `payloadHash`,
+`chainHash`, `rootHash`).
+
+The determinism test sidesteps this by pointing `--capture-dir` at an
+empty tmpdir. If you change the determinism fixture to include
+capture records, you also need to plumb the deterministic clock
+through `loadAndMergeEvents` into `normalizeCaptureRecords`. Tracked
+as a follow-up; the producer-side determinism guarantee in the README
+applies to the JSONL-spine path that CI exercises today.
+
+### Source-tree invariants enforced by CI
+
+See "Source-tree invariants enforced by CI" further down for the
+two grep-based source-tree invariants
+(`Math.random` ban in evidence paths, single source of truth for
+the verifier download URL).
+
 ## Install-from-pack E2E
 
 `scripts/install-from-pack-test.sh` packs the CLI, installs it into an
