@@ -64,14 +64,32 @@ depose uninstall --shell
 
 ### Custom binary list
 
-The default shim allowlist is: terraform, aws, gh, kubectl, psql, gcloud, railway, rm
+The default shim allowlist is: terraform, aws, gh, kubectl, psql, gcloud, railway, rm.
 
-To add custom binaries (e.g., `tofu` for OpenTofu):
+To add a binary that isn't on the default list (e.g. `tofu` for
+OpenTofu, `nomad`, `helm`, `flyctl`, custom internal tools), add a
+symlink to `depose-shim` under the same name:
 
 ```bash
-# Manually create a symlink:
-ln -s ~/.depose/bin/depose-shim ~/.depose/bin/tofu
+ln -s "$HOME/.depose/bin/depose-shim" "$HOME/.depose/bin/tofu"
 ```
+
+After adding the symlink, confirm that `which tofu` resolves to the
+shim path. If it resolves to a real binary instead, your PATH is not
+ordered with `~/.depose/bin` first; fix that before relying on the
+new shim.
+
+To remove a custom binary, delete the symlink:
+
+```bash
+rm "$HOME/.depose/bin/tofu"
+```
+
+The shim distinguishes itself from any wrapped binary by name: it
+refuses to exec back into anything called `depose-shim`. If you
+ever see `FATAL: resolved real binary is the shim itself`, it means
+two PATH entries both expose the shim under the same name; clean up
+the duplicate.
 
 ### What the shim does NOT catch
 

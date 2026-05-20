@@ -341,15 +341,18 @@ export async function writeBundle(
 
   // ── Capture directory ──────────────────────────────────────────────
   // Copy capture records if a capture directory exists as a sibling
-  // of the JSONL source file.
+  // of the JSONL source file. readdirSync is not guaranteed to return
+  // entries in a stable order across filesystems, so sort before
+  // iterating: the result is the same file set either way, but the
+  // sort makes the iteration deterministic so any future
+  // entry-derived state (counts, indices, manifest sums) cannot drift.
   if (sourceJsonlPath) {
     const srcDir = dirname(sourceJsonlPath);
-    // Look for a capture directory as a sibling of the JSONL
     const possibleCaptureDir = join(srcDir, 'capture');
     if (existsSync(possibleCaptureDir)) {
       const rawCaptureDir = join(rawDir, 'capture');
       mkdirSync(rawCaptureDir, { recursive: true });
-      const files = readdirSync(possibleCaptureDir);
+      const files = readdirSync(possibleCaptureDir).sort();
       for (const file of files) {
         const srcFile = join(possibleCaptureDir, file);
         const dstFile = join(rawCaptureDir, file);
