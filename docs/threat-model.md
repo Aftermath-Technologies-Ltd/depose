@@ -240,12 +240,13 @@ hashes.
 - **Air-gapped (today).** The producer publishes their key
   fingerprint out-of-band; recipients pin it with
   `--expected-key-fingerprint`. See `docs/key-management.md`.
-- **Sigstore keyless (preferred when available).** A producer
-  running under OIDC (CI, federated identity) signs with an
+- **Sigstore keyless (preferred, not yet implemented).** A producer
+  running under OIDC (CI, federated identity) will be able to sign with an
   ephemeral key bound to a short-lived Fulcio cert. There is no
   long-lived key to compromise. The producer-side path is
-  scaffolded in `packages/chain/src/sign-sigstore.ts`; the
-  verifier already accepts `--signer-identity <regex>`.
+  scaffolded in `packages/chain/src/sign-sigstore.ts`; it currently
+  throws on every call. Ed25519 + RFC 3161 is the only signing path
+  today. The verifier already accepts `--signer-identity <regex>`.
 
 ### 3.4 Attacker who can modify the verifier binary
 

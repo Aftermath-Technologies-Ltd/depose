@@ -221,7 +221,13 @@ The `manifest.json` file is the entry point for the bundle. Its schema:
 
 ```ts
 interface Manifest {
-  schemaVersion: 1;
+  /**
+   * Schema version 2 adds producer.host.nodeVersion, producer.host.kernel
+   * (from os.release()), and session.host. v1 manifests (schemaVersion=1)
+   * used producer.host.kernel for the Node.js version; verifiers should
+   * interpret that field as nodeVersion when schemaVersion=1.
+   */
+  schemaVersion: 2;
   bundleId: string;                // ULID — matches directory name
   producedAt: string;              // ISO 8601 UTC
   producer: {
@@ -230,7 +236,8 @@ interface Manifest {
     host: {
       os: string;
       arch: string;
-      kernel: string;
+      nodeVersion: string;         // Node.js runtime version (e.g. "v20.19.0")
+      kernel: string;              // OS kernel release from os.release()
     };
   };
   session: {
@@ -238,6 +245,12 @@ interface Manifest {
     sessionId: string;
     startedAt: string;
     endedAt: string;
+    host?: {
+      os: string | null;
+      arch: string | null;
+      nodeVersion: string | null;
+      kernel: string | null;
+    };
   };
   rootHash: string;                // Terminal chain hash over events.jsonl
   eventsJsonlSha256: string;       // SHA-256 of the literal events.jsonl bytes
@@ -304,7 +317,10 @@ flexibility for multi-party attestation.
 
 ## 8. Versioning
 
-- `manifest.schemaVersion` is `1`.
+- `manifest.schemaVersion` is `2`. v1 bundles (schemaVersion=1) are still
+  accepted by the verifier, but `producer.host.kernel` in v1 bundles held the
+  Node.js version rather than the OS kernel release; interpret it as
+  `nodeVersion` when processing v1 manifests.
 - **Verifier compatibility policy.** A verifier with code-level
   `SupportedSchemaMax = N` supports the range `[N-1, N]`. Bundles
   with `schemaVersion` outside that range are rejected with
@@ -332,8 +348,12 @@ flexibility for multi-party attestation.
 
 - The bundle does **not** encrypt its contents. If confidentiality is required,
   encrypt the `.depo` file at the transport layer (e.g., age, GPG, S3 SSE).
-- `manifest.producer.host` reveals the OS, architecture, and kernel version of
-  the producing machine. This is intentional: it aids verification of the
+- `manifest.producer.host` reveals the OS, architecture, Node.js version, and
+  kernel release of the producing machine. In v1 (schemaVersion=1) bundles,
+  the `kernel` field held the Node.js version instead of the OS kernel; this
+  was corrected in v2. `manifest.session.host` reveals the same information
+  for the session capture environment (nullable when unknown).
+  This is intentional: it aids verification of the
   capture environment and does not expose the hostname or IP.
 - Full environment variables are never stored — only an allowlisted subset and
   a SHA-256 hash of the full environment for tamper-evidence.

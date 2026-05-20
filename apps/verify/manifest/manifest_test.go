@@ -34,7 +34,7 @@ func TestVerifySignature_CRLFPEM(t *testing.T) {
 	pubPEMCRLF := strings.ReplaceAll(string(pubPEM), "\n", "\r\n")
 
 	m := &Manifest{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleID:      "test-bundle",
 		ProducedAt:    "2025-05-18T16:00:00Z",
 		Producer: ProducerInfo{

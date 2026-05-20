@@ -102,13 +102,11 @@ describe('Phase 3 acceptance: normalizeCaptureRecords', () => {
         toolName: 'Bash',
         output: 'Destroy complete!',
         exitCode: 0,
-        linkedShellCommandPreId: null,
       },
       payloadHash: sha256({
         toolName: 'Bash',
         output: 'Destroy complete!',
         exitCode: 0,
-        linkedShellCommandPreId: null,
       }),
     };
 
@@ -164,7 +162,6 @@ describe('Phase 3 acceptance: normalizeCaptureRecords', () => {
         toolName: 'Bash',
         output: 'some output',
         exitCode: 0,
-        linkedShellCommandPreId: null,
       },
       payloadHash: 'fake-hash',
     };

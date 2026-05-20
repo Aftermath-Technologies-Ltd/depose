@@ -11,12 +11,7 @@
 //
 // See BUILD_PLAN.md §4.1 for the Event schema.
 
-import type {
-  ShellCommandPostPayload,
-  ShellCommandPrePayload,
-} from '../events/schema.js';
-
-// ── Shell history line formats ───────────────────────────────────────
+// ── Shell history line formats ──────────────────────────────────────
 
 /**
  * Represents a single command from shell history.
@@ -70,6 +65,9 @@ export type ShellHistoryParser = (content: string) => ShellHistoryCommand[];
  *   - Plain: "command\n"
  *   - Epoch timestamped: "1684417200  command\n"
  *   - Colon-prefixed (zsh): ": 1684417200:0;command\n"
+ *
+ * Compound commands separated by |, &&, ||, or ; produce one
+ * ShellHistoryCommand per stage, each sharing the same timestamp.
  */
 export function parseBashHistory(content: string): ShellHistoryCommand[] {
   const lines = content.split('\n').filter((l) => l.trim().length > 0);
@@ -100,69 +98,94 @@ export function parseBashHistory(content: string): ShellHistoryCommand[] {
       }
     }
 
-    const argv = tokenize(commandStr);
-    const _monoNs = timestamp ? Date.parse(timestamp) * 1e6 : Date.now() * 1e6;
+    // Tokenize into stages (pipe/and/or/semi separated)
+    const stages = tokenize(commandStr);
 
-    const _prePayload: ShellCommandPrePayload = {
-      argv,
-      cwd: cwd || '',
-      envHash: '',
-      envSubset: {},
-      ttyId: null,
-      user,
-      hostname,
-      parentProcessTree: [],
-      fileArgs: [],
-      source: 'shell-shim',
-      captureSchemaVersion: 1,
-    };
-
-    const _postPayload: ShellCommandPostPayload = {
-      exitCode: 0,
-      durationMs: 0,
-      stdoutHash: '',
-      stderrHash: '',
-      signalReceived: null,
-    };
-
-    commands.push({
-      timestamp,
-      command: commandStr,
-      argv,
-      cwd,
-      exitCode: null,
-      durationMs: null,
-    });
+    // Each stage becomes its own ShellHistoryCommand with the same timestamp
+    for (const stageArgv of stages) {
+      // Reconstruct the command string for this stage from its tokens
+      const stageCommand = reconstructCommand(stageArgv);
+      commands.push({
+        timestamp,
+        command: stageCommand,
+        argv: stageArgv,
+        cwd,
+        exitCode: null,
+        durationMs: null,
+      });
+    }
   }
 
   return commands;
 }
 
 /**
- * Parse fish shell history (plain format, one command per line).
- * Fish history is similar to plain bash history (no epoch prefix by default).
+ * Reconstruct a command string from an argv array.
+ * Uses simple space-join (not perfectly faithful to original quoting,
+ * but sufficient for the command field).
  */
-export function parseFishHistory(content: string): ShellHistoryCommand[] {
-  return parseBashHistory(content);
+function reconstructCommand(argv: string[]): string {
+  return argv.map((arg) => {
+    // Quote args that contain spaces or special characters
+    if (/[\s|&;$"'\\]/.test(arg)) {
+      return `'${arg.replace(/'/g, "'\\''")}'`;
+    }
+    return arg;
+  }).join(' ');
+}
+
+/**
+ * Parse fish shell history.
+ *
+ * Fish uses a YAML-like format in ~/.local/share/fish/fish_history
+ * that is fundamentally different from bash/zsh line-oriented history.
+ * This parser does not yet support the fish format — calling it will
+ * throw an informative error so callers know they need to implement
+ * or delegate fish history parsing rather than silently producing
+ * wrong results.
+ *
+ * To add fish support, implement the actual fish YAML history parser
+ * here and remove this throw.
+ */
+export function parseFishHistory(_content: string): ShellHistoryCommand[] {
+  throw new Error(
+    'Fish history parsing is not yet implemented. ' +
+    'Fish uses a YAML-like history format that differs from bash/zsh. ' +
+    'Please use parseBashHistory() directly if you have bash-compatible history, ' +
+    'or contribute a fish history parser to DEPOSE.'
+  );
 }
 
 // ── Tokenizer ────────────────────────────────────────────────────────
 //
-// Simple shell command tokenizer that respects quotes.
+// Shell command tokenizer that respects quotes and splits on
+// command separators (|, &&, ||, ;).
+//
 // This is a best-effort tokenizer — not a full shell parser.
 // It handles:
 //   - Double-quoted strings (with basic escape handling)
 //   - Single-quoted strings (no escape handling, per POSIX)
 //   - Unquoted words (split on whitespace)
 //   - Backslash escapes
-//   - Pipe-separated commands (split on |)
+//   - Command separators: |, &&, ||, ;
+//
+// Returns string[][] — one inner array per command stage.
+// E.g. "echo foo | grep bar" → [["echo", "foo"], ["grep", "bar"]]
+// E.g. "a && b" → [["a"], ["b"]]
 
 /**
- * Tokenize a shell command string into argv (respecting quotes).
- * Splits on pipes (|) to handle compound commands.
+ * Tokenize a shell command string into argv stages (respecting quotes).
+ *
+ * Splits on command separators (|, &&, ||, ;) to produce one argv
+ * array per pipeline stage. Each inner array is the argv for one
+ * stage.
+ *
+ * @returns Array of argv arrays. Simple commands yield a single-element
+ *          outer array. Pipelined commands yield one element per stage.
  */
-export function tokenize(command: string): string[] {
-  const tokens: string[] = [];
+export function tokenize(command: string): string[][] {
+  const stages: string[][] = [];
+  let currentTokens: string[] = [];
   let current = '';
   let inDoubleQuote = false;
   let inSingleQuote = false;
@@ -171,9 +194,27 @@ export function tokenize(command: string): string[] {
 
   const chars = command.split('');
 
+  // Flush the current token into currentTokens
+  const flushToken = () => {
+    if (current.length > 0) {
+      currentTokens.push(current);
+      current = '';
+    }
+  };
+
+  // Flush currentTokens into stages and start a new stage
+  const flushStage = () => {
+    flushToken();
+    if (currentTokens.length > 0) {
+      stages.push(currentTokens);
+    }
+    currentTokens = [];
+  };
+
   while (i < chars.length) {
     const ch = chars[i];
 
+    // Handle escape sequences
     if (escaped) {
       current += ch;
       escaped = false;
@@ -187,6 +228,7 @@ export function tokenize(command: string): string[] {
       continue;
     }
 
+    // Quotes — only when not inside the other kind
     if (ch === '"' && !inSingleQuote) {
       inDoubleQuote = !inDoubleQuote;
       i++;
@@ -199,22 +241,40 @@ export function tokenize(command: string): string[] {
       continue;
     }
 
-    if ((ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') && !inDoubleQuote && !inSingleQuote) {
-      if (current.length > 0) {
-        tokens.push(current);
-        current = '';
-      }
+    // Inside quotes, everything is literal
+    if (inDoubleQuote || inSingleQuote) {
+      current += ch;
       i++;
       continue;
     }
 
-    // Handle pipe (command separator)
-    if (ch === '|' && !inDoubleQuote && !inSingleQuote) {
-      if (current.length > 0) {
-        tokens.push(current);
-        current = '';
+    // ── Command separators (unquoted) ─────────────────────────────
+
+    // && (AND operator)
+    if (ch === '&' && i + 1 < chars.length && chars[i + 1] === '&') {
+      flushStage();
+      i += 2;
+      // Skip whitespace after separator
+      while (i < chars.length && (chars[i] === ' ' || chars[i] === '\t')) {
+        i++;
       }
-      // Skip pipe
+      continue;
+    }
+
+    // || (OR operator)
+    if (ch === '|' && i + 1 < chars.length && chars[i + 1] === '|') {
+      flushStage();
+      i += 2;
+      // Skip whitespace after separator
+      while (i < chars.length && (chars[i] === ' ' || chars[i] === '\t')) {
+        i++;
+      }
+      continue;
+    }
+
+    // | (pipe)
+    if (ch === '|') {
+      flushStage();
       i++;
       // Skip whitespace after pipe
       while (i < chars.length && (chars[i] === ' ' || chars[i] === '\t')) {
@@ -223,15 +283,44 @@ export function tokenize(command: string): string[] {
       continue;
     }
 
+    // ; (semicolon)
+    if (ch === ';') {
+      flushStage();
+      i++;
+      // Skip whitespace after semicolon
+      while (i < chars.length && (chars[i] === ' ' || chars[i] === '\t')) {
+        i++;
+      }
+      continue;
+    }
+
+    // ── Whitespace ─────────────────────────────────────────────────
+
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+      flushToken();
+      i++;
+      continue;
+    }
+
+    // ── Regular character ──────────────────────────────────────────
+
     current += ch;
     i++;
   }
 
-  if (current.length > 0) {
-    tokens.push(current);
+  // Flush remaining
+  flushStage();
+
+  // If no stages were produced (e.g., empty string), return empty outer array
+  if (stages.length === 0 && currentTokens.length === 0) {
+    // Even empty input yields at most one stage with zero tokens,
+    // but for backward compat, return [[]] only if there was content
+    // Actually: empty input should return empty array of stages
+    return [];
   }
 
-  return tokens;
+  // Don't include empty stages at the end (e.g. trailing ;)
+  return stages.filter((s) => s.length > 0);
 }
 
 // ── Public API ───────────────────────────────────────────────────────

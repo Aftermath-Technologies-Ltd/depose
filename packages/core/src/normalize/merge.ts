@@ -127,18 +127,29 @@ export function mergeEvents(
   const shellPostMap = new Map<string, Event>();
   const unmatchedToolResults: Event[] = [];
 
+  // Also build a tool_use_id → tool_call_intent lookup for correlating
+  // tool_result events back to their parent tool_call_intent
+  const toolUseIdToIntentMap = new Map<string, Event>();
+
   for (const event of deduped) {
     switch (event.type) {
-      case 'tool_call_intent':
+      case 'tool_call_intent': {
         toolCallIntentMap.set(event.id, event);
+        // Index by tool_use_id if present (real-session format)
+        const intentPayload = event.payload as ToolCallIntentPayload;
+        if (intentPayload.toolUseId) {
+          toolUseIdToIntentMap.set(intentPayload.toolUseId, event);
+        }
         break;
+      }
       case 'shell_command_pre':
         shellPreMap.set(event.id, event);
         break;
-      case 'tool_result':
+      case 'tool_result': {
         toolResultMap.set(event.id, event);
         unmatchedToolResults.push(event);
         break;
+      }
       case 'shell_command_post':
         shellPostMap.set(event.id, event);
         break;
@@ -152,11 +163,15 @@ export function mergeEvents(
   const matchedToolResult = new Set<string>();
 
   for (const toolResult of unmatchedToolResults) {
-    const matched = findMatchingShellPre(toolResult, shellPreMap, matchWindowSeconds);
+    const matched = findMatchingShellPre(
+      toolResult,
+      shellPreMap,
+      toolUseIdToIntentMap,
+      matchWindowSeconds
+    );
     if (matched) {
-      const payload = toolResult.payload as ToolResultPayload;
-      (toolResult as Event & { payload: ToolResultPayload }).payload = {
-        ...payload,
+      // F-32: set correlation on the event itself, not inside payload
+      toolResult.correlation = {
         linkedShellCommandPreId: matched.id,
       };
       matchedToolResult.add(toolResult.id);
@@ -167,11 +182,15 @@ export function mergeEvents(
 
   // Link tool_call_intent to shell_command_pre (if not already matched)
   Array.from(toolCallIntentMap.entries()).forEach(([, intentEvent]) => {
-    const matched = findMatchingShellPre(intentEvent, shellPreMap, matchWindowSeconds);
+    const matched = findMatchingShellPre(
+      intentEvent,
+      shellPreMap,
+      toolUseIdToIntentMap,
+      matchWindowSeconds
+    );
     if (matched && !matchedShellPre.has(matched.id)) {
-      const payload = intentEvent.payload as ToolCallIntentPayload;
-      (intentEvent as Event & { payload: ToolCallIntentPayload }).payload = {
-        ...payload,
+      // F-32: set correlation on the event itself, not inside payload
+      intentEvent.correlation = {
         linkedShellCommandPreId: matched.id,
       };
       matchedShellPre.add(matched.id);
@@ -245,16 +264,52 @@ export function mergeEvents(
  * Find a shell_command_pre event that matches a given event
  * based on (cwd, argv overlap, wallTs proximity).
  *
+ * F-06: When correlating a tool_result, first find the parent
+ * tool_call_intent by matching tool_use_id, then use the
+ * tool_call_intent's payload data for scoring. Drop the
+ * cwd/argv scoring on tool_result itself.
+ * Score is: (argv-overlap-from-tool-call-intent × 5) + time-proximity.
+ *
  * Returns the best match or null.
  */
 function findMatchingShellPre(
   target: Event,
   shellPreMap: Map<string, Event>,
+  toolUseIdToIntentMap: Map<string, Event>,
   matchWindowSeconds: number
 ): Event | null {
-  const targetPayload = target.payload as unknown as Record<string, unknown>;
-  const targetCwd = (targetPayload.cwd as string) || '';
-  const targetArgv = (targetPayload.argv as string[]) || [];
+  let targetCwd = '';
+  let targetArgv: string[] = [];
+
+  if (target.type === 'tool_result') {
+    // F-06: For tool_result, find the parent tool_call_intent
+    // to get cwd/argv scoring data. tool_result payloads don't
+    // have cwd/argv, so we look up the intent by tool_use_id.
+    const resultPayload = target.payload as ToolResultPayload;
+    const toolUseId = resultPayload.toolUseId;
+    if (toolUseId) {
+      const parentIntent = toolUseIdToIntentMap.get(toolUseId);
+      if (parentIntent) {
+        // Use the tool_call_intent's data for scoring
+        const intentPayload = parentIntent.payload as ToolCallIntentPayload;
+        targetArgv = extractArgvFromToolInput(intentPayload.toolInput);
+        targetCwd = extractCwdFromToolInput(intentPayload.toolInput);
+      }
+    }
+    // If no parent intent found, fall through with empty scoring data.
+    // Time-proximity will still contribute.
+  } else if (target.type === 'tool_call_intent') {
+    // tool_call_intent has toolInput with command/argv
+    const intentPayload = target.payload as ToolCallIntentPayload;
+    targetArgv = extractArgvFromToolInput(intentPayload.toolInput);
+    targetCwd = extractCwdFromToolInput(intentPayload.toolInput);
+  } else {
+    // Other event types: try to read cwd/argv from payload
+    const targetPayload = target.payload as unknown as Record<string, unknown>;
+    targetCwd = (targetPayload.cwd as string) || '';
+    targetArgv = (targetPayload.argv as string[]) || [];
+  }
+
   const targetTs = new Date(target.wallTs).getTime();
 
   let bestMatch: Event | null = null;
@@ -275,12 +330,12 @@ function findMatchingShellPre(
     // Calculate match score
     let score = 0;
 
-    // CWD match (strong signal)
-    if (preCwd === targetCwd || (preCwd && targetCwd && isPathRelated(preCwd, targetCwd))) {
+    // CWD match (strong signal) — only when we have targetCwd
+    if (targetCwd && (preCwd === targetCwd || isPathRelated(preCwd, targetCwd))) {
       score += 10;
     }
 
-    // argv overlap (at least the first 2 tokens should match)
+    // Argv overlap (at least the first N tokens should match)
     const overlap = countArgvOverlap(preArgv, targetArgv);
     score += overlap * 5;
 
@@ -295,6 +350,75 @@ function findMatchingShellPre(
 
   // Only return a match if we have a reasonable score
   return bestScore >= 5 ? bestMatch : null;
+}
+
+// ── Argv extraction helpers ──────────────────────────────────────────
+
+/**
+ * Extract an argv-like array from a toolInput object.
+ * For Bash-like tools, toolInput.command is a string that we tokenize.
+ * Other tools may have different shapes; we do our best.
+ */
+function extractArgvFromToolInput(toolInput: unknown): string[] {
+  if (!toolInput || typeof toolInput !== 'object') return [];
+  const input = toolInput as Record<string, unknown>;
+
+  // If it has a command field (Bash tool), tokenize it
+  if (typeof input.command === 'string' && input.command.trim()) {
+    return tokenize(input.command);
+  }
+
+  // If it has an argv field array
+  if (Array.isArray(input.argv)) {
+    return input.argv as string[];
+  }
+
+  return [];
+}
+
+/**
+ * Extract cwd from a toolInput object.
+ */
+function extractCwdFromToolInput(toolInput: unknown): string {
+  if (!toolInput || typeof toolInput !== 'object') return '';
+  const input = toolInput as Record<string, unknown>;
+
+  if (typeof input.cwd === 'string') return input.cwd;
+  return '';
+}
+
+/**
+ * Simple tokenization of a shell command string into argv-like tokens.
+ * Splits on whitespace, respecting basic quoting.
+ */
+function tokenize(command: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  let inSingle = false;
+  let inDouble = false;
+
+  for (const ch of command) {
+    if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      continue;
+    }
+    if (ch === ' ' && !inSingle && !inDouble) {
+      if (current) {
+        tokens.push(current);
+        current = '';
+      }
+      continue;
+    }
+    current += ch;
+  }
+  if (current) {
+    tokens.push(current);
+  }
+  return tokens;
 }
 
 /**
@@ -340,7 +464,7 @@ interface BuildEventParams {
 
 function buildEvent(params: BuildEventParams): Event {
   const { sessionId, agentId, type, parentEventId, monoNs, wallTs, payload } = params;
-  const id = ulidFromTime(Date.now());
+  const id = ulidFromTime(new Date(wallTs).getTime());
   const payloadHash = sha256(payload);
   return {
     id,

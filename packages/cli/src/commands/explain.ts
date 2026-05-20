@@ -65,6 +65,11 @@ const AI_COMMENTARY_BANNER = [
  * EXCLUDED from the signed content of the bundle.
  */
 export async function handleExplain(args: ExplainCommandArgs): Promise<void> {
+  console.error('WARNING: depose explain is deprecated. Use narrative.md in the bundle instead.');
+  console.error('The explain command produces deterministic template output, not AI-generated commentary.');
+  console.error('It will be removed in a future release.');
+  console.error('');
+
   const jsonlPath = typeof args['from-claude'] === 'string' ? args['from-claude'] as string : undefined;
   const bundlePath = typeof args['bundle'] === 'string' ? args['bundle'] as string : undefined;
   const rulesPath = (args['rules'] || args['ruleset']) as string | undefined;

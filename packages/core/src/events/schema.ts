@@ -32,9 +32,26 @@ export type EventType =
 export type AgentId = 'claude-code' | 'codex' | 'cursor' | 'shell' | 'unknown';
 
 /**
+ * Source of a shell command pre-capture event.
+ * claude-pretooluse: captured from Claude Code's PreToolUse hook.
+ * shell-shim: captured from the DEPOSE shell shim.
+ * reconstructed: inferred from JSONL logs during passive reconstruction.
+ */
+export type ShellCommandSource = 'claude-pretooluse' | 'shell-shim' | 'reconstructed';
+
+/**
  * Base shape for every event.
  * chainHash is populated by the chain pass (Phase 2), not by normalizers.
  */
+/**
+ * Correlation metadata for linking events across sources.
+ * Lives outside payload so it does not affect payloadHash.
+ */
+export interface EventCorrelation {
+  /** Cross-link to a shell_command_pre event matched during merge */
+  linkedShellCommandPreId?: string;
+}
+
 export interface EventBase {
   /** ULID, sortable by time (time-sortable because ULIDs embed a timestamp) */
   id: string;
@@ -54,6 +71,8 @@ export interface EventBase {
   payload: unknown;
   /** SHA-256 hex digest of canonical (JCS) JSON serialization of payload */
   payloadHash: string;
+  /** Correlation metadata (outside payload, not hashed into payloadHash) */
+  correlation?: EventCorrelation;
   /** Chain hash (populated by chain pass, not by normalizers) */
   chainHash?: string;
 }
@@ -89,8 +108,8 @@ export interface AssistantMessagePayload {
 export interface ToolCallIntentPayload {
   toolName: string;
   toolInput: unknown;
-  /** Cross-link to a shell_command_pre event if matched */
-  linkedShellCommandPreId: string | null;
+  /** Tool use ID for correlation with tool_result events (Claude Code real-session format) */
+  toolUseId?: string;
 }
 
 /**
@@ -101,8 +120,6 @@ export interface ToolCallExecutedPayload {
   toolInput: unknown;
   exitCode: number | null;
   durationMs: number | null;
-  /** Cross-link to a shell_command_pre event if matched */
-  linkedShellCommandPreId: string | null;
 }
 
 /**
@@ -113,8 +130,8 @@ export interface ToolResultPayload {
   output: string;
   exitCode: number | null;
   error?: string;
-  /** Cross-link to a shell_command_pre event if matched */
-  linkedShellCommandPreId: string | null;
+  /** Tool use ID for correlation back to the parent tool_call_intent */
+  toolUseId?: string;
 }
 
 /**
@@ -150,7 +167,7 @@ export interface ShellCommandPrePayload {
     preSha256: string | null;
     sizeBytes: number | null;
   }>;
-  source: 'claude-pretooluse' | 'shell-shim';
+  source: 'claude-pretooluse' | 'shell-shim' | 'reconstructed';
   captureSchemaVersion: 1;
 }
 
@@ -205,7 +222,9 @@ export interface GapPayload {
     | 'tool_result_without_pre_capture'
     | 'shell_history_without_jsonl_correlation'
     | 'reflog_change_without_command'
-    | 'pre_capture_without_tool_result';
+    | 'pre_capture_without_tool_result'
+    | 'jsonl_line_unparseable'
+    | 'unknown_jsonl_line_type';
   affectedEventIds: string[];
   detail: string;
 }

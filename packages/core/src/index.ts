@@ -8,6 +8,7 @@ export type {
   AgentId,
   Event,
   EventBase,
+  EventCorrelation,
   ProcessNode,
   PromptPayload,
   AssistantMessagePayload,

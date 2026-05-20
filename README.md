@@ -81,15 +81,14 @@ POSIX shell scripts); use WSL2 there.
 
 ## Quick start
 
-**Produce** a signed bundle from a Claude Code session JSONL:
+**Record** a signed bundle from a Claude Code session JSONL:
 
 ```bash
-./packages/cli/bin/depose package \
-  --from-claude path/to/session.jsonl \
-  --skip-timestamp
+./packages/cli/bin/depose record --from-claude path/to/session.jsonl
 ```
 
-`--skip-timestamp` skips the RFC 3161 network call; omit it for production.
+`depose record` always signs (Ed25519 + RFC 3161). For unsigned
+development bundles, use `depose package --from-claude <path> --skip-timestamp`.
 
 **Verify** the bundle from any host:
 
@@ -108,8 +107,8 @@ timestamp       OK
 PASS  bundleId=01J... rootHash=99a96827806b4924...
 ```
 
-Full command surface: `depose --help` (`reconstruct`, `package`,
-`install --claude`, `install --shell`, `explain`, `uninstall`).
+Full command surface: `depose --help` (`record`, `package`,
+`reconstruct`, `install --claude`, `install --shell`, `explain`, `uninstall`).
 
 ## How it works
 
@@ -213,13 +212,21 @@ docs/                 architecture, threat model, bundle format, install guides
 pnpm build       # tsc --build across all packages (project references)
 pnpm typecheck   # tsc --build --noEmit
 pnpm lint        # eslint
-pnpm test        # vitest run — 252 tests across 23 files
-                 # + Go test ./... under apps/verify
+pnpm test        # vitest run — unit + integration tests
+                 # Also: pnpm test:go  (Go verifier + capture-shim)
+                 # Also: pnpm test:all  (TS + Go)
 ```
 
 CI runs lint, typecheck, the full test suite, cross-compiles the Go
 verifier for darwin/linux × arm64/amd64, and re-produces + verifies
-both example bundles.
+both example bundles.  
+
+> **Note on test coverage.**  The TS unit tests exercise synthetic
+> fixtures that match the normalizer's internal expectations.  A
+> contract test covering real Claude Code JSONL format is also present
+> (`session-real-format.jsonl`).  The Go verifier has its own
+> canonical-json and replay test suites.  Round-trip determinism is
+> verified in CI via the `determinism` job.
 
 ## Documentation
 

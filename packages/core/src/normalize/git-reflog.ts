@@ -203,7 +203,7 @@ interface BuildEventParams {
 
 function buildEvent(params: BuildEventParams): Event {
   const { sessionId, agentId, type, parentEventId, monoNs, wallTs, payload } = params;
-  const id = ulidFromTime(Date.now());
+  const id = ulidFromTime(new Date(wallTs).getTime());
   const payloadHash = sha256(payload);
   return {
     id,

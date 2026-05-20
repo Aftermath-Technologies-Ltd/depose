@@ -59,7 +59,7 @@ describe('roundtrip', () => {
     // Read back manifest
     const manifestContent = readFileSync(pathJoin(depopPath, 'manifest.json'), 'utf-8');
     const readManifest = JSON.parse(manifestContent);
-    expect(readManifest.schemaVersion).toBe(1);
+    expect(readManifest.schemaVersion).toBe(2);
     expect(readManifest.bundleId).toBe('sess-roundtrip');
     expect(readManifest.producer.tool).toBe('depose');
     expect(readManifest.counts.events).toBe(claudeEvents.length);
@@ -107,15 +107,8 @@ describe('roundtrip', () => {
     const dirs = [
       'manifest.json',
       'events.jsonl',
-      'raw/claude-code',
-      'raw/shell-history',
-      'raw/git-reflog.txt',
-      'raw/capture',
-      'artifacts/files-pre',
-      'artifacts/files-post',
       'attestations/signatures.json',
       'attestations/rfc3161-timestamps',
-      'attestations/rekor-entries.json',
       'rules/destructive.yaml',
       'narrative.md',
       'narrative.html',
@@ -151,8 +144,5 @@ describe('roundtrip', () => {
 
     const sigs = JSON.parse(readFileSync(pathJoin(depopPath, 'attestations', 'signatures.json'), 'utf-8'));
     expect(sigs.blocks).toEqual([]);
-
-    const rekor = JSON.parse(readFileSync(pathJoin(depopPath, 'attestations', 'rekor-entries.json'), 'utf-8'));
-    expect(rekor.entries).toEqual([]);
   });
 });

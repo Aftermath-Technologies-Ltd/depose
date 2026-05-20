@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "bin": {
-    "depose": "./bin/depose"
+    "depose": "./bin/depose",
+    "depose-hook": "./bin/depose-hook"
   },
   "scripts": {
     "build": "tsc",

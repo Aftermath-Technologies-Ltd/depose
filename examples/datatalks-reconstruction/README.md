@@ -1,7 +1,7 @@
 # DataTalks Reconstruction Example
 
 This directory contains a synthetic Claude Code session that demonstrates how
-`depose package` captures and signs a destructive operation.
+`depose record` captures and signs a destructive operation.
 
 ## Scenario
 
@@ -10,7 +10,7 @@ A user asks Claude Code to free disk space. Claude inspects `/data/training`
 training data with no backup.
 
 This is a realistic reconstruction scenario: after such an incident you would
-run `depose package` on the recorded session to produce a tamper-evident,
+run `depose record` on the recorded session to produce a tamper-evident,
 cryptographically signed `.depo` bundle suitable for audit or legal review.
 
 ## Files
@@ -18,7 +18,7 @@ cryptographically signed `.depo` bundle suitable for audit or legal review.
 | File | Description |
 |---|---|
 | `session.synthetic.jsonl` | Synthetic Claude Code JSONL session log |
-| `produce.sh` | Runs `depose package` on the JSONL |
+| `produce.sh` | Runs `depose record` on the JSONL |
 
 ## Usage
 
@@ -26,7 +26,7 @@ cryptographically signed `.depo` bundle suitable for audit or legal review.
 # From the repo root (after building the CLI)
 ./examples/datatalks-reconstruction/produce.sh
 
-# Or manually
+# Or manually (development: unsigned, no TSA)
 depose package --from-claude session.synthetic.jsonl --skip-timestamp
 ```
 

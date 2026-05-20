@@ -20,7 +20,7 @@ import (
 // in this inclusive range; anything else fails closed.
 const (
 	SupportedSchemaMin = 1
-	SupportedSchemaMax = 1
+	SupportedSchemaMax = 2
 )
 
 // CheckResult represents the result of a single verification check.

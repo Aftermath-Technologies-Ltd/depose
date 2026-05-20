@@ -50,12 +50,12 @@ function makeAssistant(id: string, content = 'Response'): Event {
 }
 
 function makeToolCallIntent(id: string): Event {
-  const payload: ToolCallIntentPayload = { toolName: 'Bash', toolInput: { command: 'ls' }, linkedShellCommandPreId: null };
+  const payload: ToolCallIntentPayload = { toolName: 'Bash', toolInput: { command: 'ls' } };
   return { ...BASE, id, type: 'tool_call_intent' as const, payload, monoNs: 3 };
 }
 
 function _makeToolResult(id: string): Event {
-  const payload: ToolResultPayload = { toolName: 'Bash', output: 'file1\nfile2', exitCode: 0, linkedShellCommandPreId: null };
+  const payload: ToolResultPayload = { toolName: 'Bash', output: 'file1\nfile2', exitCode: 0 };
   return { ...BASE, id, type: 'tool_result' as const, payload, monoNs: 4 };
 }
 

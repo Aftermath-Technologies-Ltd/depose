@@ -9,7 +9,7 @@
 //
 // See BUILD_PLAN.md §6 (Phase 3).
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, symlinkSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, symlinkSync, unlinkSync, lstatSync, readlinkSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -33,8 +33,57 @@ export const DEFAULT_DEPOSE_BIN_DIR = join(homedir(), '.depose', 'bin');
 /** Default capture directory */
 export const DEFAULT_CAPTURE_DIR = join(homedir(), '.depose', 'captures');
 
-/** Hook command string for Claude Code settings.json */
-export const HOOK_COMMAND = 'depose-hook pretooluse';
+/**
+ * Build the hook command string for Claude Code settings.json.
+ * Resolves an absolute path to the depose-hook binary so the setting
+ * survives PATH changes and works regardless of shell configuration.
+ */
+export function buildHookCommand(): string {
+  const hookBinary = resolveHookBinary();
+  const binPath = hookBinary ?? 'depose-hook';
+  return `"${binPath}" pretooluse`;
+}
+
+/**
+ * Pre-computed hook command using the resolved binary path.
+ * For backward compatibility; prefer buildHookCommand() for dynamic resolution.
+ */
+export const HOOK_COMMAND = buildHookCommand();
+
+/**
+ * Resolve the absolute path to the depose-hook binary.
+ * Prefers the current script's resolved path; falls back to PATH lookup.
+ */
+export function resolveHookBinary(): string | null {
+  // When running from the installed bin, process.argv[1] points to the actual script.
+  const arg0 = process.argv[1];
+  if (arg0) {
+    const resolved = resolve(arg0);
+    if (existsSync(resolved)) return resolved;
+  }
+
+  // Fallback: check for depose-hook alongside the depose binary.
+  const deposeBin = process.argv[0]; // node
+  const binDir = dirname(resolve(process.argv[1] || process.cwd()));
+  const hookCandidate = join(binDir, 'depose-hook');
+  if (existsSync(hookCandidate)) return hookCandidate;
+
+  return null;
+}
+
+/**
+ * Check that the hook binary exists before attempting installation.
+ * Returns the resolved absolute path, or throws if the binary cannot be found.
+ */
+export function requireHookBinary(): string {
+  const binPath = resolveHookBinary();
+  if (!binPath) {
+    throw new Error(
+      'Cannot locate depose-hook binary. Ensure @depose/cli is installed correctly.'
+    );
+  }
+  return binPath;
+}
 
 // ── Install --claude ────────────────────────────────────────────────
 
@@ -66,6 +115,18 @@ export function installClaudeHook(
   conflicts: string[];
 } {
   const captureDir = options.captureDir || DEFAULT_CAPTURE_DIR;
+
+  // Pre-invocation check: verify the hook binary exists
+  try {
+    requireHookBinary();
+  } catch (err) {
+    return {
+      settingsPath: '',
+      backupPath: null,
+      captureDir,
+      conflicts: [(err instanceof Error ? err.message : String(err))],
+    };
+  }
 
   // Determine settings.json path
   const settingsPath = options.project
@@ -153,7 +214,7 @@ function buildHookConfig(): Record<string, unknown> {
     hooks: [
       {
         type: 'command',
-        command: HOOK_COMMAND,
+        command: buildHookCommand(),
       },
     ],
   };
@@ -170,6 +231,8 @@ export interface InstallShellOptions {
   shimBinary?: string;
   /** Custom capture directory */
   captureDir?: string;
+  /** Force overwriting existing symlinks that point elsewhere (default: false) */
+  force?: boolean;
 }
 
 /**
@@ -178,9 +241,14 @@ export interface InstallShellOptions {
  * Steps (BUILD_PLAN.md §6, Phase 3):
  *   1. Create $DEPOSE_BIN_DIR (default ~/.depose/bin) with 0755
  *   2. Copy depose-shim binary to $DEPOSE_BIN_DIR/depose-shim
- *   3. Create symlinks for each binary in allowlist
+ *   3. Create symlinks for each binary in allowlist (idempotent)
  *   4. Create $DEPOSE_CAPTURE_DIR with 0700
  *   5. Print PATH instruction
+ *
+ * Idempotent behavior (F-23):
+ *   - If a symlink already points to the correct target, skip it.
+ *   - If a symlink points elsewhere, error unless --force is set.
+ *   - If a regular file exists at the symlink path, error unless --force.
  */
 export function installShellShims(
   options: InstallShellOptions = {}
@@ -188,11 +256,13 @@ export function installShellShims(
   binDir: string;
   captureDir: string;
   installedBinaries: string[];
+  skippedBinaries: string[];
   pathInstruction: string;
 } {
   const binDir = options.binDir || DEFAULT_DEPOSE_BIN_DIR;
   const captureDir = options.captureDir || DEFAULT_CAPTURE_DIR;
   const binaries = options.binaries || Array.from(SHIM_ALLOWLIST);
+  const force = options.force ?? false;
 
   // Create bin directory
   if (!existsSync(binDir)) {
@@ -217,28 +287,60 @@ export function installShellShims(
     chmodSync(targetShim, 0o755);
   }
 
-  // Create symlinks
+  // Create symlinks (idempotent)
   const installedBinaries: string[] = [];
+  const skippedBinaries: string[] = [];
+
   for (const name of binaries) {
     const linkPath = join(binDir, name);
+
     try {
-      // Remove existing symlink if present
-      if (existsSync(linkPath)) {
-        try {
-          readFileSync(linkPath); // Will throw for broken symlinks
-        } catch {
-          // Broken symlink, remove it
+      // Check if symlink already exists and points to the correct target
+      if (lstatSync(linkPath).isSymbolicLink()) {
+        const currentTarget = readlinkSync(linkPath);
+        if (currentTarget === targetShim) {
+          // Already points to the correct target — skip
+          skippedBinaries.push(name);
+          continue;
         }
+        // Points elsewhere — require --force to override
+        if (!force) {
+          throw new Error(
+            `Symlink "${linkPath}" already exists pointing to "${currentTarget}". ` +
+            `Use --force to override.`
+          );
+        }
+        // Force: remove and recreate
+        unlinkSync(linkPath);
+      } else {
+        // Regular file or directory exists at the path
+        if (!force) {
+          throw new Error(
+            `Path "${linkPath}" already exists and is not a symlink. ` +
+            `Use --force to override.`
+          );
+        }
+        // Force: remove and recreate
+        unlinkSync(linkPath);
       }
+    } catch (err: unknown) {
+      // lstatSync throws for non-existent paths — that's fine, we create below
+      if (err instanceof Error && !err.message.includes('ENOENT')) {
+        // Re-throw unless it's just "does not exist"
+        throw err;
+      }
+    }
+
+    // Create the symlink
+    try {
       symlinkSync(targetShim, linkPath);
       installedBinaries.push(name);
     } catch (err) {
-      // Symlink might already exist; best-effort
+      // EEXIST can still happen in race conditions — skip
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.includes('EEXIST')) {
-        // Real error
+        throw err;
       }
-      // On EEXIST, just skip
     }
   }
 
@@ -248,6 +350,7 @@ export function installShellShims(
     binDir,
     captureDir,
     installedBinaries,
+    skippedBinaries,
     pathInstruction,
   };
 }

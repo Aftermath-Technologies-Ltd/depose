@@ -12,7 +12,8 @@ import {
   installShellShims,
   uninstallShellShims,
   SHIM_ALLOWLIST,
-  HOOK_COMMAND,
+  buildHookCommand,
+  resolveHookBinary,
 } from '../src/commands/install.js';
 
 // ── Test fixtures ────────────────────────────────────────────────────
@@ -106,9 +107,9 @@ describe('Phase 3: installClaudeHook', () => {
     expect(result).toBeDefined();
   });
 
-  it('HOOK_COMMAND is well-formed', () => {
-    expect(HOOK_COMMAND).toBe('depose-hook pretooluse');
-    expect(HOOK_COMMAND.split(' ').length).toBe(2);
+  it('buildHookCommand returns a command with pretooluse subcommand', () => {
+    const cmd = buildHookCommand();
+    expect(cmd).toContain('pretooluse');
   });
 });
 

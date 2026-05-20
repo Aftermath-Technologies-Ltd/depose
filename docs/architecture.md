@@ -73,8 +73,8 @@ does one thing. Data flows downward; no layer reaches up.
 ┌────────────────▼──────────────────────────────────────────────┐
 │  INTEGRITY                                                     │
 │   Hash chain (IRONROOT construction) → root_hash              │
-│   Ed25519 OR sigstore keyless signing                          │
-│   RFC 3161 timestamps + optional Rekor entry                    │
+│   Sign manifest (Ed25519) — Sigstore keyless not yet impl.    │
+│   RFC 3161 timestamps                                           │
 └────────────────┬──────────────────────────────────────────────┘
                  │
 ┌────────────────▼──────────────────────────────────────────────┐
@@ -158,8 +158,8 @@ Integrity is the cryptography layer. It makes the bundle tamper-evident:
   rootHash     = chainHash[N-1]
   ```
 
-- **Signing**: Ed25519 (default, local keypair) or Sigstore Fulcio (opt-in,
-  keyless via OIDC). The signature covers `manifest.json`, which contains
+- **Signing**: Ed25519 (default, local keypair). Sigstore Fulcio (not yet
+  implemented, opt-in, keyless via OIDC). The signature covers `manifest.json`, which contains
   `rootHash`.
 
 - **RFC 3161 timestamps**: The bundle is submitted to a Time Stamp Authority
@@ -167,7 +167,9 @@ Integrity is the cryptography layer. It makes the bundle tamper-evident:
   prove that the bundle existed at a specific time, as certified by a trusted
   third party.
 
-- **Rekor** (optional): Transparency log entry for public auditability.
+- **Rekor** (not yet implemented): Transparency log entry for public auditability.
+  The code path is scaffolded but throws on every call. Ed25519 + RFC 3161 is
+  the only signing path today.
 
 ### 2.5 Layer 5: Bundle
 
@@ -328,7 +330,7 @@ stored in the bundle; a future reader can see exactly which rules flagged what.
 DEPOSE uses:
 - SHA-256 ( hashing everywhere — no exotic hash functions.
 - Ed25519 (established, fast, widely supported).
-- Sigstore Fulcio (emerging standard for keyless signing).
+- Sigstore Fulcio (not yet implemented; scaffold only).
 - RFC 3161 (established TSA standard).
 
 No custom cryptography. No novel constructions. The IRONROOT hash chain is a
