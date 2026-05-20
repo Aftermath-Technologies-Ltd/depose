@@ -113,8 +113,9 @@ producer's build.
 
 - The verifier download URL is defined in
   `packages/bundle/src/constants.ts` and nowhere else. CI greps the
-  tree for the older `github.com/depose/depose` form and fails the
-  build if it reappears outside `constants.ts`.
+  tree for the obsolete non-canonical URL form and fails the build if
+  it reappears outside `constants.ts`. The grep pattern lives in
+  `.github/workflows/ci.yml`; do not duplicate it elsewhere.
 - `Math.random` is forbidden in evidence paths
   (`packages/chain/src`, `packages/bundle/src`,
   `packages/core/src/events`). All randomness in the signed path must
