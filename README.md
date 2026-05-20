@@ -37,20 +37,18 @@
 DEPOSE turns a Claude Code session into a self-contained, hash-chained,
 cryptographically signed evidence bundle — verifiable off-host by
 anyone with a single Go binary and no other DEPOSE infrastructure.
-
-It is the record you wish you had the moment *after* something went wrong:
-a wiped production database, a deleted directory, a destroyed cloud account.
-Point DEPOSE at a session log and it produces a `.depo` bundle an auditor,
-regulator, or court can verify themselves.
+It is the record you wish you had the moment *after* something went
+wrong: a wiped production database, a deleted directory, a destroyed
+cloud account. Point DEPOSE at a session log and it produces a `.depo`
+bundle an auditor, regulator, or court can verify themselves.
 
 ## Why DEPOSE
 
-Agent transcripts on disk are not evidence. They are unsigned text files
-that anyone with shell access can rewrite. When an AI coding agent does
-real damage, the question stops being *what happened* and becomes *what
-can you prove happened, to a third party who does not trust your laptop*.
-
-DEPOSE answers that question with three properties that hold off-host:
+Agent transcripts on disk are not evidence — anyone with shell access
+can rewrite them. When an AI coding agent does real damage, the
+question becomes *what can you prove happened, to a third party who
+does not trust your laptop*. DEPOSE answers that with three properties
+that hold off-host:
 
 | Property | Mechanism |
 |---|---|
@@ -58,9 +56,8 @@ DEPOSE answers that question with three properties that hold off-host:
 | **Authenticated** | Ed25519 manifest signature; sealed by a key the producer controls. |
 | **Anti-backdated** | RFC 3161 timestamp from FreeTSA (DigiCert fallback) anchors the bundle to a moment in time. |
 
-No LLM sits in the signed path. Narrative prose is templated from signed
-events and excluded from the root hash, so reading it cannot taint the
-record.
+No LLM sits in the signed path. Narrative prose is templated from
+signed events and excluded from the root hash.
 
 ## Install
 
@@ -96,19 +93,15 @@ development bundles, use `depose package --from-claude <path> --skip-timestamp`.
 ./apps/verify/build/depose-verify verify path/to/incident-<bundleId>
 ```
 
-A passing run prints:
+A passing run prints `parse / signature / chain-replay / artifacts /
+timestamp` each `OK`, followed by `PASS  bundleId=... rootHash=...`.
+Recipients can pin the producer's key (`--expected-key-fingerprint`)
+or a revocation list (`--revocation-list`); see
+[docs/key-management.md](docs/key-management.md).
 
-```
-parse           OK
-signature       OK
-chain-replay    OK
-artifacts       OK
-timestamp       OK
-PASS  bundleId=01J... rootHash=99a96827806b4924...
-```
-
-Full command surface: `depose --help` (`record`, `package`,
-`reconstruct`, `install --claude`, `install --shell`, `explain`, `uninstall`).
+Full command surface: `depose --help` — `record`, `package`,
+`reconstruct`, `verify`, `explain`, `install --claude|--shell`,
+`uninstall --claude|--shell`, `key {fingerprint,rotate,revoke,catalog}`.
 
 ## How it works
 
@@ -138,21 +131,18 @@ incident-01JABC.../
 ├── manifest.json            ← bundleId, rootHash, eventsJsonlSha256, sigs, timestamps
 ├── events.jsonl             ← every event in canonical JSON, byte-pinned by manifest
 ├── rules/destructive.yaml   ← ruleset used at reconstruction time
-├── narrative.md             ← templated prose with per-event citations
-├── narrative.html           ← same, rendered
+├── narrative.md / .html     ← templated prose with per-event citations
 ├── verify.txt               ← human-readable verification summary
 ├── artifacts/               ← captured file diffs, payloads
-├── attestations/            ← signatures, RFC 3161 tokens
-└── raw/                     ← source JSONL, shell history fragments
+├── attestations/            ← Ed25519 signatures, RFC 3161 timestamp tokens
+└── raw/                     ← source JSONL, shell history fragments, capture records
 ```
 
 Tampering with any byte of `events.jsonl`, `manifest.json`, or
-`rules/destructive.yaml` causes verification to fail. The verifier
-recomputes each event's `payloadHash` from its `payload`, replays
-the IRONROOT chain to `rootHash`, hashes `events.jsonl` and compares
-to `manifest.eventsJsonlSha256`, and verifies the Ed25519 signature
-+ RFC 3161 timestamp over the manifest. Format spec:
-[docs/bundle-format.md](docs/bundle-format.md).
+`rules/destructive.yaml` causes verification to fail. Full format
+spec — canonical-JSON rules, chain construction, signing procedure,
+manifest schema — in [docs/bundle-format.md](docs/bundle-format.md)
+and [docs/canonical-json.md](docs/canonical-json.md).
 
 ## Active capture
 
@@ -192,53 +182,57 @@ CI rebuilds both bundles on every push and validates them end-to-end.
 
 ```
 packages/
-├── core/             event schema, normalization, reconstruction, ruleset matcher
-├── chain/            hash chain, Ed25519 signing, RFC 3161 timestamping
+├── core/             event schema, normalizers, reconstruction, ruleset matcher
+├── chain/            hash chain, Ed25519 signing, RFC 3161, key catalog
 ├── bundle/           bundle directory writer + manifest schema
 ├── narrative/        Handlebars-based deterministic narrative renderer
 ├── capture-claude/   Claude Code PreToolUse hook
-└── cli/              `depose` command
-    └── rules/destructive.default.yaml   # bundled with the CLI
+└── cli/              `depose` + `depose-hook` commands (+ bundled rules)
 apps/
 ├── verify/           `depose-verify` static Go binary
-└── capture-shim/     shell shim Go binary
-examples/             synthetic reconstructions
+└── capture-shim/     `depose-shim` shell shim Go binary
+examples/             synthetic reconstructions, replayed in CI
+scripts/              determinism + install-from-pack E2E
+tests/conformance/    cross-language canonical-JSON vectors
 docs/                 architecture, threat model, bundle format, install guides
 ```
 
 ## Development
 
 ```bash
-pnpm build       # tsc --build across all packages (project references)
+pnpm build       # TS packages + Go shim + esbuild bundle for the CLI
 pnpm typecheck   # tsc --build --noEmit
-pnpm lint        # eslint
-pnpm test        # vitest run — unit + integration tests
-                 # Also: pnpm test:go  (Go verifier + capture-shim)
-                 # Also: pnpm test:all  (TS + Go)
+pnpm lint        # eslint, --max-warnings 0
+pnpm test        # vitest (TS); add `:go` for Go suites, `:all` for both
 ```
 
-CI runs lint, typecheck, the full test suite, cross-compiles the Go
-verifier for darwin/linux × arm64/amd64, and re-produces + verifies
-both example bundles.  
+CI runs lint, typecheck, the TS + Go suites on Ubuntu and macOS (Node
+20 + 22), cross-compiles `depose-verify` for darwin/linux × arm64/amd64,
+re-produces and verifies both example bundles end-to-end (including
+three semantic tamper rejections), packs and installs the CLI tarball,
+and asserts round-trip determinism. Releases additionally emit
+CycloneDX SBOMs (TS + Go) and SLSA L3 provenance, with `SHA256SUMS`
+signed via cosign keyless.
 
-> **Note on test coverage.**  The TS unit tests exercise synthetic
-> fixtures that match the normalizer's internal expectations.  A
-> contract test covering real Claude Code JSONL format is also present
-> (`session-real-format.jsonl`).  The Go verifier has its own
-> canonical-json and replay test suites.  Round-trip determinism is
-> verified in CI via the `determinism` job.
+Build internals, the full CI matrix, and source-tree invariants:
+[docs/development.md](docs/development.md).
 
 ## Documentation
 
 | Doc | What |
 |---|---|
 | [architecture.md](docs/architecture.md) | System design, two-binary model, data flow. |
-| [bundle-format.md](docs/bundle-format.md) | `.depo` spec — layout, canonical JSON, hash chain. |
+| [bundle-format.md](docs/bundle-format.md) | `.depo` spec — layout, manifest schema, hash chain. |
+| [canonical-json.md](docs/canonical-json.md) | RFC 8785 JCS rules used by both producer and verifier. |
 | [threat-model.md](docs/threat-model.md) | What DEPOSE defends against, what it doesn't. |
 | [capture-coverage.md](docs/capture-coverage.md) | Coverage matrix per capture mode. |
 | [hook-installation.md](docs/hook-installation.md) | Claude Code PreToolUse hook setup. |
 | [shim-installation.md](docs/shim-installation.md) | Shell shim setup. |
+| [key-management.md](docs/key-management.md) | Signing-key flows, fingerprints, rotation/revocation. |
 | [legal-considerations.md](docs/legal-considerations.md) | Evidentiary use, jurisdictional notes. |
+| [development.md](docs/development.md) | Build, test, CI, and release internals. |
+
+Repo-root: [SECURITY.md](SECURITY.md) (disclosure), [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
