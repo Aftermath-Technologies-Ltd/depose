@@ -8,13 +8,17 @@ on:
 
 jobs:
   lint-typecheck-test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     # D6: package.json:engines.node = ">=20". We verify on both the
     # minimum supported version (20) and the current LTS (22) so a
     # regression in either fails the build, not just one.
+    # README claims macOS + Linux support; both run here so the POSIX
+    # mode-bit, shim-resolution, and import.meta.url paths get exercised
+    # on both OSes.
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
@@ -85,6 +89,56 @@ jobs:
 
       - name: Go verifier tests
         run: cd apps/verify && go test ./...
+
+      - name: Install-from-pack E2E
+        # Catches the kind of regressions unit tests miss:
+        # workspace deps that fail to resolve once published, missing
+        # files in the npm-pack tarball, bin entries pointing at unbuilt
+        # artifacts, depose-hook unable to load capture-claude.
+        run: |
+          (cd apps/verify && make build-local)
+          bash scripts/install-from-pack-test.sh
+
+  sbom:
+    runs-on: ubuntu-latest
+    needs: lint-typecheck-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate npm SBOM (CycloneDX)
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm@latest \
+            --output-format JSON \
+            --output-file sbom-npm.cdx.json \
+            --omit dev \
+            --spec-version 1.5
+
+      - name: Generate Go SBOM (CycloneDX) for verifier
+        run: |
+          go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
+          cyclonedx-gomod app -main . -licenses -output sbom-verify.cdx.json -json apps/verify
+
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: depose-sboms
+          path: |
+            sbom-npm.cdx.json
+            sbom-verify.cdx.json
+          retention-days: 90
 
   verify-binary:
     runs-on: ubuntu-latest

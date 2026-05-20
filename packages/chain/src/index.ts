@@ -63,3 +63,18 @@ export {
   type RekorEntry,
   type RekorOptions,
 } from './rekor.js';
+
+// Key lifecycle catalog (rotation + revocation MVP)
+export {
+  KEY_CATALOG_SCHEMA_VERSION,
+  loadCatalog,
+  saveCatalog,
+  findEntry,
+  recordActive,
+  markRotated,
+  markRevoked,
+  isRevoked,
+  type KeyCatalog,
+  type KeyCatalogEntry,
+  type KeyCatalogStatus,
+} from './key-catalog.js';

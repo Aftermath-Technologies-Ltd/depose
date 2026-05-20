@@ -44,4 +44,4 @@ export {
   VERIFY_TXT,
 } from './layout.js';
 
-export { VERIFIER_DOWNLOAD_URL, GITHUB_REPO_SLUG } from './constants.js';
+export { VERIFIER_DOWNLOAD_URL, GITHUB_REPO_SLUG, DEPOSE_RELEASE_TAG } from './constants.js';

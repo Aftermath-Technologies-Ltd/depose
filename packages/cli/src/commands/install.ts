@@ -294,16 +294,25 @@ export function installShellShims(
     chmodSync(captureDir, 0o700);
   }
 
-  // Find or build the shim binary
+  // Find the shim binary. Fail closed — without it, the symlinks below
+  // would all dangle (notably "rm" → missing target), and the user's
+  // shell would break in dangerous ways once they put binDir on PATH.
   const shimBinary = options.shimBinary || findShimBinary();
-
-  // Copy shim binary to bin dir (if it exists)
-  const targetShim = join(binDir, 'depose-shim');
-  if (shimBinary && existsSync(shimBinary)) {
-    const content = readFileSync(shimBinary);
-    writeFileSync(targetShim, content);
-    chmodSync(targetShim, 0o755);
+  if (!shimBinary || !existsSync(shimBinary)) {
+    throw new Error(
+      'depose-shim binary not found. Build it first:\n' +
+      '  (cd apps/capture-shim && make build-local)\n' +
+      'Or install a release that includes depose-shim. Refusing to install ' +
+      'shell shims because that would leave dangling symlinks (including "rm") ' +
+      'on your PATH.'
+    );
   }
+
+  // Copy shim binary to bin dir.
+  const targetShim = join(binDir, 'depose-shim');
+  const content = readFileSync(shimBinary);
+  writeFileSync(targetShim, content);
+  chmodSync(targetShim, 0o755);
 
   // Create symlinks (idempotent)
   const installedBinaries: string[] = [];

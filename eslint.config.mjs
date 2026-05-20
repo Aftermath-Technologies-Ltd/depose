@@ -10,14 +10,45 @@ import tsparser from '@typescript-eslint/parser';
 export default [
   // Global ignore — files NOT linted at all. Flat config treats a
   // config object with only `ignores` as the global ignore list.
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts', '**/*.tsbuildinfo'] },
+  // dist-bundle/ holds the esbuild-produced single-file CLI bundles;
+  // they're machine-generated and concatenate dozens of third-party
+  // libs, so linting them is meaningless.
+  {
+    ignores: [
+      '**/dist/**',
+      '**/dist-bundle/**',
+      '**/node_modules/**',
+      '**/*.d.ts',
+      '**/*.tsbuildinfo',
+    ],
+  },
 
   // Apply eslint:recommended only to JS files. TypeScript files use
   // typescript-eslint's recommended set, which is layered below.
   // Keeping js:recommended off of .ts files is what lets us disable
   // the runtime-level `no-undef` (TypeScript's own checker subsumes
   // it with full type awareness).
-  { ...js.configs.recommended, files: ['**/*.js', '**/*.mjs', '**/*.cjs'] },
+  {
+    ...js.configs.recommended,
+    files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
+    languageOptions: {
+      globals: {
+        // Node runtime globals for hand-written .mjs scripts (build,
+        // tooling). The generated dist-bundle/ files are globally
+        // ignored above; this is for things like scripts/*.mjs.
+        process: 'readonly',
+        Buffer: 'readonly',
+        console: 'readonly',
+        URL: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        require: 'readonly',
+        module: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+      },
+    },
+  },
   {
     files: ['packages/**/*.ts'],
     ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts'],
