@@ -141,6 +141,37 @@ describe('validateTsr', () => {
     const result = validateTsr(tsr, nonce, hashHex);
     expect(result.timestamp).toBe('2025-05-18T15:30:00.123Z');
   });
+
+  it('accepts a TSR whose nonce omits the DER sign-padding byte (FreeTSA laxity)', () => {
+    // Regression for the FreeTSA encoding quirk that broke verify-examples
+    // in CI. The request nonce starts with 0x00 followed by a high-bit
+    // byte, so strict DER keeps the 0x00 sign pad. FreeTSA echoes back
+    // the same integer without the pad. Both are the same unsigned
+    // integer value; validateTsr must treat them as equal.
+    const hashHex = createHash('sha256').update('lax-nonce test', 'utf-8').digest('hex');
+    const hashBytes = Buffer.from(hashHex, 'hex');
+
+    // 8-byte request nonce: first byte 0x00, second byte 0xfe (high bit set).
+    const requestNonce = Buffer.from([0x00, 0xfe, 0x5f, 0x90, 0x16, 0xaf, 0xe3, 0x5d]);
+    // The lax TSA emits the INTEGER content as just the 7 significant
+    // bytes (no sign pad), which is invalid strict DER but interoperable.
+    const laxNonceContent = Buffer.from([0xfe, 0x5f, 0x90, 0x16, 0xaf, 0xe3, 0x5d]);
+
+    const tsr = buildMinimalTimeStampRespWithRawNonceBytes(hashBytes, laxNonceContent);
+
+    const result = validateTsr(tsr, requestNonce, hashHex);
+    expect(result.nonce).not.toBeNull();
+  });
+
+  it('still rejects a TSR whose nonce has a different integer value', () => {
+    const hashHex = createHash('sha256').update('mismatch test', 'utf-8').digest('hex');
+    const hashBytes = Buffer.from(hashHex, 'hex');
+    const requestNonce = Buffer.from([0x00, 0xfe, 0x5f, 0x90, 0x16, 0xaf, 0xe3, 0x5d]);
+    const differentNonce = Buffer.from([0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x02]);
+
+    const tsr = buildMinimalTimeStampResp(hashBytes, differentNonce);
+    expect(() => validateTsr(tsr, requestNonce, hashHex)).toThrow(/Nonce mismatch/);
+  });
 });
 
 // ── Constant-time comparison test ─────────────────────────────────────
@@ -190,6 +221,16 @@ function derIntegerFromBuffer(value: Buffer): Buffer {
   return Buffer.concat([Buffer.from([0x02]), derLength(content.length), content]);
 }
 
+/**
+ * Emit an INTEGER whose content bytes are exactly what was passed in,
+ * with no sign-pad normalization. Models the lax-DER behavior of TSAs
+ * (notably FreeTSA) that omit the sign-pad byte even when strict DER
+ * would require it for positive integers.
+ */
+function derIntegerRawContent(value: Buffer): Buffer {
+  return Buffer.concat([Buffer.from([0x02]), derLength(value.length), value]);
+}
+
 function derGeneralizedTime(timeStr: string): Buffer {
   const timeBytes = Buffer.from(timeStr, 'ascii');
   return Buffer.concat([Buffer.from([0x18]), derLength(timeBytes.length), timeBytes]);
@@ -234,11 +275,42 @@ function buildMinimalTimeStampRespWithGenTime(
   return buildMinimalTimeStampRespWithAlgIdAndGenTime(hashBytes, nonce, SHA256_ALG_ID, genTimeStr);
 }
 
+/**
+ * Build a TimeStampResp whose nonce INTEGER is encoded with the raw
+ * content bytes you supply (no sign-pad normalization). Use to model
+ * a TSA that returns a non-strict-DER nonce encoding.
+ */
+function buildMinimalTimeStampRespWithRawNonceBytes(
+  hashBytes: Buffer,
+  rawNonceContent: Buffer,
+): Buffer {
+  return buildMinimalTimeStampRespCore(
+    hashBytes,
+    derIntegerRawContent(rawNonceContent),
+    SHA256_ALG_ID,
+    '20250518153000Z',
+  );
+}
+
 function buildMinimalTimeStampRespWithAlgIdAndGenTime(
   hashBytes: Buffer,
   nonce: Buffer,
   algId: Buffer,
   genTimeStr: string
+): Buffer {
+  return buildMinimalTimeStampRespCore(
+    hashBytes,
+    derIntegerFromBuffer(nonce),
+    algId,
+    genTimeStr,
+  );
+}
+
+function buildMinimalTimeStampRespCore(
+  hashBytes: Buffer,
+  nonceDer: Buffer,
+  algId: Buffer,
+  genTimeStr: string,
 ): Buffer {
   // ── TSTInfo ──
   // TSTInfo (using UNIVERSAL tags to match typical DER output):
@@ -260,7 +332,7 @@ function buildMinimalTimeStampRespWithAlgIdAndGenTime(
     messageImprint,                                  // messageImprint
     derIntegerFromBuffer(Buffer.from([0x01])),     // serialNumber
     derGeneralizedTime(genTimeStr),                 // genTime
-    derIntegerFromBuffer(nonce),                    // nonce
+    nonceDer,                                       // nonce (pre-encoded)
   ]);
 
   // Wrap TSTInfo in OCTET STRING (eContent)

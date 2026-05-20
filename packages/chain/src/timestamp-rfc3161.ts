@@ -584,6 +584,18 @@ function stripDerIntegerPadding(buf: Buffer): Buffer {
 }
 
 /**
+ * Trim all leading 0x00 bytes, leaving at least one byte. Treats the
+ * input as an unsigned big-endian integer; equal integer values
+ * compare equal regardless of leading-zero padding. Used for nonce
+ * comparison where DER encoders disagree about sign-padding.
+ */
+function trimLeadingZeroBytes(buf: Buffer): Buffer {
+  let i = 0;
+  while (i < buf.length - 1 && buf[i] === 0x00) i++;
+  return buf.subarray(i);
+}
+
+/**
  * Extract genTime, nonce, and messageImprint from a TSTInfo SEQUENCE.
  *
  * TSTInfo (RFC 3161 with IMPLICIT TAGS):
@@ -696,11 +708,30 @@ export function validateTsr(
   // 2. Parse TSTInfo fields
   const { genTime, nonce, messageImprint } = parseTstInfoFields(tstInfoBytes);
 
-  // 3. Verify nonce (if the TSA echoed one)
+  // 3. Verify nonce (if the TSA echoed one).
+  //
+  // The nonce is logically an unsigned big-endian integer. The request
+  // encodes it as a DER INTEGER, prepending 0x00 when the high bit of
+  // the first byte is set (so the value is unambiguously positive).
+  // Real-world TSAs are inconsistent about strict-DER re-encoding:
+  // FreeTSA in particular has been observed to echo back the nonce
+  // *without* the sign-padding byte, so an 8-byte request nonce starting
+  // with 0xfe comes back as 7 bytes. parseTstInfoFields() already strips
+  // a leading 0x00 sign-pad on the response side; we apply the same
+  // normalization to the request-side bytes before comparing so the
+  // two are compared as integer values, not as raw buffers. This is
+  // safe because the nonce's only job is replay protection, and equal
+  // integer values give equal replay-protection guarantees regardless
+  // of which encoding the TSA chose to send back.
   if (nonce !== null) {
-    if (nonce.length !== expectedNonce.length || !timingSafeEqual(nonce, expectedNonce)) {
+    const normalizedExpected = trimLeadingZeroBytes(expectedNonce);
+    const normalizedActual = trimLeadingZeroBytes(nonce);
+    if (
+      normalizedActual.length !== normalizedExpected.length ||
+      !timingSafeEqual(normalizedActual, normalizedExpected)
+    ) {
       throw new TsrValidationError(
-        `Nonce mismatch: TSR nonce ${nonce.toString('hex')} != request nonce ${expectedNonce.toString('hex')}`
+        `Nonce mismatch: TSR nonce ${nonce.toString('hex')} != request nonce ${expectedNonce.toString('hex')}`,
       );
     }
   }
