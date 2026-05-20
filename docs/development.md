@@ -20,9 +20,9 @@ pnpm lint           # eslint, --max-warnings 0
 `pnpm build` produces three things:
 
 1. TypeScript transpile output under each `packages/*/dist/`.
-2. `apps/capture-shim/depose-shim` — the PATH-intercepting Go shim
+2. `apps/capture-shim/depose-shim`: the PATH-intercepting Go shim
    used by `depose install --shell`.
-3. `packages/cli/dist-bundle/{depose.mjs,depose-hook.mjs}` — the
+3. `packages/cli/dist-bundle/{depose.mjs,depose-hook.mjs}`: the
    single-file esbuild output that the published npm tarball ships.
    Inlines `@depose/*` workspace deps and `commander` so consumers
    need no runtime dependencies after `npm install -g <tarball>`.
@@ -74,23 +74,23 @@ entries pointing at unbuilt artifacts, hook unable to load
 
 The `CI` workflow (`.github/workflows/ci.yml`):
 
-- `lint-typecheck-test` — runs on `ubuntu-latest` and `macos-latest`,
+- `lint-typecheck-test`: runs on `ubuntu-latest` and `macos-latest`,
   Node 20 and 22; lint, typecheck, TS tests, Go verifier tests,
   install-from-pack E2E. Also enforces two source-tree invariants:
   the verifier download URL has a single source of truth, and
   `Math.random` is forbidden under `packages/chain/src`,
   `packages/bundle/src`, and `packages/core/src/events`.
-- `sbom` — emits a CycloneDX SBOM for the TS dep graph (via cdxgen,
+- `sbom`: emits a CycloneDX SBOM for the TS dep graph (via cdxgen,
   pnpm-aware) and a CycloneDX SBOM for the Go verifier (via
   cyclonedx-gomod). Both upload as build artifacts.
-- `verify-binary` — cross-compiles `depose-verify` and uploads the
+- `verify-binary`: cross-compiles `depose-verify` and uploads the
   binaries as artifacts.
-- `determinism` — runs the determinism test.
+- `determinism`: runs the determinism test.
 
 The `Verify Example Bundles` workflow re-produces both example
-bundles end-to-end and runs three semantic tamper tests — payload
-string rewrite, `payloadHash` hex flip, `chainHash` hex flip — and
-asserts the verifier rejects each.
+bundles end-to-end and runs three semantic tamper tests (payload
+string rewrite, `payloadHash` hex flip, `chainHash` hex flip),
+asserting the verifier rejects each.
 
 ## Release artifacts
 
@@ -106,7 +106,7 @@ Tagged release (`v*`) via `.github/workflows/release.yml`:
 
 Bundles produced from a tagged release pin
 `manifest.verifier.downloadUrl` to that release tag, not to the moving
-`latest` — so a recipient downloads the verifier that matched the
+`latest`, so a recipient downloads the verifier that matched the
 producer's build.
 
 ## Source-tree invariants enforced by CI
