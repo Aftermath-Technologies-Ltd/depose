@@ -33,4 +33,4 @@ debug-*.ts
 # Internal planning / marketing — not part of the shipped tool.
 # These live in the repo for working copies but should never ship.
 update-plan.md
-docs/launch/
+docs/launch/docs/update-plan-2.md
