@@ -118,18 +118,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate npm SBOM (CycloneDX)
+      - name: Generate npm SBOM (CycloneDX) via cdxgen
+        # The dev monorepo uses pnpm; cyclonedx-npm requires an npm-style
+        # node_modules and fails on pnpm's symlink layout. The published
+        # CLI tarball has no runtime deps (everything is bundled), so an
+        # SBOM "of the tarball" is empty. cdxgen is pnpm-aware and
+        # produces a real SBOM of the source dep graph that went into
+        # the bundle — which is what a customer's SBOM should describe.
         run: |
-          npx --yes @cyclonedx/cyclonedx-npm@latest \
-            --output-format JSON \
-            --output-file sbom-npm.cdx.json \
-            --omit dev \
+          npx --yes @cyclonedx/cdxgen@12 \
+            -t pnpm \
+            -o sbom-npm.cdx.json \
             --spec-version 1.5
+          test -s sbom-npm.cdx.json
 
       - name: Generate Go SBOM (CycloneDX) for verifier
         run: |
           go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
-          cyclonedx-gomod app -main . -licenses -output sbom-verify.cdx.json -json apps/verify
+          cd apps/verify
+          cyclonedx-gomod app -main . -licenses -output "$GITHUB_WORKSPACE/sbom-verify.cdx.json" -json
 
       - name: Upload SBOMs
         uses: actions/upload-artifact@v4
