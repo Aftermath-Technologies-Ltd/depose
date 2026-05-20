@@ -18,8 +18,8 @@
 //
 // See BUILD_PLAN.md §5 for the full bundle layout.
 
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, writeFileSync, copyFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, basename, dirname } from 'node:path';
 import type { Event, DestructiveRule } from '@depose/core';
 import { buildTimeline, sha256Bytes } from '@depose/core';
 import { buildManifest, serializeManifest, serializeManifestForSigning, type BundleMode, type Manifest, type SignatureBlock, type Rfc3161Token } from './manifest.js';
@@ -97,6 +97,13 @@ export interface BundleWriterOptions {
    *  calling a real TSA. Used by signed-mode tests that cannot reach
    *  a live TSA. Never set by CLI commands. */
   injectedTimestamps?: ChainRfc3161Token[];
+  /** Path to the original JSONL source file. When provided, the
+   *  file is copied into raw/claude-code/<filename>.jsonl in the
+   *  bundle. Also triggers sibling file discovery: if a
+   *  shell-history.txt or git-reflog.txt exists alongside the
+   *  JSONL, they are copied into raw/shell-history/ and raw/
+   *  respectively. */
+  sourceJsonlPath?: string;
 }
 
 // ── Bundle output ────────────────────────────────────────────────────
@@ -144,6 +151,7 @@ export async function writeBundle(
     mode,
     keyPair,
     injectedTimestamps,
+    sourceJsonlPath,
   } = options;
 
   if (mode === 'signed' && !keyPair) {
@@ -270,26 +278,40 @@ export async function writeBundle(
   const sortedEvents = eventsJsonlSorted;
   writeFileSync(join(bundleDir, EVENTS_PATH), eventsJsonlBytes);
 
-  // Write raw/ directory. Only sub-trees for capture sources that
-  // are actually implemented; a Codex normalizer was previously
-  // promised but never shipped, so we stop emitting an empty
-  // raw/codex/ directory that misleads recipients about coverage.
-  const rawClaudeDir = join(bundleDir, RAW_DIR, 'claude-code');
-  mkdirSync(rawClaudeDir, { recursive: true });
-  const rawShellDir = join(bundleDir, RAW_DIR, 'shell-history');
-  mkdirSync(rawShellDir, { recursive: true });
-  const rawReflogFile = join(bundleDir, RAW_DIR, 'git-reflog.txt');
-  writeFileSync(rawReflogFile, '', 'utf-8');
-  const rawCaptureDir = join(bundleDir, RAW_DIR, 'capture');
-  mkdirSync(rawCaptureDir, { recursive: true });
+  // ── raw/ directory ─────────────────────────────────────────────────
+  // Copy source files when available. Do not create empty stubs.
+  const rawDir = join(bundleDir, RAW_DIR);
 
-  // Write artifacts/ directory (populated by capture layer in Phase 3)
-  const artifactsPre = join(bundleDir, ARTIFACTS_DIR, 'files-pre');
-  mkdirSync(artifactsPre, { recursive: true });
-  const artifactsPost = join(bundleDir, ARTIFACTS_DIR, 'files-post');
-  mkdirSync(artifactsPost, { recursive: true });
+  // raw/claude-code/ — copy JSONL source when provided
+  if (sourceJsonlPath) {
+    const rawClaudeDir = join(rawDir, 'claude-code');
+    mkdirSync(rawClaudeDir, { recursive: true });
+    const jsonlFilename = basename(sourceJsonlPath);
+    copyFileSync(sourceJsonlPath, join(rawClaudeDir, jsonlFilename));
 
-  // Write attestations/ directory
+    // Discover and copy sibling files (shell-history.txt, git-reflog.txt)
+    const srcDir = dirname(sourceJsonlPath);
+
+    // Shell history sibling
+    const shellHistoryPath = join(srcDir, 'shell-history.txt');
+    if (existsSync(shellHistoryPath)) {
+      const rawShellDir = join(rawDir, 'shell-history');
+      mkdirSync(rawShellDir, { recursive: true });
+      copyFileSync(shellHistoryPath, join(rawShellDir, 'shell-history.txt'));
+    }
+
+    // Git reflog sibling
+    const reflogPath = join(srcDir, 'git-reflog.txt');
+    if (existsSync(reflogPath)) {
+      copyFileSync(reflogPath, join(rawDir, 'git-reflog.txt'));
+    }
+  }
+
+  // ── artifacts/ directory ───────────────────────────────────────────
+  // Only create if there are artifact files to populate (Phase 3 capture).
+  // For now, do not create empty directories.
+
+  // ── attestations/ directory ────────────────────────────────────────
   const attestationsDir = join(bundleDir, ATTESTATIONS_DIR);
   mkdirSync(attestationsDir, { recursive: true });
 
@@ -308,19 +330,38 @@ export async function writeBundle(
     writeFileSync(join(timestampDir, `${i}.tsr`), token.tokenBase64, 'base64');
   }
 
-  // rekor-entries.json
-  writeFileSync(
-    join(attestationsDir, 'rekor-entries.json'),
-    JSON.stringify({ entries: [] }, null, 2),
-    'utf-8'
-  );
+  // rekor-entries.json — only write when there are actual entries
+  // (currently there never are, so we skip the empty stub)
 
-  // Write rules/ directory.
+  // ── Write rules/ directory ─────────────────────────────────────────
   // The original ruleset bytes are written verbatim so a third-party
   // verifier can re-hash them and compare against manifest.rulesetHash.
   const rulesDir = join(bundleDir, RULES_DIR);
   mkdirSync(rulesDir, { recursive: true });
   writeFileSync(join(rulesDir, 'destructive.yaml'), rulesetBytes);
+
+  // ── Capture directory ──────────────────────────────────────────────
+  // Copy capture records if a capture directory exists as a sibling
+  // of the JSONL source file.
+  if (sourceJsonlPath) {
+    const srcDir = dirname(sourceJsonlPath);
+    // Look for a capture directory as a sibling of the JSONL
+    const possibleCaptureDir = join(srcDir, 'capture');
+    if (existsSync(possibleCaptureDir)) {
+      const rawCaptureDir = join(rawDir, 'capture');
+      mkdirSync(rawCaptureDir, { recursive: true });
+      const files = readdirSync(possibleCaptureDir);
+      for (const file of files) {
+        const srcFile = join(possibleCaptureDir, file);
+        const dstFile = join(rawCaptureDir, file);
+        try {
+          copyFileSync(srcFile, dstFile);
+        } catch {
+          // skip files that can't be copied (e.g., subdirectories)
+        }
+      }
+    }
+  }
 
   // Build timeline for narrative rendering
   const timeline = buildTimeline(chainedEvents, destructiveRules);

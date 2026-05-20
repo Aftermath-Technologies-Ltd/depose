@@ -17,6 +17,7 @@ import {
   formatTimelineSummary,
   loadDestructiveRules,
   generateUlid,
+  setFixedUlidSeed,
   type AgentId,
 } from '@depose/core';
 import { writeBundle } from '@depose/bundle';
@@ -36,6 +37,10 @@ export interface PackageCommandArgs {
   'agent-id'?: string;
   'skip-timestamp'?: boolean;
   'key-dir'?: string;
+  /** Pin ULID generation to a deterministic seed (for reproducibility tests). */
+  'fixed-seed'?: string;
+  /** Override producedAt timestamp (ISO 8601) for reproducibility tests. */
+  'produced-at'?: string;
   [key: string]: string | boolean | string[] | undefined;
 }
 
@@ -55,6 +60,8 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   const agentId = (args['agent-id'] || 'claude-code') as string;
   const skipTimestamp = args['skip-timestamp'] === true;
   const keyDir = args['key-dir'] as string | undefined;
+  const fixedSeed = args['fixed-seed'] as string | undefined;
+  const producedAtOverride = args['produced-at'] as string | undefined;
 
   if (!jsonlPath) {
     console.error('ERROR: --from-claude <path> is required.');
@@ -62,6 +69,14 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
     console.error('Usage: depose package --from-claude <path> [options]');
     process.exit(1);
     return;
+  }
+
+  // Pin ULID generation to a deterministic seed when requested.
+  // This is for reproducibility / determinism testing only; production
+  // runs must never use --fixed-seed (it destroys the CSPRNG guarantee).
+  if (fixedSeed) {
+    setFixedUlidSeed(Number(fixedSeed));
+    console.log(`FIXED SEED: ${fixedSeed} — ULID generation is deterministic (NOT for production)`);
   }
 
   // Resolve paths
@@ -108,7 +123,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   const bundleId = sessionId || (merged[0]?.sessionId || generateUlid());
   const sessionStarted = merged.length > 0 ? (merged[0]?.wallTs ?? new Date().toISOString()) : new Date().toISOString();
   const sessionEnded = merged.length > 0 ? (merged[merged.length - 1]?.wallTs ?? new Date().toISOString()) : new Date().toISOString();
-  const producedAt = new Date().toISOString();
+  const producedAt = producedAtOverride || new Date().toISOString();
 
   // --skip-timestamp downgrades the run to dev-unsigned mode. The
   // resulting bundle carries empty signatures + timestamps and is
@@ -137,6 +152,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       outputDir: resolvedOutput,
       mode,
       keyPair,
+      sourceJsonlPath: resolvedJsonl,
     });
 
     for (const w of [...pipelineWarnings, ...bundleWarnings]) {

@@ -16,6 +16,7 @@ import type {
   Event,
   ShellCommandPrePayload,
   ToolCallIntentPayload,
+  ToolCallExecutedPayload,
   ToolResultPayload,
   FileDiffPayload,
   GapPayload,
@@ -127,8 +128,8 @@ export function summarizeEvent(event: Event): { summary: string; detail: string 
     }
     case 'tool_call_intent': {
       const p = event.payload as ToolCallIntentPayload;
-      const linked = p.linkedShellCommandPreId
-        ? ` → linked to shell_command_pre [#evt-${p.linkedShellCommandPreId}]`
+      const linked = event.correlation?.linkedShellCommandPreId
+        ? ` → linked to shell_command_pre [#evt-${event.correlation.linkedShellCommandPreId}]`
         : '';
       return {
         summary: `Tool call intent: ${p.toolName}`,
@@ -136,11 +137,13 @@ export function summarizeEvent(event: Event): { summary: string; detail: string 
       };
     }
     case 'tool_call_executed': {
-      const p = event.payload as ToolCallIntentPayload;
+      const p = event.payload as ToolCallExecutedPayload;
+      const exitInfo = p.exitCode !== null ? ` (exit ${p.exitCode})` : '';
+      const durationInfo = p.durationMs !== null ? ` in ${p.durationMs}ms` : '';
       return {
-        summary: `Tool executed: ${p.toolName}`,
-        detail: p.linkedShellCommandPreId
-          ? `Pre-capture linked: [#evt-${p.linkedShellCommandPreId}]`
+        summary: `Tool executed: ${p.toolName}${exitInfo}${durationInfo}`,
+        detail: event.correlation?.linkedShellCommandPreId
+          ? `Pre-capture linked: [#evt-${event.correlation.linkedShellCommandPreId}]`
           : '',
       };
     }
@@ -148,8 +151,8 @@ export function summarizeEvent(event: Event): { summary: string; detail: string 
       const p = event.payload as ToolResultPayload;
       const output = p.output.length > 100 ? p.output.slice(0, 97) + '...' : p.output;
       const exitInfo = p.exitCode !== null ? ` (exit ${p.exitCode})` : '';
-      const linked = p.linkedShellCommandPreId
-        ? ` | Pre-capture: [#evt-${p.linkedShellCommandPreId}]`
+      const linked = event.correlation?.linkedShellCommandPreId
+        ? ` | Pre-capture: [#evt-${event.correlation.linkedShellCommandPreId}]`
         : '';
       return {
         summary: `Tool result${exitInfo}: ${p.toolName}`,

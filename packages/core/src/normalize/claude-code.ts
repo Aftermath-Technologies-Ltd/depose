@@ -10,6 +10,10 @@
 // (prompt, assistant_message, tool_call_intent, tool_result, file_diff,
 // shell_command_pre/post, error, gap).
 //
+// Two formats are supported:
+//   1. Flat format (legacy/synthetic): { type, content, tool_calls }
+//   2. Real session format: { type, message: { role, content: [...] }, timestamp }
+//
 // See BUILD_PLAN.md §4.1 for the Event schema.
 // See BUILD_PLAN.md §5 (Phase 1) for scope: passive reconstruction only.
 
@@ -18,6 +22,7 @@ import type {
   Event,
   EventBase,
   EventType,
+  ShellCommandSource,
   PromptPayload,
   AssistantMessagePayload,
   ToolCallIntentPayload,
@@ -36,13 +41,19 @@ import { generateUlid, ulidFromTime } from '../events/ids.js';
 // Claude Code writes JSONL lines with varying shapes across versions.
 // We handle the common patterns and emit gap events for unknown shapes.
 //
-// Expected shapes (based on Claude Code's actual output):
+// Expected flat shapes (synthetic / older versions):
 //
 //   { "type": "user", "content": "...", "timestamp": "..." }
 //   { "type": "assistant", "content": "...", "tool_calls": [...], "timestamp": "..." }
 //   { "type": "tool", "tool_name": "...", "input": {...}, "output": "...", "timestamp": "..." }
 //   { "type": "error", "message": "...", "timestamp": "..." }
 //   { "type": "file_edit", "path": "...", "diff": "...", "timestamp": "..." }
+//
+// Real session shapes (Claude Code v1+):
+//
+//   { "type": "user", "message": { "role": "user", "content": [{ "type": "text", "text": "..." }] }, "timestamp": "..." }
+//   { "type": "assistant", "message": { "role": "assistant", "content": [{ "type": "text" }, { "type": "thinking" }, { "type": "tool_use", "id": "...", "name": "...", "input": {...} }] }, "timestamp": "..." }
+//   { "type": "tool_result", "message": { "role": "user", "content": [{ "type": "tool_result", "tool_use_id": "...", "content": "..." }] }, "timestamp": "..." }
 //
 // Unknown types are emitted as gap events.
 
@@ -65,6 +76,11 @@ export interface ClaudeCodeLine {
     toolName?: string;
     input?: unknown;
   }>;
+  // Real session format: nested message with typed content blocks
+  message?: {
+    role?: string;
+    content?: ContentBlock[];
+  };
   path?: string;
   diff?: string;
   exit_code?: number;
@@ -73,6 +89,16 @@ export interface ClaudeCodeLine {
   durationMs?: number;
   [key: string]: unknown;
 }
+
+/**
+ * A typed content block from a real Claude Code session.
+ */
+export type ContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'thinking'; thinking: string }
+  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'tool_result'; tool_use_id: string; content: string | ContentBlock[] }
+  | { type: string; [key: string]: unknown };
 
 /**
  * Options for Claude Code JSONL normalization.
@@ -118,8 +144,8 @@ export interface ClaudeCodeNormalizationResult {
  * Events are emitted in order:
  *   1. prompt (from "user" lines)
  *   2. assistant_message (from "assistant" lines)
- *   3. tool_call_intent (extracted from assistant tool_calls)
- *   4. tool_result (from "tool" lines)
+ *   3. tool_call_intent (extracted from assistant tool_calls or tool_use blocks)
+ *   4. tool_result (from "tool" lines or tool_result content blocks)
  *   5. file_diff (from "file_edit" lines)
  *   6. error (from "error" lines)
  *   7. gap (for unrecognized types or missing correlations)
@@ -173,7 +199,7 @@ export function normalizeClaudeCodeJsonl(
         monoNs: mono++,
         wallTs: sessionStartTime,
         payload: {
-          reason: 'shell_history_without_jsonl_correlation' as const,
+          reason: 'jsonl_line_unparseable' as const,
           affectedEventIds: [],
           detail: `Unparseable JSONL line: ${line.slice(0, 200)}`,
         },
@@ -209,7 +235,7 @@ export function normalizeClaudeCodeJsonl(
         monoNs: lineMono,
         wallTs: lineTs,
         payload: {
-          reason: 'shell_history_without_jsonl_correlation' as const,
+          reason: 'jsonl_line_unparseable' as const,
           affectedEventIds: [],
           detail: `Normalization error: ${errorStr}`,
         },
@@ -239,10 +265,21 @@ function normalizeClaudeCodeLine(
   const events: Event[] = [];
   const type = (line.type || '').toLowerCase();
 
+  // ── Real session format: line.message.content is an array ──
+  // When line.message exists, we descend into the content blocks.
+  if (line.message && Array.isArray(line.message.content)) {
+    return normalizeRealSessionLine(line, opts);
+  }
+
+  // ── Legacy flat format ──
   switch (type) {
     case 'user':
     case 'prompt':
     case 'human': {
+      // Check if this is a real session format user message with tool_result blocks
+      if (line.message && Array.isArray(line.message.content)) {
+        return normalizeRealSessionLine(line, opts);
+      }
       const payload: PromptPayload = {
         text: typeof line.content === 'string' ? line.content : JSON.stringify(line.content),
         attachedFiles: line.attachedFiles ? (line.attachedFiles as string[]) : undefined,
@@ -285,18 +322,18 @@ function normalizeClaudeCodeLine(
       events.push(event);
 
       // Emit tool_call_intent for each tool call
-      for (const tc of toolCalls) {
+      for (let i = 0; i < toolCalls.length; i++) {
+        const tc = toolCalls[i]!;
         const tcPayload: ToolCallIntentPayload = {
           toolName: tc.toolName,
           toolInput: tc.toolInput,
-          linkedShellCommandPreId: null,
         };
         const tcEvent = buildEvent({
           sessionId,
           agentId,
           type: 'tool_call_intent',
           parentEventId: event.id,
-          monoNs: monoNs + 1,
+          monoNs: monoNs + 1 + i,
           wallTs,
           payload: tcPayload,
         });
@@ -326,7 +363,6 @@ function normalizeClaudeCodeLine(
         output: outputStr,
         exitCode,
         error: line.error || undefined,
-        linkedShellCommandPreId: null,
       };
       const event = buildEvent({
         sessionId,
@@ -405,18 +441,22 @@ function normalizeClaudeCodeLine(
           ? line.durationMs
           : 0 as number | null;
 
-      // shell_command_pre
+      // shell_command_pre — source is 'reconstructed' because this event
+      // was parsed from JSONL history, not captured from a live session.
+      // cwd, user, and hostname are empty strings: we don't have real
+      // session host info for reconstructed events and should not pretend
+      // we do by using the current process's values.
       const prePayload: ShellCommandPrePayload = {
         argv: Array.isArray(argv) ? argv : [String(argv)],
-        cwd: process.cwd(),
+        cwd: '',
         envHash: '',
         envSubset: {},
         ttyId: null,
-        user: process.env.USER || '',
-        hostname: process.env.HOSTNAME || '',
+        user: '',
+        hostname: '',
         parentProcessTree: [],
         fileArgs: [],
-        source: 'claude-pretooluse',
+        source: 'reconstructed' as ShellCommandSource,
         captureSchemaVersion: 1,
       };
       const preEvent = buildEvent({
@@ -454,7 +494,7 @@ function normalizeClaudeCodeLine(
     default:
       // Unknown line type — emit gap
       const gapPayload: GapPayload = {
-        reason: 'shell_history_without_jsonl_correlation' as const,
+        reason: 'unknown_jsonl_line_type' as const,
         affectedEventIds: [],
         detail: `Unrecognized Claude Code JSONL line type: "${line.type}"`,
       };
@@ -474,6 +514,248 @@ function normalizeClaudeCodeLine(
   return events;
 }
 
+// ── Real session format normalizer ──────────────────────────────────
+
+/**
+ * Normalize a line that uses the real Claude Code session format:
+ * { type, message: { role, content: ContentBlock[] }, timestamp }
+ *
+ * Content blocks can be:
+ *   - { type: "text", text } → assistant_message
+ *   - { type: "thinking", thinking } → assistant_message with metadata variant
+ *   - { type: "tool_use", id, name, input } → tool_call_intent
+ *   - { type: "tool_result", tool_use_id, content } → tool_result (via user role)
+ */
+function normalizeRealSessionLine(
+  line: ClaudeCodeLine,
+  opts: NormalizeLineOptions
+): Event[] {
+  const { sessionId, agentId, monoNs, lastParentId } = opts;
+  const events: Event[] = [];
+  const wallTs = line.timestamp || opts.wallTs;
+  const message = line.message!;
+  const contentBlocks = message.content || [];
+  const role = (message.role || '').toLowerCase();
+  const lineType = (line.type || '').toLowerCase();
+
+  // For user messages, check for tool_result blocks
+  if (role === 'user' || lineType === 'user') {
+    let hasToolResult = false;
+
+    for (let i = 0; i < contentBlocks.length; i++) {
+      const block = contentBlocks[i]!;
+      if (typeof block !== 'object' || block === null) continue;
+
+      if (block.type === 'tool_result') {
+        hasToolResult = true;
+        const blockAny = block as Record<string, unknown>;
+        const toolUseId = (blockAny.tool_use_id || blockAny.tool_useId || '') as string;
+        const toolContent = blockAny.content;
+        const toolName = (blockAny.name || blockAny.tool_name || 'unknown') as string;
+        const isError = blockAny.is_error === true;
+        const outputStr = typeof toolContent === 'string'
+          ? toolContent
+          : toolContent !== undefined
+          ? JSON.stringify(toolContent)
+          : '';
+
+        const payload: ToolResultPayload = {
+          toolName,
+          output: outputStr,
+          exitCode: isError ? 1 : null,
+          error: isError ? 'Tool returned an error' : undefined,
+          // Tool use ID for correlation back to tool_call_intent
+          ...(toolUseId ? { toolUseId } : {}),
+        };
+
+        const event = buildEvent({
+          sessionId,
+          agentId,
+          type: 'tool_result',
+          parentEventId: lastParentId,
+          monoNs: monoNs + i,
+          wallTs,
+          payload,
+        });
+        events.push(event);
+      } else if (block.type === 'text') {
+        const blockAny = block as Record<string, unknown>;
+        const text = (blockAny.text || '') as string;
+        if (text.trim()) {
+          const payload: PromptPayload = {
+            text,
+          };
+          const event = buildEvent({
+            sessionId,
+            agentId,
+            type: 'prompt',
+            parentEventId: lastParentId,
+            monoNs: monoNs + i,
+            wallTs,
+            payload,
+          });
+          events.push(event);
+        }
+      }
+    }
+
+    // If no tool_result blocks and no text blocks produced events,
+    // emit a generic prompt from the entire content
+    if (!hasToolResult && events.length === 0) {
+      const payload: PromptPayload = {
+        text: JSON.stringify(contentBlocks),
+      };
+      const event = buildEvent({
+        sessionId,
+        agentId,
+        type: 'prompt',
+        parentEventId: lastParentId,
+        monoNs,
+        wallTs,
+        payload,
+      });
+      events.push(event);
+    }
+
+    return events;
+  }
+
+  // For assistant messages, process content blocks
+  if (role === 'assistant' || lineType === 'assistant') {
+    // Collect text and thinking content for the assistant_message event
+    let textContent = '';
+    let hasThinking = false;
+    let thinkingContent = '';
+    let parentEventId: string | null = lastParentId;
+
+    for (let i = 0; i < contentBlocks.length; i++) {
+      const block = contentBlocks[i]!;
+      if (typeof block !== 'object' || block === null) continue;
+
+      if (block.type === 'text') {
+        const blockAny = block as Record<string, unknown>;
+        textContent += (blockAny.text || '') as string;
+      } else if (block.type === 'thinking') {
+        const blockAny = block as Record<string, unknown>;
+        hasThinking = true;
+        thinkingContent += (blockAny.thinking || '') as string;
+      }
+    }
+
+    // Emit assistant_message with the text content
+    // If there's thinking content, we emit a separate assistant_message for it
+    // marked with metadata indicating it's a thinking block.
+    if (textContent || hasThinking) {
+      // Emit thinking as a separate assistant_message with metadata
+      if (hasThinking) {
+        const thinkingPayload: AssistantMessagePayload & { metadata?: { variant: string } } = {
+          content: thinkingContent,
+        };
+        (thinkingPayload as AssistantMessagePayload & { metadata?: { variant: string } }).metadata = { variant: 'thinking' };
+        const thinkingEvent = buildEvent({
+          sessionId,
+          agentId,
+          type: 'assistant_message',
+          parentEventId: lastParentId,
+          monoNs,
+          wallTs,
+          payload: thinkingPayload,
+        });
+        events.push(thinkingEvent);
+        parentEventId = thinkingEvent.id;
+      }
+
+      // Emit the text content as assistant_message
+      if (textContent) {
+        const payload: AssistantMessagePayload = {
+          content: textContent,
+        };
+        const event = buildEvent({
+          sessionId,
+          agentId,
+          type: 'assistant_message',
+          parentEventId,
+          monoNs: hasThinking ? monoNs + 1 : monoNs,
+          wallTs,
+          payload,
+        });
+        events.push(event);
+        parentEventId = event.id;
+      }
+    }
+
+    // Now emit tool_call_intent events for each tool_use block
+    let toolUseIndex = 0;
+    const assistantMonoBase = monoNs + (hasThinking ? 1 : 0) + (textContent ? 1 : 0);
+    for (let i = 0; i < contentBlocks.length; i++) {
+      const block = contentBlocks[i]!;
+      if (typeof block !== 'object' || block === null) continue;
+
+      if (block.type === 'tool_use') {
+        const blockAny = block as Record<string, unknown>;
+        const toolUseId = (blockAny.id || '') as string;
+        const toolName = (blockAny.name || 'unknown') as string;
+        const toolInput = blockAny.input;
+
+        const tcPayload: ToolCallIntentPayload = {
+          toolName,
+          toolInput,
+          ...(toolUseId ? { toolUseId } : {}),
+        };
+
+        const tcEvent = buildEvent({
+          sessionId,
+          agentId,
+          type: 'tool_call_intent',
+          parentEventId,
+          monoNs: assistantMonoBase + toolUseIndex,
+          wallTs,
+          payload: tcPayload,
+        });
+        events.push(tcEvent);
+        toolUseIndex++;
+      }
+    }
+
+    // If nothing was emitted at all, emit a fallback
+    if (events.length === 0) {
+      const payload: AssistantMessagePayload = {
+        content: JSON.stringify(contentBlocks),
+      };
+      const event = buildEvent({
+        sessionId,
+        agentId,
+        type: 'assistant_message',
+        parentEventId: lastParentId,
+        monoNs,
+        wallTs,
+        payload,
+      });
+      events.push(event);
+    }
+
+    return events;
+  }
+
+  // Fallback: unknown role, emit as gap
+  const gapPayload: GapPayload = {
+    reason: 'unknown_jsonl_line_type' as const,
+    affectedEventIds: [],
+    detail: `Unrecognized message role: "${role}" in line type: "${line.type}"`,
+  };
+  const gap = buildEvent({
+    sessionId,
+    agentId,
+    type: 'gap',
+    parentEventId: lastParentId,
+    monoNs,
+    wallTs,
+    payload: gapPayload,
+  });
+  events.push(gap);
+  return events;
+}
+
 // ── Event builder ────────────────────────────────────────────────────
 
 interface BuildEventParams {
@@ -488,7 +770,8 @@ interface BuildEventParams {
 
 function buildEvent(params: BuildEventParams): Event {
   const { sessionId, agentId, type, parentEventId, monoNs, wallTs, payload } = params;
-  const id = ulidFromTime(Date.now());
+  // F-03: Use wallTs as the timestamp source instead of Date.now()
+  const id = ulidFromTime(new Date(wallTs).getTime());
   const payloadHash = sha256(payload);
   const base: EventBase = {
     id,

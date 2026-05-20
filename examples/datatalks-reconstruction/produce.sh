@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# produce.sh — Run depose package on the synthetic DataTalks session JSONL.
+# produce.sh — Run depose record on the synthetic DataTalks session JSONL.
 #
-# By default this runs in `signed` mode and hits FreeTSA over the
-# network. Set DEPOSE_DEV_UNSIGNED=1 to skip the TSA round-trip and
-# emit a dev-unsigned bundle instead (offline / fast iteration).
+# By default this runs in `signed` mode (depose record always signs).
+# Set DEPOSE_DEV_UNSIGNED=1 to use depose package --skip-timestamp for
+# a dev-unsigned bundle instead (offline / fast iteration).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -23,10 +23,16 @@ echo "  Input:  $SESSION_JSONL"
 echo "  Output: $OUTPUT_DIR"
 echo ""
 
-"$DEPOSE" package \
-  --from-claude "$SESSION_JSONL" \
-  --output "$OUTPUT_DIR" \
-  ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+if [[ "${DEPOSE_DEV_UNSIGNED:-}" == "1" ]]; then
+  "$DEPOSE" package \
+    --from-claude "$SESSION_JSONL" \
+    --output "$OUTPUT_DIR" \
+    --skip-timestamp
+else
+  "$DEPOSE" record \
+    --from-claude "$SESSION_JSONL" \
+    --output "$OUTPUT_DIR"
+fi
 
 echo ""
 echo "Done. Verify with: depose-verify verify $OUTPUT_DIR/incident-*"

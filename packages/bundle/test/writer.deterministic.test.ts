@@ -69,15 +69,10 @@ describe('writeBundle (unsigned mode)', () => {
       // Check required files
       expect(existsSync(pathJoin(depopPath, 'manifest.json'))).toBe(true);
       expect(existsSync(pathJoin(depopPath, 'events.jsonl'))).toBe(true);
-      expect(existsSync(pathJoin(depopPath, 'raw', 'claude-code'))).toBe(true);
-      expect(existsSync(pathJoin(depopPath, 'raw', 'shell-history'))).toBe(true);
-      expect(existsSync(pathJoin(depopPath, 'raw', 'git-reflog.txt'))).toBe(true);
-      expect(existsSync(pathJoin(depopPath, 'raw', 'capture'))).toBe(true);
-      expect(existsSync(pathJoin(depopPath, 'artifacts', 'files-pre'))).toBe(true);
-      expect(existsSync(pathJoin(depopPath, 'artifacts', 'files-post'))).toBe(true);
+      expect(existsSync(pathJoin(depopPath, 'artifacts'))).toBe(false);
       expect(existsSync(pathJoin(depopPath, 'attestations', 'signatures.json'))).toBe(true);
       expect(existsSync(pathJoin(depopPath, 'attestations', 'rfc3161-timestamps'))).toBe(true);
-      expect(existsSync(pathJoin(depopPath, 'attestations', 'rekor-entries.json'))).toBe(true);
+      expect(existsSync(pathJoin(depopPath, 'attestations', 'rekor-entries.json'))).toBe(false);
       expect(existsSync(pathJoin(depopPath, 'rules', 'destructive.yaml'))).toBe(true);
       expect(existsSync(pathJoin(depopPath, 'narrative.md'))).toBe(true);
       expect(existsSync(pathJoin(depopPath, 'narrative.html'))).toBe(true);
@@ -108,7 +103,7 @@ describe('writeBundle (unsigned mode)', () => {
         mode: 'dev-unsigned',
       });
 
-      expect(manifest.schemaVersion).toBe(1);
+      expect(manifest.schemaVersion).toBe(2);
       expect(manifest.bundleId).toBe('sess-test');
       expect(manifest.producedAt).toBe('2025-05-18T16:00:00.000Z');
       expect(manifest.producer.tool).toBe('depose');

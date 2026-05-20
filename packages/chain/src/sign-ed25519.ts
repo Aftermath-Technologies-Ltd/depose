@@ -24,6 +24,7 @@ const DEFAULT_KEYS_DIR = '.depose/keys';
 const SIGNING_KEY_FILE = 'signing.key';
 const PUBLIC_KEY_FILE = 'signing.pub';
 const KEY_PERMISSIONS = 0o600;
+const PUB_KEY_PERMISSIONS = 0o644;
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -113,7 +114,7 @@ export function loadOrGenerateKeyPair(keyDir?: string): Ed25519KeyPair {
   writeFileSync(privPath, keyPair.privateKeyPem, 'utf-8');
   chmodSync(privPath, KEY_PERMISSIONS);
   writeFileSync(pubPath, keyPair.publicKeyPem, 'utf-8');
-  chmodSync(pubPath, KEY_PERMISSIONS);
+  chmodSync(pubPath, PUB_KEY_PERMISSIONS);
 
   return keyPair;
 }

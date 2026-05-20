@@ -32,28 +32,33 @@ export {
   formatFingerprintSshStyle,
 } from './key-fingerprint.js';
 
-// RFC 3161 timestamping. Real cryptographic verification (TSA
-// signature, cert chain, hash algorithm enforcement) lives in the
-// Go verifier under apps/verify/timestamp/. The TS side only
-// produces tokens; consumers must use depose-verify to validate.
+// RFC 3161 timestamping. Producer-side validation (F-04 remediation)
+// now does proper ASN.1 DER parsing, nonce verification, and
+// messageImprint hash verification. Cryptographic signature + cert-
+// chain verification still lives in the Go verifier
+// (apps/verify/timestamp/rfc3161.go).
 export {
   requestTimestamps,
   buildTimeStampReq,
-  extractTimestampFromTsr,
+  validateTsr,
+  TsrValidationError,
   DEFAULT_TSA_ENDPOINTS,
   type TsaEndpoint,
   type Rfc3161Token,
   type TimestampOptions,
+  type TimeStampReqResult,
+  type TsrValidationResult,
 } from './timestamp-rfc3161.js';
 
-// Sigstore keyless (stub — deferred per build plan)
+// Sigstore keyless (scaffold — not yet implemented, Ed25519 + RFC 3161 is
+// the only signing path today)
 export {
   shouldUseSigstore,
   type SigstoreSignatureResult,
   type SigstoreOptions,
 } from './sign-sigstore.js';
 
-// Rekor transparency log (stub — optional per build plan)
+// Rekor transparency log (scaffold — not yet implemented)
 export {
   type RekorEntry,
   type RekorOptions,

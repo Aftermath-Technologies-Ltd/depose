@@ -4,7 +4,7 @@
 // Reads ShellCommandPrePayload JSON files and converts them to Event objects.
 //
 // BUILD_PLAN.md §6 (Phase 3): "Each capture record matches to a tool
-// result via (cwd, argv, wallTs ± 5s) and links via linkedShellCommandPreId."
+// result via (cwd, argv, wallTs ± 5s) and links via event.correlation.linkedShellCommandPreId."
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';

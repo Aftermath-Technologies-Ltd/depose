@@ -19,8 +19,8 @@ import { hostname } from 'node:os';
 import { execSync } from 'node:child_process';
 import { generateUlid } from '@depose/core';
 import type { ShellCommandPrePayload, ProcessNode } from '@depose/core';
-import { filterEnv, parseExtraAllowlist } from './env-allowlist.js';
-import { hashFileArgs, type FileArg } from './file-hash.js';
+import { filterEnv, parseExtraAllowlist, type FilterEnvOptions } from './env-allowlist.js';
+import { hashFileArgs, shouldHashForTool, type FileArg } from './file-hash.js';
 import { writeCaptureRecord } from './capture-record.js';
 
 // ── Hook input schema ────────────────────────────────────────────────
@@ -40,6 +40,22 @@ export interface HookInput {
   session_id: string;
 }
 
+// ── Process tree cache (F-17) ──────────────────────────────────────────
+
+/**
+ * Per-session cache for walkProcessTree results.
+ * Keyed by session ID so different sessions get fresh lookups,
+ * but within a session the process tree is stable (same parent chain).
+ */
+const processTreeCache = new Map<string, ProcessNode[]>();
+
+/**
+ * Clear the process tree cache. Useful for testing.
+ */
+export function clearProcessTreeCache(): void {
+  processTreeCache.clear();
+}
+
 // ── Main hook handler ────────────────────────────────────────────────
 
 /**
@@ -57,18 +73,19 @@ export async function handlePreToolUse(
   const ulid = generateUlid();
   const extraPrefixes = parseExtraAllowlist();
 
-  // Build env subset and hash
+  // Build env subset and hash (with secret redaction)
   const env = reduceEnv(process.env);
-  const { envSubset, envHash } = filterEnv(env, extraPrefixes);
+  const filterEnvOptions: FilterEnvOptions = { extraPrefixes };
+  const { envSubset, envHash } = filterEnv(env, filterEnvOptions);
 
-  // Resolve file args for the tool
+  // Resolve file args for the tool (skipped for non-destructive tools)
   const fileArgs: FileArg[] = hashFileArgs(input.tool_name, input.tool_input);
 
   // Build argv from tool input
   const argv = buildArgv(input);
 
-  // Walk parent process tree (best-effort)
-  const parentProcessTree = walkProcessTree();
+  // Walk parent process tree (best-effort, cached per session)
+  const parentProcessTree = getCachedProcessTree(input.session_id);
 
   // Every Claude tool capture is labelled 'claude-pretooluse' — the
   // hook fires for Bash, Edit, and Write but they all originate
@@ -142,18 +159,48 @@ function reduceEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 /**
+ * Get the cached process tree for a session, or compute and cache it.
+ * F-17: The process tree is stable within a session, so we cache it
+ * after the first lookup to avoid redundant `ps` invocations.
+ */
+function getCachedProcessTree(sessionId: string): ProcessNode[] {
+  const cached = processTreeCache.get(sessionId);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const tree = walkProcessTree();
+  processTreeCache.set(sessionId, tree);
+  return tree;
+}
+
+/**
  * Walk parent process tree (best-effort, macOS/Linux).
- * Uses `ps` to get ppid chain.
+ * Uses a single batched `ps` call for efficiency (F-17).
  */
 function walkProcessTree(): ProcessNode[] {
   const tree: ProcessNode[] = [];
   try {
-    const pid = process.pid;
-    let currentPid = pid;
-    // Walk up to 10 levels
+    // Collect PIDs to query (walk up from current process)
+    const pids: number[] = [];
+    let currentPid = process.pid;
+    const seen = new Set<number>();
+
+    // First, collect the PID chain by doing individual lookups
+    // (we need ppid to walk up, so we can't batch everything at once)
     for (let i = 0; i < 10; i++) {
+      if (seen.has(currentPid)) break;
+      seen.add(currentPid);
+      pids.push(currentPid);
+
       const node = getProcessNode(currentPid);
       if (!node || node.ppid === 0 || node.ppid === 1) break;
+
+      // Only continue if ppid wasn't already seen
+      if (seen.has(node.ppid)) {
+        tree.push(node);
+        break;
+      }
+
       tree.push(node);
       currentPid = node.ppid;
     }

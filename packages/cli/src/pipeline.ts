@@ -159,18 +159,18 @@ export function createShellCommandEvent(
   monoNs: number,
   wallTs: string
 ): Event {
-  const id = ulidFromTime(Date.now());
+  const id = ulidFromTime(new Date(wallTs).getTime());
   const prePayload: ShellCommandPrePayload = {
     argv: cmd.argv,
     cwd: cmd.cwd || '',
     envHash: '',
     envSubset: {},
     ttyId: null,
-    user: process.env.USER || '',
-    hostname: process.env.HOSTNAME || '',
+    user: '',
+    hostname: '',
     parentProcessTree: [],
     fileArgs: [],
-    source: 'shell-shim',
+    source: 'reconstructed',
     captureSchemaVersion: 1,
   };
   const preHash = sha256(prePayload);

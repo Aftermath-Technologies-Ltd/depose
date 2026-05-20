@@ -146,18 +146,25 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 		// not match the TypeScript canonical-json (alphabetical key sort).
 		// Use a map to guarantee alphabetical key ordering, matching the
 		// TypeScript canonicalJson implementation (sorted keys, minified).
+		// Dereference *string so canonical.Marshal sees a plain
+		// string (or nil) rather than an unsupported *string type.
+		var parentEventID interface{}
+		if evt.ParentEventID != nil {
+			parentEventID = *evt.ParentEventID
+		}
+
 		metadataMap := map[string]interface{}{
 			"id":            evt.ID,
 			"wallTs":        evt.WallTs,
 			"monoNs":        evt.MonoNs,
 			"sessionId":     evt.SessionID,
 			"agentId":       evt.AgentID,
-			"parentEventId": evt.ParentEventID,
+			"parentEventId": parentEventID,
 			"type":          evt.Type,
 			"payloadHash":   evt.PayloadHash,
 		}
 
-		metadataJSON, err := json.Marshal(metadataMap)
+		metadataJSON, err := canonical.Marshal(metadataMap)
 		if err != nil {
 			return nil, fmt.Errorf("marshal metadata for event %s: %w", evt.ID, err)
 		}

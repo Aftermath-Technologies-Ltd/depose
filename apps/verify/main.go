@@ -21,8 +21,15 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: depose-verify verify <path-to-bundle>\n")
-		fmt.Fprintf(os.Stderr, "       depose-verify version\n")
+		fmt.Fprintf(os.Stderr, "Usage: depose-verify verify [options] <path-to-bundle>\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "Options:\n")
+		fmt.Fprintf(os.Stderr, "  --expected-key-fingerprint <hex>    Reject the bundle if the producer key fingerprint doesn't match.\n")
+		fmt.Fprintf(os.Stderr, "  --signer-identity <regex>           (Future) Sigstore signer identity binding.\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "Commands:\n")
+		fmt.Fprintf(os.Stderr, "  verify        Validate a .depo bundle.\n")
+		fmt.Fprintf(os.Stderr, "  version       Print the verifier version.\n")
 		os.Exit(1)
 	}
 

@@ -43,16 +43,28 @@ type ProducerInfo struct {
 }
 
 type HostInfo struct {
-	OS     string `json:"os"`
-	Arch   string `json:"arch"`
-	Kernel string `json:"kernel"`
+	OS          string `json:"os"`
+	Arch        string `json:"arch"`
+	NodeVersion string `json:"nodeVersion"`
+	Kernel      string `json:"kernel"`
 }
 
 type SessionInfo struct {
-	AgentID   string `json:"agentId"`
-	SessionID string `json:"sessionId"`
-	StartedAt string `json:"startedAt"`
-	EndedAt   string `json:"endedAt"`
+	AgentID   string          `json:"agentId"`
+	SessionID string          `json:"sessionId"`
+	StartedAt string          `json:"startedAt"`
+	EndedAt   string          `json:"endedAt"`
+	Host      *SessionHostInfo `json:"host,omitempty"`
+}
+
+// SessionHostInfo records the capture environment of the agent session.
+// Fields are nullable because they may be unavailable during
+// reconstruction. Added in schemaVersion 2.
+type SessionHostInfo struct {
+	OS          string `json:"os"`
+	Arch        string `json:"arch"`
+	NodeVersion string `json:"nodeVersion"`
+	Kernel      string `json:"kernel"`
 }
 
 type SignatureBlock struct {

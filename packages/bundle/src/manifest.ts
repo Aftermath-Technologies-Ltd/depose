@@ -14,6 +14,7 @@
 import { canonicalJson, sha256String } from '@depose/core';
 import type { Event } from '@depose/core';
 import { buildDestructiveOpsIndex, type DestructiveRule } from '@depose/core';
+import { platform, arch, release } from 'node:os';
 
 // ── Manifest types (verbatim from BUILD_PLAN.md §4.3) ────────────────
 
@@ -35,7 +36,19 @@ import { buildDestructiveOpsIndex, type DestructiveRule } from '@depose/core';
 export type BundleMode = 'signed' | 'dev-unsigned';
 
 export interface Manifest {
-  schemaVersion: 1;
+  /**
+   * Schema version of the manifest format.
+   * Version 2 adds `producer.host.nodeVersion` (replacing the misnamed `kernel`
+   * that held the Node.js version), a proper `producer.host.kernel` from
+   * `os.release()`, and `session.host` for session-capture environment metadata.
+   *
+   * **Deprecation note:** v1 manifests (schemaVersion=1) used `producer.host.kernel`
+   * to store the Node.js process version (e.g. "v20.19.0") rather than the OS
+   * kernel release. Verifiers MUST continue to accept schemaVersion=1; the field
+   * should be interpreted as `nodeVersion` when the manifest declares
+   * schemaVersion=1.
+   */
+  schemaVersion: 2;
   bundleId: string;
   producedAt: string;
   producer: {
@@ -54,6 +67,9 @@ export interface Manifest {
     host: {
       os: string;
       arch: string;
+      /** Node.js runtime version (e.g. "v20.19.0") */
+      nodeVersion: string;
+      /** OS kernel release from os.release() (e.g. "23.4.0") */
       kernel: string;
     };
   };
@@ -62,6 +78,19 @@ export interface Manifest {
     sessionId: string;
     startedAt: string;
     endedAt: string;
+    /**
+     * Session host metadata — the environment where the agent session actually
+     * ran. Fields are nullable because they may be unavailable during
+     * reconstruction (e.g. when building from JSONL alone). producer.host
+     * always records the bundling machine; session.host records the original
+     * capture environment when known.
+     */
+    host: {
+      os: string | null;
+      arch: string | null;
+      nodeVersion: string | null;
+      kernel: string | null;
+    } | null;
   };
   rootHash: string;
   /**
@@ -150,7 +179,7 @@ export function buildManifest(
   const fileChanges = events.filter((e) => e.type === 'file_diff');
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2 as const,
     bundleId: options.bundleId,
     producedAt: options.producedAt,
     producer: {
@@ -159,9 +188,10 @@ export function buildManifest(
       mode: options.mode,
       ...(options.keyFingerprint ? { keyFingerprint: options.keyFingerprint } : {}),
       host: {
-        os: process.platform,
-        arch: process.arch,
-        kernel: process.version,
+        os: platform(),
+        arch: arch(),
+        nodeVersion: process.version,
+        kernel: release(),
       },
     },
     session: {
@@ -169,6 +199,7 @@ export function buildManifest(
       sessionId: options.sessionId,
       startedAt: options.sessionStartedAt,
       endedAt: options.sessionEndedAt,
+      host: null,
     },
     rootHash: options.rootHash,
     eventsJsonlSha256: options.eventsJsonlSha256,

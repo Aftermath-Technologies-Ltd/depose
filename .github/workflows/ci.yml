@@ -80,8 +80,11 @@ jobs:
             exit 1
           fi
 
-      - name: Test
+      - name: TypeScript tests
         run: pnpm test
+
+      - name: Go verifier tests
+        run: cd apps/verify && go test ./...
 
   verify-binary:
     runs-on: ubuntu-latest
@@ -116,3 +119,33 @@ jobs:
           name: depose-verify-binaries
           path: apps/verify/build/
           retention-days: 5
+
+  # F-27: Round-trip determinism test.
+  # Produces a bundle twice with a fixed ULID seed and pinned timestamps,
+  # then diffs the outputs. Any nondeterminism (clock leaks, map iteration
+  # order, etc.) will cause the diff to be non-empty and fail the build.
+  determinism:
+    runs-on: ubuntu-latest
+    needs: lint-typecheck-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Determinism test
+        run: bash scripts/determinism-test.sh

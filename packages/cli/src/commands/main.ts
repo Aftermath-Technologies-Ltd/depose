@@ -3,8 +3,9 @@
 // CLI main entrypoint.
 //
 // Commands (BUILD_PLAN.md §3, §6):
-//   depose reconstruct --from-claude <session-id>
-//   depose package --from-claude <path>
+//   depose record --from-claude <path>     ← canonical production verb
+//   depose package --from-claude <path>    ← alias (adds --skip-timestamp for dev)
+//   depose reconstruct --from-claude <session-id>  ← deprecated, use record
 //   depose verify <bundle>
 //   depose install --claude | --shell
 //   depose explain
@@ -130,6 +131,7 @@ export async function main(argv: string[]): Promise<void> {
       .command('reconstruct')
       .description('Reconstruct a session from JSONL (dev-unsigned bundle)')
       .action(async function (this: Command) {
+        console.error('WARNING: depose reconstruct is deprecated. Use depose record --from-claude <path> instead.');
         await handleReconstruct(optsToArgs(this.opts()));
       })
   );
@@ -140,8 +142,25 @@ export async function main(argv: string[]): Promise<void> {
       .description('Produce a fully signed .depo bundle (default mode: signed)')
       .option('--skip-timestamp', 'Downgrade to dev-unsigned (no TSA, no signature)')
       .option('--key-dir <path>', 'Ed25519 key directory')
+      .option('--fixed-seed <ms>', 'Pin ULID generation to a deterministic seed (for reproducibility tests only)')
+      .option('--produced-at <iso>', 'Override producedAt timestamp (ISO 8601, for reproducibility tests)')
       .action(async function (this: Command) {
         await handlePackage(optsToArgs(this.opts()) as unknown as PackageCommandArgs);
+      })
+  );
+
+  // `depose record` is an alias for `depose package` that always signs
+  // (no --skip-timestamp option). It is the canonical production verb.
+  addReconstructOpts(
+    program
+      .command('record')
+      .description('Record a session as a signed .depo bundle (alias for package, always signed)')
+      .option('--key-dir <path>', 'Ed25519 key directory')
+      .action(async function (this: Command) {
+        const args = optsToArgs(this.opts());
+        // `record` always signs — force skip-timestamp off
+        args['skip-timestamp'] = false;
+        await handlePackage(args as unknown as PackageCommandArgs);
       })
   );
 
@@ -286,6 +305,7 @@ async function handleReconstruct(args: CliArgs): Promise<void> {
     rulesetBytes,
     outputDir: resolvedOutput,
     mode: 'dev-unsigned',
+    sourceJsonlPath: resolvedJsonl,
   });
 
   console.log(`Bundle written to: ${depopPath}`);

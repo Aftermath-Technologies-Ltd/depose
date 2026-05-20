@@ -97,7 +97,7 @@ describe('depose reconstruct', () => {
     const manifest = JSON.parse(
       readFileSync(pathJoin(outputDir, bundleDir!, 'manifest.json'), 'utf-8'),
     );
-    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.schemaVersion).toBe(2);
     expect(manifest.rootHash).toBe(''); // Phase 1: unsigned
     expect(manifest.counts.events).toBeGreaterThan(0);
     // Gaps present: shell_command_pre without tool_result, tool_result without shell_command_pre

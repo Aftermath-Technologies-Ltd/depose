@@ -89,13 +89,11 @@ describe('Phase 3 acceptance: capture -> merge -> bundle pipeline', () => {
         toolName: 'Bash',
         output: 'Destroy complete!',
         exitCode: 0,
-        linkedShellCommandPreId: null,
       },
       payloadHash: sha256({
         toolName: 'Bash',
         output: 'Destroy complete!',
         exitCode: 0,
-        linkedShellCommandPreId: null,
       }),
     };
 
