@@ -21,13 +21,29 @@ metadata, so the in-flight container is the recipient's choice.
 
 > **Note on container determinism.** Earlier drafts of this document
 > specified a deterministic POSIX USTAR archive (fixed mtime, uid/gid
-> 0, no PAX headers, lexicographic ordering). The producer does not
-> ship that container yet — `writer.ts` writes a directory tree. If
-> reproducible byte-identical *archives* matter for your workflow,
-> pack with `tar --sort=name --mtime="$(jq -r .producedAt manifest.json)"
-> --owner=0 --group=0 --numeric-owner --pax-option=exthdr.name=%d/PaxHeaders/%f
-> -cf bundle.tar incident-<id>/` after produce. A canonical tar
-> packer in the producer is tracked as future work.
+> 0, lexicographic ordering). The producer does not ship that
+> container yet. `writer.ts` writes a directory tree.
+>
+> If reproducible byte-identical *archives* matter for your workflow,
+> pack after produce with GNU tar (≥1.28):
+>
+> ```bash
+> producedAt=$(jq -r .producedAt incident-<id>/manifest.json)
+> tar --sort=name \
+>     --mtime="$producedAt" \
+>     --owner=0 --group=0 --numeric-owner \
+>     --format=ustar \
+>     -cf bundle.tar incident-<id>/
+> ```
+>
+> `--format=ustar` keeps the archive in POSIX USTAR rather than
+> emitting PAX extended headers, which is what most modern tar builds
+> default to. PAX headers carry per-entry mtimes with sub-second
+> precision and can defeat reproducibility across hosts. macOS BSD tar
+> does not accept these flags; use `gtar` from Homebrew on macOS.
+>
+> A canonical tar packer inside the producer is tracked as future
+> work, at which point this manual step goes away.
 
 ---
 

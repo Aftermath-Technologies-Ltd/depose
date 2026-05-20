@@ -58,8 +58,23 @@ func findRealBinary(name string) (string, error) {
 }
 
 // isSelf checks if the given binary path is the shim itself.
+//
+// Two checks:
+//  1. Same absolute path as our argv[0]. Catches the obvious self-loop
+//     where PATH ordering or a symlink resolves the "real" binary back
+//     to the shim that's currently executing.
+//  2. The candidate's basename is "depose-shim". Any executable named
+//     depose-shim on PATH is the shim, regardless of which directory
+//     it's in: invoking that as the "real" binary would re-enter the
+//     shim with no progress. The earlier code matched a literal
+//     "capture-shim" suffix that does not correspond to any binary
+//     the project ships; this check uses the actual shim binary name
+//     instead.
 func isSelf(path string) bool {
 	selfPath, _ := filepath.Abs(os.Args[0])
 	absPath, _ := filepath.Abs(path)
-	return selfPath == absPath || strings.HasPrefix(absPath, filepath.Dir(selfPath)+string(filepath.Separator)+"capture-shim")
+	if selfPath == absPath {
+		return true
+	}
+	return strings.EqualFold(filepath.Base(absPath), "depose-shim")
 }
