@@ -137,7 +137,7 @@ function reconstructCommand(argv: string[]): string {
  *
  * Fish uses a YAML-like format in ~/.local/share/fish/fish_history
  * that is fundamentally different from bash/zsh line-oriented history.
- * This parser does not yet support the fish format — calling it will
+ * This parser does not yet support the fish format; calling it will
  * throw an informative error so callers know they need to implement
  * or delegate fish history parsing rather than silently producing
  * wrong results.
@@ -159,7 +159,7 @@ export function parseFishHistory(_content: string): ShellHistoryCommand[] {
 // Shell command tokenizer that respects quotes and splits on
 // command separators (|, &&, ||, ;).
 //
-// This is a best-effort tokenizer — not a full shell parser.
+// This is a best-effort tokenizer, not a full shell parser.
 // It handles:
 //   - Double-quoted strings (with basic escape handling)
 //   - Single-quoted strings (no escape handling, per POSIX)
@@ -167,7 +167,7 @@ export function parseFishHistory(_content: string): ShellHistoryCommand[] {
 //   - Backslash escapes
 //   - Command separators: |, &&, ||, ;
 //
-// Returns string[][] — one inner array per command stage.
+// Returns string[][]; one inner array per command stage.
 // E.g. "echo foo | grep bar" → [["echo", "foo"], ["grep", "bar"]]
 // E.g. "a && b" → [["a"], ["b"]]
 
@@ -226,7 +226,7 @@ export function tokenize(command: string): string[][] {
       continue;
     }
 
-    // Quotes — only when not inside the other kind
+    // Quotes, only when not inside the other kind
     if (ch === '"' && !inSingleQuote) {
       inDoubleQuote = !inDoubleQuote;
       i++;

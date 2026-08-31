@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# produce.sh — Run depose record on the synthetic DataTalks session JSONL.
+# produce.sh, Run depose record on the synthetic DataTalks session JSONL.
 #
 # By default this runs in `signed` mode (depose record always signs).
 # Set DEPOSE_DEV_UNSIGNED=1 to use depose package --skip-timestamp for

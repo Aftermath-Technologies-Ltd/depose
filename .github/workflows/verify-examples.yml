@@ -59,7 +59,7 @@ jobs:
 
       - name: Produce signed bundle for ${{ matrix.example }}
         # Runs in `signed` mode by default (no --skip-timestamp).
-        # Hits FreeTSA over the network — GH Actions runners have it.
+        # Hits FreeTSA over the network, GH Actions runners have it.
         run: |
           cd examples/${{ matrix.example }}
           bash produce.sh
@@ -78,18 +78,18 @@ jobs:
           echo "Verifying: $DEPO_DIR"
           ./apps/verify/build/depose-verify verify "$DEPO_DIR"
 
-      - name: Negative tests — three semantic tampers must each FAIL
+      - name: Negative tests, three semantic tampers must each FAIL
         # The previous test flipped one random byte at offset 2 of
         # events.jsonl, which lands inside a JSON object header and
-        # failed only because json.Unmarshal errored — passing
+        # failed only because json.Unmarshal errored, passing
         # incorrectly when a semantically meaningful mutation left
         # JSON intact. We exercise the three attacks the producer/
         # verifier contract is supposed to defend against:
         #
-        #   (a) payload tamper      — rewrite a payload string,
+        #   (a) payload tamper        rewrite a payload string,
         #                              leave payloadHash/chainHash intact.
-        #   (b) payloadHash tamper  — flip a hex char inside payloadHash.
-        #   (c) chainHash tamper    — flip a hex char inside chainHash.
+        #   (b) payloadHash tamper    flip a hex char inside payloadHash.
+        #   (c) chainHash tamper      flip a hex char inside chainHash.
         #
         # All three must produce a non-zero exit from depose-verify.
         run: |
@@ -110,7 +110,7 @@ jobs:
               ./apps/verify/build/depose-verify verify "$workdir"
               exit 1
             fi
-            echo "OK — $label tamper rejected (exit $status)"
+            echo "OK, $label tamper rejected (exit $status)"
           }
 
           # (a) Payload tamper: rewrite a Bash command without
@@ -125,7 +125,7 @@ jobs:
 
           # (b) payloadHash tamper: flip a hex character inside the
           # first payloadHash literal. Verifier should fail on
-          # chain-replay (and/or payload-hash) — never PASS.
+          # chain-replay (and/or payload-hash), never PASS.
           B=$(mktemp -d); cp -r "$DEPO_DIR"/. "$B"
           python3 -c '
           import sys, re

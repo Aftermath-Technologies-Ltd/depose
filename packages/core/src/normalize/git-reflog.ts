@@ -42,7 +42,7 @@ export interface GitReflogEntry {
   description: string;
   /** Full reflog message (before parsing) */
   rawMessage: string;
-  /** Timestamp (null if not available — depends on git config) */
+  /** Timestamp (null if not available, depends on git config) */
   timestamp: string | null;
   /** Author (null if not available) */
   author: string | null;
@@ -126,7 +126,7 @@ export function parseGitReflog(content: string): GitReflogEntry[] {
  *
  * Each reflog entry becomes:
  *   1. A process_spawn event (the git command that caused the reflog change)
- *   2. A gap event (because we don't know the exact command —
+ *   2. A gap event (because we don't know the exact command ,
  *      reflog records the RESULT, not the command)
  *
  * This is intentional: reflog changes without a captured command

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": false,
   "type": "module",
-  "description": "depose CLI — produce signed, hash-chained evidence bundles from Claude Code sessions.",
+  "description": "depose CLI, produce signed, hash-chained evidence bundles from Claude Code sessions.",
   "license": "AGPL-3.0-only",
   "files": [
     "dist-bundle",

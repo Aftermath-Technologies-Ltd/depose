@@ -7,7 +7,7 @@
 //
 // Production verifier binaries embed only these roots. The
 // "test_roots.go" build-tagged file may register additional roots
-// for fixtures — never built into a release binary.
+// for fixtures, never built into a release binary.
 package timestamp
 
 import (

@@ -8,7 +8,7 @@
 // F-16: Only destructive tools (Edit, Write, Bash with destructive
 // commands) trigger file hashing. Non-destructive tools (Read, Glob,
 // etc.) skip file hashing entirely and return an empty fileArgs[].
-// A 100MB file size cap is enforced — files above the cap record
+// A 100MB file size cap is enforced, files above the cap record
 // preSha256: null with sizeBytes populated.
 
 import { createHash } from 'node:crypto';
@@ -72,7 +72,7 @@ export function shouldHashForTool(
     if (typeof cmd === 'string') {
       return DESTRUCTIVE_BASH_PATTERNS.some((pattern) => pattern.test(cmd));
     }
-    // Bash without a command string — assume destructive to be safe
+    // Bash without a command string, assume destructive to be safe
     return true;
   }
 

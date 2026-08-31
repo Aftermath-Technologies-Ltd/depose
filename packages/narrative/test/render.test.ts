@@ -147,7 +147,7 @@ describe('renderMarkdown', () => {
     expect(md).toContain('tool result without pre capture');
   });
 
-  it('is deterministic — same input produces same output', () => {
+  it('is deterministic, same input produces same output', () => {
     const events = [
       makePrompt('01JKPROMPT00000000000001'),
       makeAssistant('01JKASST000000000000001'),

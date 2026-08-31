@@ -1,6 +1,6 @@
-// Package timestamp — RFC 3161 timestamp verification for DEPOSE bundles.
+// Package timestamp, RFC 3161 timestamp verification for DEPOSE bundles.
 //
-// This is the *real* verifier — earlier versions did a byte-substring
+// This is the *real* verifier; earlier versions did a byte-substring
 // scan over the DER blob, which a forger could pass by appending the
 // expected hash to any DER. Now we:
 //
@@ -151,7 +151,7 @@ func VerifyToken(token Token, expectedHashHex string) *VerifyResult {
 		return result
 	}
 	// Use VerifyWithChainAtTime so an expired TSA cert that was
-	// valid at the time of timestamping still passes — that is the
+	// valid at the time of timestamping still passes; that is the
 	// whole point of long-term RFC 3161 timestamps.
 	if err := p7.VerifyWithChainAtTime(getTrustPool(), parsed.Time); err != nil {
 		result.Detail = fmt.Sprintf(
@@ -198,7 +198,7 @@ func bytesEqualConstantTime(a, b []byte) bool {
 // field. A producer that records producedAt as
 // 21:39:00.367Z and then receives a TSA token reporting
 // 21:39:00.000Z (the same wall-clock second, truncated) is not
-// backdating — it's the TSA's reporting precision.
+// backdating; it's the TSA's reporting precision.
 const backdateToleranceSeconds = 1
 
 func VerifyManifestProducedAt(producedAt string, tokens []Token) error {
@@ -217,7 +217,7 @@ func VerifyManifestProducedAt(producedAt string, tokens []Token) error {
 		// allowed to be at most 1 second after the reported time.
 		if producedTime.After(ts.Add(backdateToleranceSeconds * time.Second)) {
 			return fmt.Errorf(
-				"manifest producedAt (%s) is AFTER timestamp from %s (%s) — possible backdating",
+				"manifest producedAt (%s) is AFTER timestamp from %s (%s), possible backdating",
 				producedAt, token.TSA, token.Timestamp)
 		}
 	}

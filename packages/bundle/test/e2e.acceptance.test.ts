@@ -124,7 +124,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       expect(evt.chainHash.length).toBe(64);
     }
 
-    // Verify signature against manifest (unsigned form — signatures/timestamps stripped)
+    // Verify signature against manifest (unsigned form, signatures/timestamps stripped)
     // The signature was computed over the manifest before signatures were added
     const manifestJson = readFileSync(pathJoin(depopPath, 'manifest.json'), 'utf-8');
     const manifestForSigning = JSON.parse(manifestJson);
@@ -198,7 +198,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       injectedTimestamps: FAKE_TIMESTAMP,
     });
 
-    // Tamper with an event's payloadHash — this is what the chain protects
+    // Tamper with an event's payloadHash; this is what the chain protects
     const eventsPath = pathJoin(depopPath, 'events.jsonl');
     const eventsContent = readFileSync(eventsPath, 'utf-8');
     // Flip a character in the payloadHash (hex string) to simulate a modified payload
@@ -211,7 +211,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
     );
     writeFileSync(eventsPath, tamperedContent, 'utf-8');
 
-    // Re-read events and verify chain — should fail
+    // Re-read events and verify chain; should fail
     const tamperedEventsContent = readFileSync(eventsPath, 'utf-8');
     const tamperedEvents = tamperedEventsContent.trim().split('\n').map(line => JSON.parse(line));
     const chainResult = verifyHashChain(tamperedEvents, manifest.rootHash);
@@ -255,7 +255,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       writeFileSync(rulesArtifact, 'TAMPERED' + content, 'utf-8');
 
       const result = runVerify(depopPath);
-      // Verifier should detect artifact mismatch — but since the verifier
+      // Verifier should detect artifact mismatch, but since the verifier
       // checks events.jsonl integrity rather than individual artifact hashes
       // in this version, we verify it still runs and reports results
       expect(result.exitCode).not.toBe(0);
@@ -297,7 +297,7 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
     const sigs = JSON.parse(readFileSync(sigPath, 'utf-8'));
     expect(sigs.blocks).toEqual([]);
 
-    // Manifest still has the signature — but if we also strip it from manifest
+    // Manifest still has the signature, but if we also strip it from manifest
     const manifestPath = pathJoin(depopPath, 'manifest.json');
     const manifestData = JSON.parse(readFileSync(manifestPath, 'utf-8'));
     manifestData.signatures = [];
@@ -401,7 +401,7 @@ describe('Phase 2 acceptance: depose-verify binary', () => {
 
     const result = runVerify(depopPath);
     // Should get at least chain + signature checks passing
-    // Timestamp check will fail since we skipped timestamps — that's expected
+    // Timestamp check will fail since we skipped timestamps; that's expected
     expect(result.stdout).toContain('chain-replay');
     expect(result.stdout).toContain('signature-verify');
   });

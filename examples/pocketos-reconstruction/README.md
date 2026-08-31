@@ -27,6 +27,6 @@ This produces a `.depo` signed bundle in `./depose-output/` containing the recon
 
 1. User asks the agent to tear down the PocketOS staging environment
 2. Agent runs `terraform plan -destroy` to preview changes
-3. Agent runs `terraform destroy -auto-approve` — the destructive operation
+3. Agent runs `terraform destroy -auto-approve`, the destructive operation
 4. Terraform reports 3 resources destroyed (SNS topic, DynamoDB table, EC2 instance)
 5. Agent confirms completion to the user

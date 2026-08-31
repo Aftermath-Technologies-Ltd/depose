@@ -1,4 +1,4 @@
-// Package main — depose-verify: standalone verifier for .depo evidence bundles.
+// Package main, depose-verify: standalone verifier for .depo evidence bundles.
 //
 // Reads a .depo bundle directory and validates:
 //   1. Manifest signature (Ed25519)

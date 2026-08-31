@@ -101,4 +101,4 @@ the duplicate.
 4. Statically-linked tools called via `execve` directly
 5. Commands run on remote hosts (SSH, Docker)
 
-These limitations are **visible** — a `gap` event is emitted whenever a tool result has no matching pre-execution capture.
+These limitations are **visible**, a `gap` event is emitted whenever a tool result has no matching pre-execution capture.
