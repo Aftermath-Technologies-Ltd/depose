@@ -1,6 +1,6 @@
 // packages/cli/src/commands/package.ts
 //
-// `depose package --from-claude <path>` — Phase 2 signed bundle production.
+// `depose package --from-claude <path>`, Phase 2 signed bundle production.
 //
 // Builds a fully signed .depo bundle with:
 //   - IRONROOT hash chain
@@ -18,12 +18,15 @@ import {
   loadDestructiveRules,
   generateUlid,
   setFixedUlidSeed,
+  DEFAULT_CAPTURE_DIR,
   type AgentId,
 } from '@depose/core';
 import { writeBundle } from '@depose/bundle';
 import { loadOrGenerateKeyPair, fingerprintPublicKeyPem } from '@depose/chain';
 import { DEFAULT_RULES_PATH } from '../rules-default.js';
 import { loadAndMergeEvents } from '../pipeline.js';
+import { captureStoreWarning } from './captures.js';
+import { CLI_VERSION } from '../version.js';
 
 // ── CLI args interface ─────────────────────────────────────────────
 
@@ -76,7 +79,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   // runs must never use --fixed-seed (it destroys the CSPRNG guarantee).
   if (fixedSeed) {
     setFixedUlidSeed(Number(fixedSeed));
-    console.log(`FIXED SEED: ${fixedSeed} — ULID generation is deterministic (NOT for production)`);
+    console.log(`FIXED SEED: ${fixedSeed}, ULID generation is deterministic (NOT for production)`);
   }
 
   // Resolve paths
@@ -103,14 +106,33 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   const rulesetBytes = readFileSync(resolvedRules);
 
   console.log('Normalizing session data...');
-  const { events: merged, warnings: pipelineWarnings, gapCount, linkedCount, captureRecordCount } = loadAndMergeEvents({
+  const {
+    events: merged,
+    warnings: pipelineWarnings,
+    gapCount,
+    linkedCount,
+    captureRecordCount,
+    captureStoreRecordCount,
+    captureExcluded,
+  } = loadAndMergeEvents({
     jsonlPath: resolvedJsonl,
     sessionId,
     agentId: agentId as AgentId,
     captureDir: args['capture-dir'] as string | undefined,
+    includeUnscopedCaptures: args['include-unscoped-captures'] === true,
   });
-  if (captureRecordCount > 0) {
-    console.log(`Loaded ${captureRecordCount} pre-execution capture records`);
+  const capturesExcluded = Object.values(captureExcluded).reduce((a, b) => a + b, 0);
+  if (captureStoreRecordCount > 0) {
+    console.log(
+      `Capture store: ${captureStoreRecordCount} record(s), ` +
+        `${captureRecordCount} attributable to this session, ${capturesExcluded} excluded`
+    );
+    // Nothing expires on its own, so surface growth where the user is
+    // already looking rather than waiting for them to go find it.
+    const storeWarning = captureStoreWarning(
+      (args['capture-dir'] as string | undefined) ?? DEFAULT_CAPTURE_DIR
+    );
+    if (storeWarning) console.log(`  WARN: ${storeWarning}`);
   }
   console.log(`Merged ${merged.length} events (${gapCount} gaps, ${linkedCount} linked)`);
 
@@ -143,7 +165,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
     const { depopPath, manifest, warnings: bundleWarnings } = await writeBundle(merged, rules, {
       sessionId: bundleId,
       agentId,
-      version: '0.1.0',
+      version: CLI_VERSION,
       producedAt,
       sessionStartedAt: sessionStarted,
       sessionEndedAt: sessionEnded,
@@ -153,6 +175,9 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       mode,
       keyPair,
       sourceJsonlPath: resolvedJsonl,
+      capturesAttributed: captureRecordCount,
+      capturesExcluded,
+      captureSourceDir: (args['capture-dir'] as string | undefined) ?? DEFAULT_CAPTURE_DIR,
     });
 
     for (const w of [...pipelineWarnings, ...bundleWarnings]) {

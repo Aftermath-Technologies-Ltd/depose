@@ -42,7 +42,7 @@ Agent transcripts on disk aren't evidence. Anyone with shell access can rewrite 
 
 | Property | Mechanism |
 |---|---|
-| **Tamper-evident** | IRONROOT hash chain over events; any byte change fails replay. |
+| **Tamper-evident** | IRONROOT hash chain over events, plus a per-event payload re-hash. Any byte change fails verification. |
 | **Authenticated** | Ed25519 manifest signature, sealed by a key the producer controls. |
 | **Anti-backdated** | RFC 3161 timestamp from FreeTSA (DigiCert fallback) anchors the bundle to a moment in time. |
 
