@@ -39,7 +39,8 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          # 1.22 emits macOS binaries dyld will not load; see .github/workflows/ci.yml.
+          go-version: '1.24'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
