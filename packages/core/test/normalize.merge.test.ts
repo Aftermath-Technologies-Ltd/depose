@@ -485,12 +485,12 @@ describe('F-06: tool_result correlation via tool_call_intent', () => {
     const resultBEvent = events.find((e) => e.id === resultB.id);
 
     // tool_result A should be linked to shell_command_pre A (npm test),
-    // NOT shell_command_pre B (npm build) — no crosswire.
+    // NOT shell_command_pre B (npm build), no crosswire.
     expect(resultAEvent?.correlation?.linkedShellCommandPreId).toBe(shellPreA.id);
     expect(resultAEvent?.correlation?.linkedShellCommandPreId).not.toBe(shellPreB.id);
 
     // tool_result B should be linked to shell_command_pre B (npm build),
-    // NOT shell_command_pre A (npm test) — no crosswire.
+    // NOT shell_command_pre A (npm test), no crosswire.
     expect(resultBEvent?.correlation?.linkedShellCommandPreId).toBe(shellPreB.id);
     expect(resultBEvent?.correlation?.linkedShellCommandPreId).not.toBe(shellPreA.id);
   });
