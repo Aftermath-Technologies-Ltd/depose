@@ -16,17 +16,7 @@
 // forensics CLI "trust me, I parsed your flag right" is the wrong
 // posture.
 
-import { resolve } from 'node:path';
-import { readFileSync, existsSync } from 'node:fs';
 import { Command } from 'commander';
-import {
-  buildTimeline,
-  formatTimelineSummary,
-  loadDestructiveRules,
-  generateUlid,
-  type AgentId,
-} from '@depose/core';
-import { writeBundle } from '@depose/bundle';
 import { handlePackage, type PackageCommandArgs } from './package.js';
 import { handleExplain, type ExplainCommandArgs } from './explain.js';
 import {
@@ -36,41 +26,16 @@ import {
   handleKeyCatalog,
   type KeyCommandArgs,
 } from './key.js';
-import { DEFAULT_RULES_PATH } from '../rules-default.js';
 import { VERIFIER_DOWNLOAD_URL } from '@depose/bundle';
-import { loadAndMergeEvents } from '../pipeline.js';
+import { handleReconstruct } from './reconstruct.js';
+import { handleInstall, handleUninstall } from './install-uninstall-handlers.js';
+import { optsToArgs } from './cli-args.js';
+import { CLI_VERSION } from '../version.js';
 import {
-  installClaudeHook,
-  installShellShims,
-  uninstallClaudeHook,
-  uninstallShellShims,
-  DEFAULT_CAPTURE_DIR,
-} from './install.js';
-
-// ── Args shape (kebab-case keys, matches what handlers consume) ──────
-
-interface CliArgs {
-  [key: string]: string | boolean | string[] | undefined;
-}
-
-/**
- * Convert commander's camelCase options into the kebab-case shape
- * the existing handlers consume. Commander emits opts with names
- * derived from the long flag — so `--from-claude` becomes
- * `opts.fromClaude`. We rebuild a kebab-keyed object so handlers
- * see `args['from-claude']` as they always did.
- */
-function camelToKebab(name: string): string {
-  return name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
-}
-
-function optsToArgs(opts: Record<string, unknown>): CliArgs {
-  const out: CliArgs = {};
-  for (const [k, v] of Object.entries(opts)) {
-    out[camelToKebab(k)] = v as string | boolean | string[] | undefined;
-  }
-  return out;
-}
+  handleCapturesList,
+  handleCapturesPrune,
+  type CapturesCommandArgs,
+} from './captures.js';
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -101,6 +66,7 @@ export async function main(argv: string[]): Promise<void> {
   program
     .name('depose')
     .description('Depose the agent. Produce the record.')
+    .version(CLI_VERSION, '-V, --version', 'Print the depose version')
     .exitOverride((err) => {
       // commander throws CommanderError on help/version/parse error.
       // For help/version it exits 0; for parse errors we want 1 so
@@ -112,7 +78,7 @@ export async function main(argv: string[]): Promise<void> {
     })
     // Make argument parsing strict but explicit:
     //   --from-claude=foo (key=value) is accepted by commander.
-    //   --rules <path> --rules <path2> — last wins; we don't declare
+    //   --rules <path> --rules <path2>, last wins; we don't declare
     //   repeatable flags because none of our options are repeatable.
     //   Values starting with `-` work via `--key=value` form, or by
     //   relying on commander's "next-token-is-the-value" semantics.
@@ -130,7 +96,11 @@ export async function main(argv: string[]): Promise<void> {
       .option('--output-dir <dir>', 'Alias for --output')
       .option('--session-id <id>', 'Session ID (ULID)')
       .option('--agent-id <id>', 'Agent ID', 'claude-code')
-      .option('--capture-dir <path>', 'Capture directory');
+      .option('--capture-dir <path>', 'Capture directory')
+      .option(
+        '--include-unscoped-captures',
+        'Merge capture records that carry no session id (off by default)'
+      );
 
   addReconstructOpts(
     program
@@ -164,7 +134,7 @@ export async function main(argv: string[]): Promise<void> {
       .option('--key-dir <path>', 'Ed25519 key directory')
       .action(async function (this: Command) {
         const args = optsToArgs(this.opts());
-        // `record` always signs — force skip-timestamp off
+        // `record` always signs, force skip-timestamp off
         args['skip-timestamp'] = false;
         await handlePackage(args as unknown as PackageCommandArgs);
       })
@@ -183,7 +153,7 @@ export async function main(argv: string[]): Promise<void> {
   addReconstructOpts(
     program
       .command('explain')
-      .description('Generate commentary.md (AI-generated, NOT evidence)')
+      .description('Generate commentary.md (deterministic template, NOT evidence)')
       .option('--bundle <dir>', 'Existing bundle directory')
       .action(async function (this: Command) {
         await handleExplain(optsToArgs(this.opts()) as unknown as ExplainCommandArgs);
@@ -200,6 +170,26 @@ export async function main(argv: string[]): Promise<void> {
     .option('--capture-dir <path>', 'Capture directory')
     .action(async function (this: Command) {
       await handleInstall(optsToArgs(this.opts()));
+    });
+
+  const capturesCmd = program
+    .command('captures')
+    .description('Inspect and prune the local capture store');
+  capturesCmd
+    .command('list')
+    .description('Report capture store size, record count, and age range')
+    .option('--capture-dir <path>', 'Capture directory')
+    .action(function (this: Command) {
+      handleCapturesList(optsToArgs(this.opts()) as CapturesCommandArgs);
+    });
+  capturesCmd
+    .command('prune')
+    .description('Remove capture records older than a retention window (dry run by default)')
+    .option('--older-than <duration>', 'Retention window, e.g. 90d, 12h, 30m')
+    .option('--capture-dir <path>', 'Capture directory')
+    .option('--yes', 'Actually delete. Without it, prune only reports.')
+    .action(function (this: Command) {
+      handleCapturesPrune(optsToArgs(this.opts()) as CapturesCommandArgs);
     });
 
   const keyCmd = program
@@ -262,199 +252,5 @@ export async function main(argv: string[]): Promise<void> {
   }
 }
 
-// ── Reconstruct command (Phase 1 — unsigned) ─────────────────────────
+// ── Reconstruct command (Phase 1, unsigned) ─────────────────────────
 
-async function handleReconstruct(args: CliArgs): Promise<void> {
-  const jsonlPath: string | undefined = typeof args['from-claude'] === 'string' ? args['from-claude'] : undefined;
-  const rulesPath = (args['rules'] || args['ruleset']) as string | undefined;
-  const outputDir = (args['output'] || args['output-dir']) as string | undefined;
-  const sessionId = args['session-id'] as string | undefined;
-  const agentId = (args['agent-id'] || 'claude-code') as string;
-
-  if (!jsonlPath) {
-    console.error('ERROR: --from-claude <path> is required.');
-    console.error('');
-    console.error('Usage: depose reconstruct --from-claude <path> [options]');
-    process.exit(1);
-    return;
-  }
-
-  // Resolve paths
-  const resolvedJsonl = resolve(jsonlPath);
-  const resolvedOutput = outputDir ? resolve(outputDir) : resolve('./depose-output');
-  const resolvedRules = rulesPath ? resolve(rulesPath) : DEFAULT_RULES_PATH;
-
-  // Validate input
-  if (!existsSync(resolvedJsonl)) {
-    console.error(`ERROR: Input file not found: ${resolvedJsonl}`);
-    process.exit(1);
-    return;
-  }
-
-  // Load destructive rules. Bytes are passed verbatim to the
-  // bundle writer so the verifier can re-hash them against
-  // manifest.rulesetHash.
-  const rules = loadDestructiveRules(resolvedRules);
-  const rulesetBytes = readFileSync(resolvedRules);
-
-  // Load + normalize + merge all sources through the shared pipeline.
-  const { events: merged, warnings, gapCount, linkedCount, captureRecordCount } = loadAndMergeEvents({
-    jsonlPath: resolvedJsonl,
-    sessionId,
-    agentId: agentId as AgentId,
-    captureDir: args['capture-dir'] as string | undefined,
-  });
-
-  // Build timeline + emit human-readable summary.
-  const timeline = buildTimeline(merged, rules);
-  const summary = formatTimelineSummary(timeline);
-  console.log(summary);
-  console.log('');
-  if (captureRecordCount > 0) {
-    console.log(`Loaded ${captureRecordCount} pre-execution capture records`);
-  }
-  console.log(`Gaps: ${gapCount}`);
-  console.log(`Linked: ${linkedCount}`);
-  console.log(`Warnings: ${warnings.length}`);
-  for (const w of warnings) {
-    console.log(`  WARN: ${w}`);
-  }
-  console.log('');
-
-  const bundleId = sessionId || (merged[0]?.sessionId || generateUlid());
-  const sessionStarted = merged.length > 0 ? (merged[0]?.wallTs ?? new Date().toISOString()) : new Date().toISOString();
-  const sessionEnded = merged.length > 0 ? (merged[merged.length - 1]?.wallTs ?? new Date().toISOString()) : new Date().toISOString();
-  const producedAt = new Date().toISOString();
-
-  const { depopPath, manifest } = await writeBundle(merged, rules, {
-    sessionId: bundleId,
-    agentId,
-    version: '0.1.0',
-    producedAt,
-    sessionStartedAt: sessionStarted,
-    sessionEndedAt: sessionEnded,
-    rules,
-    rulesetBytes,
-    outputDir: resolvedOutput,
-    mode: 'dev-unsigned',
-    sourceJsonlPath: resolvedJsonl,
-  });
-
-  console.log(`Bundle written to: ${depopPath}`);
-  console.log(`Manifest: ${JSON.stringify({
-    bundleId: manifest.bundleId,
-    events: manifest.counts.events,
-    destructiveOps: manifest.counts.destructiveOperations,
-    gaps: manifest.counts.gaps,
-    rootHash: manifest.rootHash || '(empty)',
-  }, null, 2)}`);
-}
-
-// ── Install command (Phase 3 — active capture) ──────────────────────
-
-async function handleInstall(args: CliArgs): Promise<void> {
-  const isClaude = args['claude'] === true;
-  const isShell = args['shell'] === true;
-  const useProject = args['project'] === true;
-  const binDir = args['bin-dir'] as string | undefined;
-  const captureDir = args['capture-dir'] as string | undefined;
-
-  if (!isClaude && !isShell) {
-    console.error('ERROR: specify --claude or --shell (or both).');
-    console.error('');
-    console.error('Usage: depose install --claude');
-    console.error('       depose install --shell');
-    console.error('       depose install --claude --shell');
-    process.exit(1);
-    return;
-  }
-
-  if (isClaude) {
-    console.log('Installing Claude Code PreToolUse hook...');
-    const result = installClaudeHook({
-      project: useProject,
-      captureDir,
-    });
-
-    if (result.conflicts.length > 0) {
-      console.log('');
-      for (const conflict of result.conflicts) {
-        console.log(`  CONFLICT: ${conflict}`);
-      }
-      console.log('');
-      console.log('Hook already installed. No changes made.');
-    } else {
-      console.log(`  Settings: ${result.settingsPath}`);
-      if (result.backupPath) {
-        console.log(`  Backup:   ${result.backupPath}`);
-      }
-      console.log(`  Capture:  ${result.captureDir}`);
-      console.log('');
-      console.log('Hook installed. Claude Code will now capture pre-execution');
-      console.log('records for Bash, Edit, and Write tool calls.');
-    }
-  }
-
-  if (isShell) {
-    console.log('');
-    console.log('Installing shell shims...');
-    const result = installShellShims({
-      binDir: binDir ? resolve(binDir) : undefined,
-      captureDir,
-    });
-
-    console.log(`  Bin dir:    ${result.binDir}`);
-    console.log(`  Capture:   ${result.captureDir}`);
-    console.log(`  Installed: ${result.installedBinaries.join(', ')}`);
-    console.log('');
-    console.log(result.pathInstruction);
-  }
-
-  if (isClaude || isShell) {
-    console.log('');
-    console.log('Capture records will be written to:');
-    console.log(`  ${captureDir || DEFAULT_CAPTURE_DIR}`);
-    console.log('');
-    console.log('When you run `depose package`, capture records from this');
-    console.log('directory will be automatically integrated into the bundle.');
-  }
-}
-
-// ── Uninstall command (Phase 3 — active capture) ─────────────────────
-
-async function handleUninstall(args: CliArgs): Promise<void> {
-  const isClaude = args['claude'] === true;
-  const isShell = args['shell'] === true;
-  const binDir = args['bin-dir'] as string | undefined;
-
-  if (!isClaude && !isShell) {
-    console.error('ERROR: specify --claude or --shell (or both).');
-    console.error('');
-    console.error('Usage: depose uninstall --claude');
-    console.error('       depose uninstall --shell');
-    process.exit(1);
-    return;
-  }
-
-  if (isClaude) {
-    console.log('Removing Claude Code PreToolUse hook...');
-    const result = uninstallClaudeHook();
-    if (result.removed) {
-      console.log('  Hook removed from settings.json.');
-    } else {
-      console.log('  No depose hook found in settings.json.');
-    }
-  }
-
-  if (isShell) {
-    console.log('Removing shell shims...');
-    const result = uninstallShellShims({
-      binDir: binDir ? resolve(binDir) : undefined,
-    });
-    if (result.removed.length > 0) {
-      console.log(`  Removed: ${result.removed.join(', ')}`);
-    } else {
-      console.log('  No shims found to remove.');
-    }
-  }
-}
