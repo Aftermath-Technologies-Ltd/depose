@@ -1,6 +1,6 @@
 // packages/core/src/index.ts
 //
-// Core package — event schema, normalizers, reconstruction.
+// Core package, event schema, normalizers, reconstruction.
 // Named exports only (BUILD_PLAN.md §3.1).
 
 // Event types and payloads
@@ -80,6 +80,8 @@ export {
   DEFAULT_CAPTURE_DIR,
   type CaptureNormalizeOptions,
   type CaptureNormalizeResult,
+  type CaptureScope,
+  type CaptureExclusionReason,
 } from './normalize/capture.js';
 
 // Reconstruction

@@ -47,7 +47,10 @@ function makeShellPrePayload(overrides: Partial<ShellCommandPrePayload> = {}): S
     parentProcessTree: [],
     fileArgs: [],
     source: 'claude-pretooluse',
-    captureSchemaVersion: 1,
+    captureSchemaVersion: 2,
+    capturedAt: '2026-05-19T14:30:00.000Z',
+    capturedAtSource: 'recorded',
+    sessionId: null,
     ...overrides,
   };
 }
@@ -61,7 +64,7 @@ describe('Phase 3 acceptance: capture -> merge -> bundle pipeline', () => {
   it('capture records flow through full pipeline to signed bundle', () => {
     // 1. Write capture records
     writeFileSync(
-      join(captureDir, '01HKAAAAPIPELINE000001.json'),
+      join(captureDir, '01HKAAAAP0PE0000000000000J.json'),
       JSON.stringify(makeShellPrePayload({
         argv: ['bash', '-c', 'terraform destroy -auto-approve'],
         source: 'claude-pretooluse',

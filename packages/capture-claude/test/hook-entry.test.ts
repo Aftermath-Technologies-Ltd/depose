@@ -78,7 +78,49 @@ describe('hook-entry', () => {
     ]);
     expect(targetRecord!.payload.cwd).toBe('/tmp/project');
     expect(targetRecord!.payload.source).toBe('claude-pretooluse');
-    expect(targetRecord!.payload.captureSchemaVersion).toBe(1);
+    expect(targetRecord!.payload.captureSchemaVersion).toBe(2);
+  });
+
+  it('records the capture time so the event is not stamped at bundle time', async () => {
+    const before = Date.now();
+    const result = await handlePreToolUse({
+      tool_name: 'Bash',
+      tool_input: { command: 'rm -rf /data', cwd: '/tmp/project' },
+      cwd: '/tmp/project',
+      session_id: 'session-capturedat',
+    });
+    const after = Date.now();
+
+    const record = readCaptureRecords().find((r) => r.ulid === result.ulid)!;
+    expect(record.payload.capturedAtSource).toBe('recorded');
+
+    const capturedMs = Date.parse(record.payload.capturedAt);
+    expect(capturedMs).toBeGreaterThanOrEqual(before);
+    expect(capturedMs).toBeLessThanOrEqual(after);
+  });
+
+  it('records the agent session id so captures can be scoped to a session', async () => {
+    const result = await handlePreToolUse({
+      tool_name: 'Bash',
+      tool_input: { command: 'terraform destroy', cwd: '/tmp/project' },
+      cwd: '/tmp/project',
+      session_id: 'session-scoping-abc',
+    });
+
+    const record = readCaptureRecords().find((r) => r.ulid === result.ulid)!;
+    expect(record.payload.sessionId).toBe('session-scoping-abc');
+  });
+
+  it('leaves sessionId null when the hook payload carries no session', async () => {
+    const result = await handlePreToolUse({
+      tool_name: 'Bash',
+      tool_input: { command: 'ls', cwd: '/tmp/project' },
+      cwd: '/tmp/project',
+      session_id: '',
+    });
+
+    const record = readCaptureRecords().find((r) => r.ulid === result.ulid)!;
+    expect(record.payload.sessionId).toBeNull();
   });
 
   it('writes a capture record for Edit tool', async () => {
@@ -170,7 +212,7 @@ describe('hook-entry', () => {
     expect(Array.isArray(targetRecord!.payload.parentProcessTree)).toBe(true);
   });
 
-  it('never throws — errors are swallowed', async () => {
+  it('never throws; errors are swallowed', async () => {
     // Provide malformed input that might cause issues
     const input: HookInput = {
       tool_name: 'Bash',

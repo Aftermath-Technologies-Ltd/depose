@@ -1,4 +1,4 @@
-// Package manifest — parse and represent a DEPOSE bundle manifest.
+// Package manifest, parse and represent a DEPOSE bundle manifest.
 package manifest
 
 import (
@@ -93,6 +93,13 @@ type Counts struct {
 	Gaps                 int `json:"gaps"`
 	ArtifactsPre         int `json:"artifactsPre"`
 	ArtifactsPost        int `json:"artifactsPost"`
+	// CapturesAttributed and CapturesExcluded record how much of the
+	// producer's capture store went into this bundle and how much was left
+	// out as unattributable to the session. Bundles produced before these
+	// fields existed omit them and decode as zero, which is why they are
+	// reported rather than asserted on.
+	CapturesAttributed int `json:"capturesAttributed"`
+	CapturesExcluded   int `json:"capturesExcluded"`
 }
 
 // LoadManifest reads and parses manifest.json from the bundle directory.
@@ -119,7 +126,7 @@ func LoadManifest(bundleDir string) (*Manifest, error) {
 // must reconstruct the same unsigned manifest to compute the expected hash.
 func VerifySignature(m *Manifest, rawManifestBytes []byte) error {
 	if len(m.Signatures) == 0 {
-		return fmt.Errorf("no signatures found — unsigned bundle")
+		return fmt.Errorf("no signatures found, unsigned bundle")
 	}
 
 	for i, sig := range m.Signatures {
@@ -157,14 +164,14 @@ func VerifySignature(m *Manifest, rawManifestBytes []byte) error {
 		// Reconstruct the unsigned-form canonical JSON bytes that the
 		// producer signed. Ed25519 (pure) hashes the message itself
 		// per RFC 8032, so we sign/verify the canonical JSON bytes
-		// directly — no pre-hash, no hex encoding step.
+		// directly, no pre-hash, no hex encoding step.
 		unsignedManifest, err := StripSignatureFields(rawManifestBytes)
 		if err != nil {
 			return fmt.Errorf("signature[%d]: prepare unsigned manifest: %w", i, err)
 		}
 
 		if !ed25519.Verify(ed25519Pub, unsignedManifest, sigBytes) {
-			return fmt.Errorf("signature[%d]: INVALID — signature does not match manifest", i)
+			return fmt.Errorf("signature[%d]: INVALID; signature does not match manifest", i)
 		}
 	}
 

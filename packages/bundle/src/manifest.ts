@@ -79,7 +79,7 @@ export interface Manifest {
     startedAt: string;
     endedAt: string;
     /**
-     * Session host metadata — the environment where the agent session actually
+     * Session host metadata, the environment where the agent session actually
      * ran. Fields are nullable because they may be unavailable during
      * reconstruction (e.g. when building from JSONL alone). producer.host
      * always records the bundling machine; session.host records the original
@@ -96,7 +96,7 @@ export interface Manifest {
   /**
    * SHA-256 (lowercase hex) of the literal UTF-8 bytes of events.jsonl
    * as embedded in this bundle. The verifier re-reads events.jsonl
-   * and compares — adding events, removing events, re-ordering lines,
+   * and compares, adding events, removing events, re-ordering lines,
    * or any whitespace-level change inside the file fails verification
    * even when the chain-replay path would otherwise survive.
    *
@@ -120,6 +120,21 @@ export interface Manifest {
     gaps: number;
     artifactsPre: number;
     artifactsPost: number;
+    /**
+     * Capture records merged into this bundle, and records present in the
+     * producer's capture store that were not attributable to this session
+     * and were therefore left out.
+     *
+     * Both live in signed material on purpose. "We held capture data and
+     * deliberately did not use it" is a claim a recipient must be able to
+     * check against the signature, not one that sits only in the narrative
+     * (which is excluded from the root hash).
+     *
+     * Optional: bundles produced before these fields existed omit them,
+     * and the Go verifier decodes a missing value as zero.
+     */
+    capturesAttributed?: number;
+    capturesExcluded?: number;
   };
   rulesetHash: string;
 }
@@ -172,6 +187,8 @@ export function buildManifest(
     rootHash: string;
     eventsJsonlSha256: string;
     keyFingerprint?: string;
+    capturesAttributed?: number;
+    capturesExcluded?: number;
   }
 ): Manifest {
   const destructiveOps = buildDestructiveOpsIndex(events, rules);
@@ -211,6 +228,8 @@ export function buildManifest(
       gaps: gaps.length,
       artifactsPre: fileChanges.length,
       artifactsPost: fileChanges.length,
+      capturesAttributed: options.capturesAttributed ?? 0,
+      capturesExcluded: options.capturesExcluded ?? 0,
     },
     rulesetHash: options.rulesetHash,
   };
@@ -224,7 +243,7 @@ export function serializeManifest(manifest: Manifest): string {
 }
 
 /**
- * Serialize a manifest for signing — excludes signatures and timestamps
+ * Serialize a manifest for signing, excludes signatures and timestamps
  * to avoid the self-referential signature problem.
  *
  * The signature is computed over SHA-256(canonical JSON of the manifest

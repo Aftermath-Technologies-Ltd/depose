@@ -254,7 +254,7 @@ describe('normalizeClaudeCodeJsonl', () => {
       const { events, warnings } = normalizeClaudeCodeJsonl(jsonl);
 
       // Every recognized line type must produce a non-gap event.
-      // Unrecognized lines produce gap events — a real-format fixture
+      // Unrecognized lines produce gap events, a real-format fixture
       // should have 0 gaps for its recognized content.
       expect(countType(events, 'gap')).toBe(0);
       expect(warnings.length).toBe(0);

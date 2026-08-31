@@ -25,6 +25,7 @@ import {
   type Event,
   type ShellCommandPrePayload,
   type AgentId,
+  type CaptureExclusionReason,
 } from '@depose/core';
 
 export interface PipelineOptions {
@@ -36,6 +37,13 @@ export interface PipelineOptions {
   agentId: AgentId;
   /** Optional capture directory override. */
   captureDir?: string;
+  /**
+   * Merge capture records that carry no session id. Off by default:
+   * records written before the session id existed, and shim records that
+   * never had one, cannot be tied to this session by anything recorded.
+   * Including them on a guess puts unrelated activity into signed evidence.
+   */
+  includeUnscopedCaptures?: boolean;
 }
 
 export interface PipelineResult {
@@ -47,29 +55,37 @@ export interface PipelineResult {
   gapCount: number;
   /** Number of cross-source links the merger established. */
   linkedCount: number;
-  /** Number of pre-execution capture records loaded. */
+  /** Number of pre-execution capture records merged into the timeline. */
   captureRecordCount: number;
+  /** Records present in the capture store before scoping was applied. */
+  captureStoreRecordCount: number;
+  /** Records deliberately left out of the bundle, by reason. */
+  captureExcluded: Record<CaptureExclusionReason, number>;
 }
 
 /**
  * Load, normalize, and merge all event sources for a session.
  *
  * Sources, each optional except the JSONL:
- *   - <dir>/<input>.jsonl     — Claude Code session
- *   - <dir>/shell-history.txt — Bash/zsh history near the session
- *   - <dir>/git-reflog.txt    — reflog snapshot at incident time
- *   - $DEPOSE_CAPTURE_DIR     — pre-execution capture records (Phase 3)
+ *   - <dir>/<input>.jsonl       Claude Code session
+ *   - <dir>/shell-history.txt, Bash/zsh history near the session
+ *   - <dir>/git-reflog.txt      reflog snapshot at incident time
+ *   - $DEPOSE_CAPTURE_DIR       pre-execution capture records (Phase 3)
  *
  * Returns the merged event timeline and per-source warnings. The
  * caller decides what to do with them (print, fail closed, etc.).
  */
 export function loadAndMergeEvents(opts: PipelineOptions): PipelineResult {
-  const { jsonlPath, sessionId, agentId, captureDir } = opts;
+  const { jsonlPath, sessionId, agentId, captureDir, includeUnscopedCaptures } = opts;
   const warnings: string[] = [];
 
   // 1. Claude Code JSONL (the spine).
   const jsonl = readFileSync(jsonlPath, 'utf-8');
-  const { events: claudeEvents, warnings: normalizeWarnings } = normalizeClaudeCodeJsonl(jsonl, {
+  const {
+    events: claudeEvents,
+    warnings: normalizeWarnings,
+    agentSessionId,
+  } = normalizeClaudeCodeJsonl(jsonl, {
     sessionId,
     agentId,
   });
@@ -108,12 +124,36 @@ export function loadAndMergeEvents(opts: PipelineOptions): PipelineResult {
   }
 
   // 4. Pre-execution capture records (active capture).
+  // Scoped to this session. The store is machine-wide and long-lived, so
+  // an unscoped read merges every project the user has touched into an
+  // evidence bundle. Records that cannot be attributed are counted, not
+  // dropped silently and not included on a guess.
+  const sessionEnd = claudeEvents[claudeEvents.length - 1]?.wallTs;
   const captureResult = normalizeCaptureRecords(captureDir, {
     sessionId: sessionRoot,
     agentId,
     monoOffset: claudeEvents.length + shellEvents.length + reflogEvents.length,
+    scope: {
+      agentSessionId,
+      startsAt: sessionStart,
+      endsAt: sessionEnd ?? sessionStart,
+      includeUnattributed: includeUnscopedCaptures === true,
+    },
   });
   warnings.push(...captureResult.warnings);
+
+  const excludedTotal = Object.values(captureResult.excluded).reduce((a, b) => a + b, 0);
+  if (excludedTotal > 0) {
+    warnings.push(
+      `${excludedTotal} of ${captureResult.storeRecordCount} capture record(s) were not ` +
+        `attributable to this session and were excluded: ` +
+        Object.entries(captureResult.excluded)
+          .filter(([, n]) => n > 0)
+          .map(([reason, n]) => `${n} ${reason}`)
+          .join(', ') +
+        `. Pass --include-unscoped-captures to merge unattributed records anyway.`
+    );
+  }
 
   // 5. Merge all sources into a single ordered timeline.
   const {
@@ -138,6 +178,8 @@ export function loadAndMergeEvents(opts: PipelineOptions): PipelineResult {
     gapCount,
     linkedCount,
     captureRecordCount: captureResult.recordCount,
+    captureStoreRecordCount: captureResult.storeRecordCount,
+    captureExcluded: captureResult.excluded,
   };
 }
 
@@ -171,7 +213,12 @@ export function createShellCommandEvent(
     parentProcessTree: [],
     fileArgs: [],
     source: 'reconstructed',
-    captureSchemaVersion: 1,
+    captureSchemaVersion: 2,
+    // Rebuilt from a shell-history line, so the time is the history
+    // entry's own timestamp, not an observation made at capture time.
+    capturedAt: wallTs,
+    capturedAtSource: 'reconstructed',
+    sessionId,
   };
   const preHash = sha256(prePayload);
   return {

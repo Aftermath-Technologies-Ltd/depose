@@ -152,6 +152,17 @@ export interface FileDiffPayload {
 /**
  * Represents a shell command before execution (pre-execution capture).
  * Source is either the Claude Code PreToolUse hook or the shell shim.
+ *
+ * This is the v2 shape, which is what enters a bundle. v1 records on
+ * disk carry neither `capturedAt` nor `sessionId`; normalizeCaptureRecords
+ * upgrades them on read (deriving the time from the ULID filename) so
+ * everything downstream sees one shape.
+ *
+ * v1 recorded no capture time at all, which forced the normalizer to
+ * stamp events with the bundle production time. That put every capture
+ * event minutes to months away from the command it described, so the
+ * plus or minus 5s correlation window in mergeEvents could never match
+ * and active capture linked nothing in real post-incident use.
  */
 export interface ShellCommandPrePayload {
   argv: string[];
@@ -168,7 +179,29 @@ export interface ShellCommandPrePayload {
     sizeBytes: number | null;
   }>;
   source: 'claude-pretooluse' | 'shell-shim' | 'reconstructed';
-  captureSchemaVersion: 1;
+  captureSchemaVersion: 1 | 2;
+  /**
+   * ISO 8601 time the capture was taken, not the time the bundle was
+   * produced. Added in v2.
+   */
+  capturedAt: string;
+  /**
+   * Provenance of `capturedAt`. A derived or reconstructed time is weaker
+   * evidence than a recorded one, and a bundle must never present them as
+   * equal.
+   *
+   *   recorded            written by the hook or shim at capture time
+   *   derived-from-mtime  v1 record, time taken from the file's mtime
+   *   reconstructed       no capture happened; time comes from the
+   *                       session log line this payload was rebuilt from
+   */
+  capturedAtSource: 'recorded' | 'derived-from-mtime' | 'reconstructed';
+  /**
+   * Agent session this capture belongs to, used to scope captures to the
+   * session being reconstructed. Null for shell-shim records, which have
+   * no agent session, and for upgraded v1 records, which predate the field.
+   */
+  sessionId: string | null;
 }
 
 /**
@@ -214,7 +247,7 @@ export interface ErrorPayload {
 }
 
 /**
- * Represents a gap in coverage — something happened that we did not capture.
+ * Represents a gap in coverage, something happened that we did not capture.
  * See BUILD_PLAN.md §4.2 for reason variants.
  */
 export interface GapPayload {
@@ -242,7 +275,7 @@ export interface ProcessNode {
 // ── Discriminated union ──────────────────────────────────────────────
 
 /**
- * Full event type — a discriminated union of EventBase with per-type payloads.
+ * Full event type, a discriminated union of EventBase with per-type payloads.
  * TypeScript narrows `payload` based on `type`.
  */
 export type Event =
