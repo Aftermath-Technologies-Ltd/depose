@@ -18,10 +18,10 @@
     "build:shim": "cd apps/capture-shim && make build-local",
     "build:bundle": "cd packages/cli && npm run build:bundle",
     "test": "vitest run",
-    "test:go": "(cd apps/verify && go test ./...) && (cd apps/capture-shim && go test ./... 2>/dev/null || true)",
+    "test:go": "(cd apps/verify && go test ./...) && (cd apps/capture-shim && go test ./...)",
     "test:all": "vitest run && npm run test:go",
     "test:watch": "vitest",
-    "lint": "eslint packages/ --max-warnings 0",
+    "lint": "eslint packages/ tests/ --max-warnings 0",
     "typecheck": "tsc --build --noEmit"
   },
   "devDependencies": {

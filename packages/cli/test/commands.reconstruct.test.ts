@@ -99,9 +99,12 @@ describe('depose reconstruct', () => {
     );
     expect(manifest.schemaVersion).toBe(2);
     expect(manifest.rootHash).toBe(''); // Phase 1: unsigned
-    expect(manifest.counts.events).toBeGreaterThan(0);
-    // Gaps present: shell_command_pre without tool_result, tool_result without shell_command_pre
-    expect(manifest.counts.gaps).toBeGreaterThan(0);
+    // Exact counts, not `> 0`. A lower bound passed on a machine with the
+    // capture hook installed even when the bundle had absorbed 18,000
+    // unrelated events, so it asserted nothing about this fixture.
+    expect(manifest.counts.events).toBe(55);
+    expect(manifest.counts.destructiveOperations).toBe(11);
+    expect(manifest.counts.gaps).toBe(20);
 
     capture.restore();
   });
@@ -127,9 +130,11 @@ describe('depose reconstruct', () => {
     const manifest = JSON.parse(
       readFileSync(pathJoin(outputDir, bundleDir!, 'manifest.json'), 'utf-8'),
     );
-    expect(manifest.counts.events).toBeGreaterThan(0);
-    // session-with-gaps.jsonl has error and unknown types = gaps
-    expect(manifest.counts.gaps).toBeGreaterThanOrEqual(0);
+    // session-with-gaps.jsonl carries error and unknown line types, which
+    // become gap events. `>= 0` was vacuous; pin the real shape.
+    expect(manifest.counts.events).toBe(57);
+    expect(manifest.counts.destructiveOperations).toBe(9);
+    expect(manifest.counts.gaps).toBe(22);
 
     capture.restore();
   });
