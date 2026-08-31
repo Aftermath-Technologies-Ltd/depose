@@ -71,7 +71,7 @@ export function loadDestructiveRules(filePath: string): DestructiveRule[] {
     const content = readFileSync(filePath, 'utf-8');
     return parseDestructiveRulesYaml(content);
   } catch {
-    // File doesn't exist or can't be read — return empty ruleset
+    // File doesn't exist or can't be read, return empty ruleset
     return [];
   }
 }
@@ -173,10 +173,10 @@ export function matchDestructiveRules(
   rules: DestructiveRule[]
 ): RuleMatch[] {
   // Two sources of "the agent tried to run a destructive shell command":
-  //   1. shell_command_pre — produced when the active capture layer
+  //   1. shell_command_pre, produced when the active capture layer
   //      (Claude PreToolUse hook or shell shim) intercepts the
   //      execution. Best quality: argv is already pre-tokenized.
-  //   2. tool_call_intent — produced when we reconstruct from the
+  //   2. tool_call_intent, produced when we reconstruct from the
   //      Claude Code JSONL alone (no active capture). The command
   //      is a free-form string the agent emitted; we tokenize it
   //      ourselves so the headline use case ("agent ran `rm -rf`
@@ -215,7 +215,7 @@ export function matchDestructiveRules(
  * The argv tokenizer is a small POSIX-shell-ish splitter: whitespace
  * separates tokens, single and double quotes group; backslash-escapes
  * are passed through unchanged inside the token (good enough for the
- * destructive patterns DEPOSE cares about — `rm -rf`, `terraform
+ * destructive patterns DEPOSE cares about, `rm -rf`, `terraform
  * destroy`, `psql -c "DROP TABLE …"`). Anything fancier would risk
  * false negatives by silently dropping characters.
  */
@@ -241,7 +241,12 @@ function synthShellPayloadFromToolCallIntent(
     parentProcessTree: [],
     fileArgs: [],
     source: 'claude-pretooluse',
-    captureSchemaVersion: 1,
+    captureSchemaVersion: 2,
+    // Synthesized in-memory to run ruleset matching against an intent.
+    // It never reaches a bundle, so there is no capture time to record.
+    capturedAt: '',
+    capturedAtSource: 'reconstructed',
+    sessionId: null,
   };
 }
 
@@ -311,7 +316,7 @@ function matchRuleAgainstPayload(
   let matchedField = '';
   let matchedArgv = argv;
 
-  // Check argvHead (prefix match) — if defined, must match
+  // Check argvHead (prefix match), if defined, must match
   if (argvHead && argvHead.length > 0) {
     const head = argv.slice(0, argvHead.length);
     const matches = argvHead.every((term, i) =>
@@ -323,7 +328,7 @@ function matchRuleAgainstPayload(
     matchedField = matchedField ? `${matchedField}+argvHead` : 'argvHead';
   }
 
-  // Check argvContainsAny (any token contains any of the strings) — if defined, must match
+  // Check argvContainsAny (any token contains any of the strings), if defined, must match
   if (argvContainsAny && argvContainsAny.length > 0) {
     const found = argv.some((arg) =>
       argvContainsAny.some((term) => arg.includes(term))
@@ -334,7 +339,7 @@ function matchRuleAgainstPayload(
     matchedField = matchedField ? `${matchedField}+argvContainsAny` : 'argvContainsAny';
   }
 
-  // Check anyArgvRegex (regex matches any argv token) — if defined, must match
+  // Check anyArgvRegex (regex matches any argv token), if defined, must match
   if (anyArgvRegex && anyArgvRegex.length > 0) {
     const regex = pcreToJsRegex(anyArgvRegex);
     if (!regex) {
@@ -348,7 +353,7 @@ function matchRuleAgainstPayload(
     matchedField = matchedField ? `${matchedField}+anyArgvRegex` : 'anyArgvRegex';
   }
 
-  // Check stdinRegex (for gh api graphql cases) — if defined, must match
+  // Check stdinRegex (for gh api graphql cases), if defined, must match
   if (stdinRegex && stdinRegex.length > 0) {
     // Phase 1: stdin content is not captured in shell_command_pre payloads.
     // We do a best-effort check: see if any argv token contains the pattern.

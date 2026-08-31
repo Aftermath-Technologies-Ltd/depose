@@ -8,7 +8,7 @@ import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
 
 export default [
-  // Global ignore — files NOT linted at all. Flat config treats a
+  // Global ignore, files NOT linted at all. Flat config treats a
   // config object with only `ignores` as the global ignore list.
   // dist-bundle/ holds the esbuild-produced single-file CLI bundles;
   // they're machine-generated and concatenate dozens of third-party
@@ -50,7 +50,9 @@ export default [
     },
   },
   {
-    files: ['packages/**/*.ts'],
+    // tests/ holds the shared vitest setup, which is real source: it
+    // decides what every suite can see. It gets the same rules.
+    files: ['packages/**/*.ts', 'tests/**/*.ts'],
     ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts'],
     languageOptions: {
       parser: tsparser,
@@ -59,7 +61,7 @@ export default [
         sourceType: 'module',
       },
       globals: {
-        // Node 20+ runtime globals — flat config doesn't enable
+        // Node 20+ runtime globals, flat config doesn't enable
         // env: node automatically.
         process: 'readonly',
         Buffer: 'readonly',
@@ -85,7 +87,7 @@ export default [
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-require-imports': 'error',
-      // ESLint base rule disables — handled by the TS variants
+      // ESLint base rule disables, handled by the TS variants
       // above; leaving both on would double-report. no-undef is
       // disabled because TypeScript's own checker catches undefined
       // identifiers with full type awareness; the ESLint version

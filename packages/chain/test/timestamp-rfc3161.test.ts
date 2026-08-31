@@ -2,7 +2,7 @@
 //
 // Tests for RFC 3161 timestamp request building and TSR validation.
 // NOTE: Live TSA requests are tested as integration tests (skipped in CI
-// by default — they require network access and the TSA must be available).
+// by default; they require network access and the TSA must be available).
 
 import { describe, it, expect } from 'vitest';
 import {

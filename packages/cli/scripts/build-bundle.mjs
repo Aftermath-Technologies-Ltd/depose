@@ -53,7 +53,7 @@ async function bundle(entry, outFile) {
 }
 
 // Generate a small entry wrapper that invokes main(). Bundling the
-// compiled main.js directly only inlines the exports — nothing calls
+// compiled main.js directly only inlines the exports; nothing calls
 // main, so the bundle would be a no-op.
 const cliEntry = resolve(outDir, '_cli-entry.mjs');
 writeFileSync(

@@ -112,7 +112,7 @@ describe('signManifest / verifyManifestSignature', () => {
 
     const result = signManifest(manifestJson, keyPair);
 
-    // Verify against the bytes directly — same input signManifest used.
+    // Verify against the bytes directly, same input signManifest used.
     const valid = verifyEd25519(manifestJson, result.signatureBase64, keyPair.publicKeyPem);
     expect(valid).toBe(true);
   });

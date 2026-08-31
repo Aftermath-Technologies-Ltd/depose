@@ -41,12 +41,18 @@ func findRealBinary(name string) (string, error) {
 			continue
 		}
 
-		// Must be executable
 		if info.IsDir() {
 			continue
 		}
 
-		// Check if executable (simplified: file exists and is not dir)
+		// Must actually be executable. This used to accept any regular
+		// file, so a non-executable file named `terraform` sitting earlier
+		// on PATH would shadow the real binary and the exec would fail,
+		// taking the user's command down with it.
+		if info.Mode().Perm()&0111 == 0 {
+			continue
+		}
+
 		candidates = append(candidates, candidate)
 	}
 

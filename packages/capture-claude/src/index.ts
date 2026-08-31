@@ -1,6 +1,6 @@
 // packages/capture-claude/src/index.ts
 //
-// Capture-claude package — Claude Code PreToolUse hook support.
+// Capture-claude package, Claude Code PreToolUse hook support.
 // Phase 3: Active capture layer.
 //
 // Named exports only (BUILD_PLAN.md §3.1).

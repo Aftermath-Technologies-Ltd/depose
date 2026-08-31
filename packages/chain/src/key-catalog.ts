@@ -3,7 +3,7 @@
 // Producer-side key lifecycle catalog (rotation + revocation).
 //
 // What this is. A JSON file the producer maintains and publishes
-// out-of-band (same trust channel they use for their fingerprint —
+// out-of-band (same trust channel they use for their fingerprint ,
 // .well-known page, signed git tag, attorney's printed handshake).
 // Each entry records a producer key fingerprint and its status:
 //
@@ -21,7 +21,7 @@
 //
 // Out of scope for this MVP. We do not yet sign the catalog with
 // the current active key. The catalog is trusted at the same level
-// as the fingerprint pin itself — both must reach the recipient
+// as the fingerprint pin itself; both must reach the recipient
 // over a channel they trust. Catalog signing is tracked in
 // docs/key-management.md.
 
@@ -38,6 +38,23 @@ export interface KeyCatalogEntry {
   status: KeyCatalogStatus;
   /** ISO 8601 timestamp the key was first written. */
   issuedAt: string;
+  /**
+   * Provenance of `issuedAt`.
+   *
+   *   generated            recorded when this process created the key
+   *   inferred-from-mtime  key predates the catalog; time taken from the
+   *                        key file's mtime
+   *
+   * Optional so catalogs written before this field stay loadable; absent
+   * means the value was not recorded and should be read as unknown.
+   *
+   * Signing did not register keys in the catalog for a long time, so an
+   * entry could be created months after the key and stamp `issuedAt` with
+   * the moment `depose key catalog` first ran. A key generated 2026-05-19
+   * was recorded as issued 2026-08-31. Recipients pin against this catalog,
+   * so an inferred date must never read as a recorded one.
+   */
+  issuedAtSource?: 'generated' | 'inferred-from-mtime';
   /** Present iff status === 'rotated'. */
   rotatedAt?: string;
   /** Present iff status === 'revoked'. */
@@ -91,7 +108,7 @@ export function findEntry(catalog: KeyCatalog, fingerprint: string): KeyCatalogE
 
 /**
  * Record a freshly-generated key as `active`. If another entry is
- * already `active`, leave it alone — the caller is responsible for
+ * already `active`, leave it alone, the caller is responsible for
  * calling markRotated() on it first (this is what `depose key rotate`
  * does).
  */
@@ -99,12 +116,17 @@ export function recordActive(
   catalog: KeyCatalog,
   fingerprint: string,
   publicKeyPem: string,
+  issued: { at: string; source: 'generated' | 'inferred-from-mtime' } = {
+    at: new Date().toISOString(),
+    source: 'generated',
+  },
 ): KeyCatalog {
   if (findEntry(catalog, fingerprint)) return catalog;
   const entry: KeyCatalogEntry = {
     fingerprint,
     status: 'active',
-    issuedAt: new Date().toISOString(),
+    issuedAt: issued.at,
+    issuedAtSource: issued.source,
     publicKeyPem,
   };
   return { ...catalog, entries: [...catalog.entries, entry] };

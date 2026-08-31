@@ -13,6 +13,9 @@ depose-output/
 depose-shim
 depose-verify-*
 apps/verify/build/
+# `go build ./...` inside apps/capture-shim names its output after the
+# directory rather than the Makefile's BINARY, so it lands here uninvited.
+apps/capture-shim/capture-shim
 
 # OS
 .DS_Store
@@ -34,7 +37,8 @@ coverage/
 _fix_*.py
 debug-*.ts
 
-# Internal planning / marketing — not part of the shipped tool.
+# Internal planning / marketing, not part of the shipped tool.
 # These live in the repo for working copies but should never ship.
 update-plan.md
-docs/launch/docs/update-plan-2.md
+docs/update-plan-2.md
+docs/launch/

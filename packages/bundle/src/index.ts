@@ -1,6 +1,6 @@
 // packages/bundle/src/index.ts
 //
-// Bundle package — manifest, deterministic writer, layout.
+// Bundle package, manifest, deterministic writer, layout.
 // Named exports only (BUILD_PLAN.md §3.1).
 
 export {

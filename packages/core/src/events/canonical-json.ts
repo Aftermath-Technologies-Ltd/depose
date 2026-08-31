@@ -3,7 +3,7 @@
 // RFC 8785 JSON Canonicalization Scheme (JCS). See
 // docs/canonical-json.md for the spec we follow. Conformance vectors
 // in tests/conformance/canonical-json-vectors.json run against both
-// this implementation and apps/verify/canonical/jcs.go — any
+// this implementation and apps/verify/canonical/jcs.go, any
 // divergence breaks cross-language signature verification.
 //
 // Node's JSON.stringify already produces the right number form, the
@@ -45,7 +45,7 @@ export function sortKeys(value: unknown): unknown {
     }
     return sorted;
   }
-  // Functions, symbols, etc. — should not appear in payloads
+  // Functions, symbols, etc., should not appear in payloads
   return value;
 }
 

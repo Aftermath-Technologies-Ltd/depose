@@ -37,9 +37,28 @@ export function clearFixedUlidSeed(): void {
 
 // ── Core ─────────────────────────────────────────────────────────────
 
-/** Generate a new random ULID. */
+/**
+ * Generate a new ULID for the current time.
+ *
+ * The first 48 bits are the wall-clock millisecond timestamp and the
+ * remaining 80 bits are CSPRNG random, per the ULID spec. This is what
+ * makes ids lexicographically sortable by creation time, which the
+ * capture store relies on: records are read in filename order and that
+ * order has to be capture order.
+ *
+ * This previously randomized all 16 bytes, timestamp prefix included,
+ * contradicting the documented layout in encodeUlid and making every
+ * event id unsortable. Capture filenames decoded to times ranging from
+ * 1970 to the year 10888.
+ */
 export function generateUlid(): string {
   const bytes = randomBytes(TOTAL);
+  // Under a fixed seed, randomBytes() has already written the seeded
+  // millisecond value into the timestamp bytes. Overwriting it with the
+  // wall clock here would break round-trip determinism.
+  if (!_usingFixed) {
+    writeMsToBytes(bytes, Date.now());
+  }
   return encodeUlid(bytes);
 }
 
@@ -80,7 +99,7 @@ function randomBytes(n: number): Uint8Array {
     _fixedSeedMono++;
     return bytes;
   }
-  // CSPRNG is mandatory in evidence paths — there is no Math.random
+  // CSPRNG is mandatory in evidence paths; there is no Math.random
   // fallback. Node ≥20 always exposes globalThis.crypto; browsers
   // running on http: contexts (where crypto may be undefined) are
   // not supported producers and must error loudly rather than emit

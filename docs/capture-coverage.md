@@ -36,29 +36,29 @@
 
 | Source | Captures pre-execution? | Captures post-execution? | Gaps visible? |
 |---|---|---|---|
-| Claude Code PreToolUse hook | Yes (Bash, Edit, Write) | No (from JSONL) | Yes — gap events emitted |
-| Shell shim | Yes (PATH-intercepted) | No | Yes — gap events for absolute paths |
-| Claude Code JSONL (passive) | Partial (tool_result only) | Yes | Yes — gap events for missing pre-capture |
-| Shell history (passive) | Partial | Partial | Yes — gap events for uncorrelated commands |
-| Git reflog (passive) | Indirect | Indirect | Yes — gap events for reflog changes w/o command |
+| Claude Code PreToolUse hook | Yes (Bash, Edit, Write) | No (from JSONL) | Yes, gap events emitted |
+| Shell shim | Yes (PATH-intercepted) | No | Yes, gap events for absolute paths |
+| Claude Code JSONL (passive) | Partial (tool_result only) | Yes | Yes, gap events for missing pre-capture |
+| Shell history (passive) | Partial | Partial | Yes, gap events for uncorrelated commands |
+| Git reflog (passive) | Indirect | Indirect | Yes, gap events for reflog changes w/o command |
 
 ## What the hook does NOT catch
 
 The Claude Code PreToolUse hook only fires for tools that Claude Code explicitly invokes. It does NOT fire for:
 
-1. **Direct shell commands** — Commands the user types in their terminal outside Claude Code.
-2. **Subprocess calls** — Python `subprocess.run()`, Node `child_process.exec()` called from within the agent's code execution (not via the Bash tool).
-3. **Cursor/other agent tools** — The hook is specific to Claude Code's PreToolUse event. Other editors/agents need their own integration.
+1. **Direct shell commands**, Commands the user types in their terminal outside Claude Code.
+2. **Subprocess calls**, Python `subprocess.run()`, Node `child_process.exec()` called from within the agent's code execution (not via the Bash tool).
+3. **Cursor/other agent tools**, The hook is specific to Claude Code's PreToolUse event. Other editors/agents need their own integration.
 
 ## What the shim does NOT catch
 
 Per BUILD_PLAN.md §6 (Phase 3), the shell shim is best-effort:
 
-1. **Absolute paths** — `/usr/bin/terraform destroy` bypasses the shim's PATH interception.
-2. **Tool aliases** — `tofu destroy` instead of `terraform destroy` (unless user adds `tofu` to the shim allowlist).
-3. **Subprocess calls with `shell=False`** — Python/Node calls that use `execve` directly, bypassing PATH.
-4. **Statically-linked tools** — Direct `execve` to a binary path.
-5. **Commands run on remote hosts** — SSH sessions, Docker containers, etc.
+1. **Absolute paths**, `/usr/bin/terraform destroy` bypasses the shim's PATH interception.
+2. **Tool aliases**, `tofu destroy` instead of `terraform destroy` (unless user adds `tofu` to the shim allowlist).
+3. **Subprocess calls with `shell=False`**, Python/Node calls that use `execve` directly, bypassing PATH.
+4. **Statically-linked tools**, Direct `execve` to a binary path.
+5. **Commands run on remote hosts**, SSH sessions, Docker containers, etc.
 
 **The gap events make these limitations visible rather than hidden.** When a tool result appears in the JSONL but no matching pre-execution capture exists, a `gap` event is emitted with reason `tool_result_without_pre_capture`. This is by design: a visible gap is more valuable than silently smoothed-over reconstruction.
 
@@ -97,11 +97,11 @@ add a symlink to `depose-shim` under the desired name (see
 When a `tool_result` lands without a matching pre-execution capture,
 the merger emits an event of `type: gap` with one of:
 
-- `tool_result_without_pre_capture` — saw an after but no before.
-- `pre_capture_without_tool_result` — saw a before but no after.
-- `shell_history_without_jsonl_correlation` — shell-history entry
+- `tool_result_without_pre_capture`, saw an after but no before.
+- `pre_capture_without_tool_result`, saw a before but no after.
+- `shell_history_without_jsonl_correlation`, shell-history entry
   that doesn't correlate to anything in the Claude Code session.
-- `reflog_change_without_command` — git reflog change with no
+- `reflog_change_without_command`, git reflog change with no
   observed command.
 
 The verifier replays the chain, including gap events, exactly as the

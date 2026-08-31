@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,6 +55,17 @@ type ShellCommandPrePayload struct {
 	FileArgs           []FileArgPayload           `json:"fileArgs"`
 	Source             string                     `json:"source"`
 	CaptureSchemaVersion int                       `json:"captureSchemaVersion"`
+	// CapturedAt is the time this record was written, in RFC 3339 / ISO 8601
+	// UTC. v1 records omitted it, which forced the normalizer to fall back to
+	// the bundle production time and broke correlation entirely.
+	CapturedAt string `json:"capturedAt"`
+	// CapturedAtSource distinguishes a recorded time from one reconstructed
+	// after the fact. The shim always records.
+	CapturedAtSource string `json:"capturedAtSource"`
+	// SessionID scopes the record to an agent session. The shim runs outside
+	// any agent, so it has none and emits null; those records are excluded
+	// from a bundle unless the producer opts in explicitly.
+	SessionID *string `json:"sessionId"`
 }
 
 type ProcessNodePayload struct {
@@ -105,9 +115,6 @@ func writeCaptureRecord(invokedAs string, args []string) (string, error) {
 	// Resolve TTY
 	ttyID := resolveTTY()
 
-	// Stdin tee (for gh api graphql cases)
-	// Handled separately in teeStdin()
-
 	payload := ShellCommandPrePayload{
 		Argv:                argv,
 		Cwd:                 cwd,
@@ -119,7 +126,10 @@ func writeCaptureRecord(invokedAs string, args []string) (string, error) {
 		ParentProcessTree:   ppTree,
 		FileArgs:            []FileArgPayload{},
 		Source:              "shell-shim",
-		CaptureSchemaVersion: 1,
+		CaptureSchemaVersion: 2,
+		CapturedAt:           time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+		CapturedAtSource:     "recorded",
+		SessionID:            nil,
 	}
 
 	// Serialize
@@ -262,44 +272,11 @@ func generateULID() string {
 	return string(tsChars[:]) + string(randChars[:])
 }
 
-// teeStdin tees stdin to a temp file if size < 1 MB.
-// Returns the file to use as stdin for the child.
-func teeStdin() (*os.File, func()) {
-	// Check stdin size
-	stat, err := os.Stdin.Stat()
-	if err != nil || stat.Size() <= 0 || stat.Size() > 1*1024*1024 {
-		// Over threshold or unknown: pass through directly
-		return os.Stdin, func() {}
-	}
-
-	// Create temp file
-	tmpFile, err := os.CreateTemp("", "depose-shim-stdin-*")
-	if err != nil {
-		return os.Stdin, func() {}
-	}
-
-	// Tee stdin to temp file
-	if _, err := io.Copy(tmpFile, os.Stdin); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
-		return os.Stdin, func() {}
-	}
-
-	// Seek back to beginning for the child
-	tmpFile.Seek(0, io.SeekStart)
-
-	cleanup := func() {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
-	}
-
-	return tmpFile, cleanup
-}
 
 // propagateSignals forwards OS signals to the child process.
 func propagateSignals(child *os.Process) {
 	sigChan := make(chan os.Signal, 1)
-	// Don't register SIGPIPE — Go handles it
+	// Don't register SIGPIPE, Go handles it
 	for range []os.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP} {
 		// signal.Notify is in signal package
 	}

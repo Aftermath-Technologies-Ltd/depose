@@ -24,7 +24,7 @@ hook integration, npm package reuse (tar, JSONL parsing, sigstore clients), and
 developer ergonomics. TypeScript is the right choice for a tool that runs on the
 developer's machine with a full runtime available.
 
-The verifier (`depose-verify`) must run **anywhere** — a regulator's laptop, an
+The verifier (`depose-verify`) must run **anywhere**, a regulator's laptop, an
 air-gapped environment, a CI runner with no Node.js installed. Go produces a
 statically-linked single binary with no runtime dependency. The verifier uses
 only the Go standard library and minimal dependencies (`crypto/ed25519`,
@@ -73,7 +73,7 @@ does one thing. Data flows downward; no layer reaches up.
 ┌────────────────▼──────────────────────────────────────────────┐
 │  INTEGRITY                                                     │
 │   Hash chain (IRONROOT construction) → root_hash              │
-│   Sign manifest (Ed25519) — Sigstore keyless not yet impl.    │
+│   Sign manifest (Ed25519), Sigstore keyless not yet impl.    │
 │   RFC 3161 timestamps                                           │
 └────────────────┬──────────────────────────────────────────────┘
                  │
@@ -92,7 +92,7 @@ does one thing. Data flows downward; no layer reaches up.
 
 ### 2.1 Layer 1: Capture
 
-Capture is the sensory layer — it records what happened. It has two modes:
+Capture is the sensory layer; it records what happened. It has two modes:
 
 - **Passive**: Reads existing artifacts that the agent runtime already produces
   (Claude Code JSONL transcripts, shell history files, git reflog, filesystem
@@ -102,7 +102,7 @@ Capture is the sensory layer — it records what happened. It has two modes:
   - **Claude Code PreToolUse hook**: A command-line hook registered in
     `.claude/settings.json` that fires before every Bash/Edit/Write tool call.
     Captures argv, cwd, env subset, file hashes, and process tree. Never denies
-    or modifies the call — observation only.
+    or modifies the call, observation only.
   - **Shell shim**: A Go binary placed earlier on PATH than destructive tools
     (`terraform`, `aws`, `kubectl`, etc.). When invoked, it captures the same
     pre-execution data, then `exec`s through to the real binary with full
@@ -117,29 +117,29 @@ Active capture is opt-in. The user runs `depose install --claude` and/or
 Raw captures are vendor-specific and heterogeneous. Normalization converts them
 into a single, unified `Event` schema with a stable type system:
 
-- `claude-code.ts` — parses Claude Code JSONL into Event records.
-- `shell-history.ts` — parses bash/zsh/fish history into Event records.
-- `git-reflog.ts` — parses reflog entries into Event records.
-- `merge.ts` — merges all sources into a single timeline, sorted by ULID, and
+- `claude-code.ts`, parses Claude Code JSONL into Event records.
+- `shell-history.ts`, parses bash/zsh/fish history into Event records.
+- `git-reflog.ts`, parses reflog entries into Event records.
+- `merge.ts`, merges all sources into a single timeline, sorted by ULID, and
   **emits `gap` events** wherever data is inconsistent or missing.
 
 A `gap` event is the system's honest accounting of what it could not observe.
 Every gap has a reason code (`tool_result_without_pre_capture`,
 `shell_history_without_jsonl_correlation`, etc.) and affected event IDs.
-Gaps are explicit rather than silently smoothed over — this is a core design
+Gaps are explicit rather than silently smoothed over; this is a core design
 principle.
 
 ### 2.3 Layer 3: Reconstruction
 
 Reconstruction builds the causal graph and identifies destructive operations:
 
-- **timeline.ts** — constructs a parent-child directed graph from `parentEventId`
+- **timeline.ts**, constructs a parent-child directed graph from `parentEventId`
   links and same-session temporal correlation. The timeline is the canonical
   event ordering for narrative rendering.
-- **destructive-rules.ts** — loads the YAML ruleset and matches events against
+- **destructive-rules.ts**, loads the YAML ruleset and matches events against
   it. Each match tags the event with the rule's ID and severity. The ruleset
   itself is stored in the bundle and hashed in the manifest.
-- **correlate.ts** — cross-correlates captures against aftermath (git reflog
+- **correlate.ts**, cross-correlates captures against aftermath (git reflog
   changes, filesystem state changes) to strengthen or flag inconsistencies.
 
 ### 2.4 Layer 4: Integrity
@@ -177,13 +177,13 @@ Integrity is the cryptography layer. It makes the bundle tamper-evident:
 The bundle layer serializes everything into a deterministic directory
 tree under `incident-<ulid>/`:
 
-- **manifest.ts** — builds the manifest with all computed hashes
+- **manifest.ts**, builds the manifest with all computed hashes
   (rootHash, eventsJsonlSha256, rulesetHash), counts, and metadata.
-- **writer.ts** — writes the directory tree. Per-file ordering inside
+- **writer.ts**, writes the directory tree. Per-file ordering inside
   `events.jsonl` is canonical (ULID sort) and the file's bytes are
   pinned by `manifest.eventsJsonlSha256` before the manifest is
   signed. Other files are not order-sensitive to verification.
-- **layout.ts** — path conventions and constants.
+- **layout.ts**, path conventions and constants.
 
 Canonical USTAR archive packing in the producer is tracked as future
 work. Until then, recipients pack/unpack with their preferred tool;
@@ -196,16 +196,16 @@ produces a byte-identical archive across rebuilds.
 The narrative layer renders human-readable output without any LLM in the trust
 path:
 
-- **Handlebars templates** (`template.md.hbs`, `template.html.hbs`) — no
-  side-effect helpers, fully deterministic.
-- **render.ts** — walks the timeline and emits prose where every claim cites
-  an event ID anchor (`[#evt-<ulid>]`), linking to `events.jsonl`.
-- **rule-902.ts** — optional Federal Rule of Evidence 902(13)/(14)
+- **render.ts**, holds the Handlebars templates inline and walks the timeline,
+  emitting prose where every claim cites an event ID anchor
+  (`[#evt-<ulid>]`), linking to `events.jsonl`. No side-effect helpers, fully
+  deterministic.
+- **rule-902.ts**, optional Federal Rule of Evidence 902(13)/(14)
   self-authenticating certification template signed by the bundle producer.
 
 The LLM-generated `commentary.md` (from `depose explain`) is **not** part of
 this layer's signed output. It is explicitly excluded from `rootHash` and
-labeled "AI-GENERATED COMMENTARY — NOT EVIDENCE."
+labeled "AI-GENERATED COMMENTARY, NOT EVIDENCE."
 
 ---
 
@@ -270,7 +270,7 @@ explicitly excluded from the signed root and labeled non-evidentiary.
 
 When DEPOSE cannot observe something (a tool result with no pre-execution
 capture, a reflog change with no captured command), it emits a `gap` event.
-The alternative — silently smoothing over missing data — would produce a
+The alternative, silently smoothing over missing data, would produce a
 plausible-looking but incomplete narrative. Gaps make the limitations visible
 and auditable. A bundle with three gap events is more trustworthy than a
 bundle with zero gap events and silently missing data.
@@ -329,7 +329,7 @@ stored in the bundle; a future reader can see exactly which rules flagged what.
 ### 4.8 Standard cryptography, no novelty
 
 DEPOSE uses:
-- SHA-256 ( hashing everywhere — no exotic hash functions.
+- SHA-256 ( hashing everywhere, no exotic hash functions.
 - Ed25519 (established, fast, widely supported).
 - Sigstore Fulcio (not yet implemented; scaffold only).
 - RFC 3161 (established TSA standard).
@@ -349,7 +349,7 @@ logic is simple enough to audit by hand.
 | `packages/bundle`         | Bundle                  | TS       | `manifest.ts`, `writer.ts`, `layout.ts`, `constants.ts`    |
 | `packages/capture-claude` | Capture                 | TS       | `hook-entry.ts`, `capture-record.ts`, `env-allowlist.ts`   |
 | `packages/cli`            | All (orchestration)     | TS       | `commands/main.ts`, `commands/package.ts`, `commands/key.ts` |
-| `packages/narrative`      | Narrative               | TS       | `render.ts`, `template.md.hbs`, `template.html.hbs`        |
+| `packages/narrative`      | Narrative               | TS       | `render.ts` (templates inline)                             |
 | `apps/verify`             | Verification            | Go       | `cmd/verify.go`, `chain/`, `canonical/`, `timestamp/`, `manifest/` |
 | `apps/capture-shim`       | Capture (shell)         | Go       | `main.go`, `exec.go`, `record.go`, `resolve.go`            |
 

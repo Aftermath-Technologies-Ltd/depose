@@ -8,21 +8,24 @@
 //   - Optional: sigstore keyless if SIGSTORE_OIDC=1 or CI with OIDC (deferred)
 //
 // Signature is over the canonical JSON bytes of the unsigned manifest.
-// We sign the bytes directly, not a hex-encoded SHA-256 — Ed25519
+// We sign the bytes directly, not a hex-encoded SHA-256, Ed25519
 // already hashes internally (RFC 8032), and pre-hashing into hex
 // added a cross-language seam (the Go verifier had to mirror the
 // "sign the hex string" oddity). See B2 in update-plan.md.
 
 import * as crypto from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { loadCatalog, saveCatalog, recordActive, findEntry } from './key-catalog.js';
+import { fingerprintPublicKeyPem } from './key-fingerprint.js';
 
 // ── Constants ─────────────────────────────────────────────────────────
 
 const DEFAULT_KEYS_DIR = '.depose/keys';
 const SIGNING_KEY_FILE = 'signing.key';
 const PUBLIC_KEY_FILE = 'signing.pub';
+const KEY_CATALOG_FILE = 'catalog.json';
 const KEY_PERMISSIONS = 0o600;
 const PUB_KEY_PERMISSIONS = 0o644;
 
@@ -103,6 +106,14 @@ export function loadOrGenerateKeyPair(keyDir?: string): Ed25519KeyPair {
   if (existsSync(privPath) && existsSync(pubPath)) {
     const privateKeyPem = readFileSync(privPath, 'utf-8');
     const publicKeyPem = readFileSync(pubPath, 'utf-8');
+    // A key that has never been catalogued is one a recipient cannot pin
+    // or check for revocation. Registering on load closes the gap for keys
+    // that predate the catalog, using the key file's mtime rather than
+    // "now" so the recorded date is not months off.
+    ensureCatalogued(dir, publicKeyPem, {
+      at: new Date(statSync(privPath).mtimeMs).toISOString(),
+      source: 'inferred-from-mtime',
+    });
     return { privateKeyPem, publicKeyPem };
   }
 
@@ -116,7 +127,37 @@ export function loadOrGenerateKeyPair(keyDir?: string): Ed25519KeyPair {
   writeFileSync(pubPath, keyPair.publicKeyPem, 'utf-8');
   chmodSync(pubPath, PUB_KEY_PERMISSIONS);
 
+  // Catalogue at the point of generation, which is the only moment
+  // issuedAt can be recorded rather than reconstructed.
+  ensureCatalogued(dir, keyPair.publicKeyPem, {
+    at: new Date().toISOString(),
+    source: 'generated',
+  });
+
   return keyPair;
+}
+
+/**
+ * Add the key to the local catalog if it is not already there.
+ *
+ * Best-effort: a read-only or otherwise unwritable key directory must not
+ * stop a bundle from being signed, so failures here are swallowed. The
+ * catalog is producer-side bookkeeping, not part of the signature.
+ */
+function ensureCatalogued(
+  dir: string,
+  publicKeyPem: string,
+  issued: { at: string; source: 'generated' | 'inferred-from-mtime' },
+): void {
+  try {
+    const catalogPath = join(dir, KEY_CATALOG_FILE);
+    const fingerprint = fingerprintPublicKeyPem(publicKeyPem);
+    const catalog = loadCatalog(catalogPath);
+    if (findEntry(catalog, fingerprint)) return;
+    saveCatalog(catalogPath, recordActive(catalog, fingerprint, publicKeyPem, issued));
+  } catch {
+    // Signing proceeds regardless.
+  }
 }
 
 // ── Signing ────────────────────────────────────────────────────────────
@@ -162,7 +203,7 @@ export function verifyEd25519(
 
 /**
  * Sign a DEPOSE manifest. The signature is over the canonical JSON
- * bytes of the unsigned form — no pre-hash, no hex encoding step.
+ * bytes of the unsigned form, no pre-hash, no hex encoding step.
  */
 export function signManifest(
   manifestCanonicalJson: string,

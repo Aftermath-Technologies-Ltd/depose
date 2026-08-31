@@ -32,7 +32,7 @@ For every Bash, Edit, or Write tool invocation:
 
 ### Privacy
 
-The hook is **observation-only** — it never denies or modifies a tool call.
+The hook is **observation-only**; it never denies or modifies a tool call.
 
 - Capture is **opt-in per project**, never global
 - Environment capture uses a strict allowlist (extendable via `$DEPOSE_ENV_ALLOWLIST`)

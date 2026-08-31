@@ -1,10 +1,17 @@
-// Package cmd — top-level verification orchestration for depose-verify.
+// Package cmd, top-level verification orchestration for depose-verify.
+//
+// VerifyBundle runs the ordered checks that decide whether a bundle is
+// intact. It is deliberately kept as one sequential function: the checks
+// share accumulated state, the order is part of the contract, and this
+// package has no unit tests of its own (coverage comes from the TypeScript
+// e2e suites). Splitting the trust-critical path without tests to catch a
+// mistake would trade a long function for a real risk. Types, reporting,
+// and revocation lookup live in types.go, report.go, and revocation.go.
 package cmd
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,68 +22,6 @@ import (
 	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/timestamp"
 )
 
-// Supported schemaVersion range. See docs/bundle-format.md §8 for
-// the compatibility policy. Production bundles must declare a value
-// in this inclusive range; anything else fails closed.
-const (
-	SupportedSchemaMin = 1
-	SupportedSchemaMax = 2
-)
-
-// CheckResult represents the result of a single verification check.
-type CheckResult struct {
-	Name    string
-	Pass    bool
-	Detail  string
-}
-
-// VerifyOpts configures optional pinning behavior the recipient
-// asks for: pinning to a specific key fingerprint (air-gapped key
-// flow) or to a Sigstore signer identity (keyless flow).
-type VerifyOpts struct {
-	// ExpectedKeyFingerprint, when non-empty, is the lowercase hex
-	// SHA-256 of the SPKI DER bytes of the public signing key.
-	// Verification fails if manifest.producer.keyFingerprint
-	// disagrees (or is missing).
-	ExpectedKeyFingerprint string
-	// SignerIdentityRegex, when non-empty, is a regex the Sigstore
-	// signer cert identity must match. Currently a placeholder —
-	// the Sigstore code path is staged but not yet wired in.
-	SignerIdentityRegex string
-	// RevocationListPath, when non-empty, points at a producer key
-	// catalog (the JSON file emitted by `depose key catalog --export`).
-	// If the manifest's keyFingerprint appears in the catalog with
-	// status="revoked", verification fails closed. Other statuses
-	// (active, rotated) do not fail.
-	RevocationListPath string
-}
-
-// keyCatalogEntry mirrors the shape of packages/chain/src/key-catalog.ts.
-// Kept here (rather than in its own package) because this is the only
-// consumer in Go; if other tools need it, lift it.
-type keyCatalogEntry struct {
-	Fingerprint string `json:"fingerprint"`
-	Status      string `json:"status"`
-	Reason      string `json:"reason,omitempty"`
-	RevokedAt   string `json:"revokedAt,omitempty"`
-}
-
-type keyCatalog struct {
-	SchemaVersion int               `json:"schemaVersion"`
-	Entries       []keyCatalogEntry `json:"entries"`
-}
-
-// VerifyResult represents the overall verification result.
-type VerifyResult struct {
-	Pass   bool
-	// Mode is the declared producer.mode from the manifest ("signed"
-	// or "dev-unsigned"). Empty if the manifest could not be parsed.
-	Mode   string
-	Bundle string
-	Checks []CheckResult
-}
-
-// VerifyBundle runs all verification checks on a .depo bundle directory.
 func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	var opt VerifyOpts
 	if len(opts) > 0 {
@@ -99,17 +44,26 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		return result
 	}
 	result.Mode = m.Producer.Mode
+	parseDetail := fmt.Sprintf("Bundle %s, schema v%d, mode=%s, %d events",
+		m.BundleID, m.SchemaVersion, m.Producer.Mode, m.Counts.Events)
+	// Surface the producer's capture accounting. "We held capture records
+	// and deliberately did not use them" is something a recipient should
+	// read off the signed manifest, not have to infer from an absence.
+	if m.Counts.CapturesAttributed > 0 || m.Counts.CapturesExcluded > 0 {
+		parseDetail += fmt.Sprintf(
+			"\n         captures: %d attributed to this session, %d excluded as unattributable",
+			m.Counts.CapturesAttributed, m.Counts.CapturesExcluded)
+	}
 	result.Checks = append(result.Checks, CheckResult{
 		Name:   "manifest-parse",
 		Pass:   true,
-		Detail: fmt.Sprintf("Bundle %s, schema v%d, mode=%s, %d events",
-			m.BundleID, m.SchemaVersion, m.Producer.Mode, m.Counts.Events),
+		Detail: parseDetail,
 	})
 
 	// ── Check 1a: schemaVersion is within the supported range ───────
 	// Compatibility policy (docs/bundle-format.md §8): a verifier
 	// supports [SupportedSchemaMin, SupportedSchemaMax]. Bundles
-	// outside that range fail closed — no silent attempt to parse
+	// outside that range fail closed, no silent attempt to parse
 	// a future or stale schema.
 	if m.SchemaVersion < SupportedSchemaMin || m.SchemaVersion > SupportedSchemaMax {
 		result.Checks = append(result.Checks, CheckResult{
@@ -143,7 +97,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "mode-declaration",
 			Pass:   false,
-			Detail: "producer.mode is missing — bundle predates the mode contract or has been stripped",
+			Detail: "producer.mode is missing, bundle predates the mode contract or has been stripped",
 		})
 		result.Pass = false
 	default:
@@ -237,7 +191,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	// ── Check 1d': revocation list (optional) ────────────────────────
 	// When the recipient passes --revocation-list, load the producer's
 	// key catalog and reject the bundle if its keyFingerprint appears
-	// with status=revoked. Active and rotated keys verify normally —
+	// with status=revoked. Active and rotated keys verify normally ,
 	// rotation is "old but valid", revocation is "do not trust".
 	if opt.RevocationListPath != "" {
 		entry, loadErr := lookupRevocation(opt.RevocationListPath, m.Producer.KeyFingerprint)
@@ -286,7 +240,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	}
 
 	// ── Check 2: Signature verification ──────────────────────────────
-	// In dev-unsigned mode we skip the signature check entirely — the
+	// In dev-unsigned mode we skip the signature check entirely, the
 	// mode-contract gate above already requires signatures=[].
 	if m.Producer.Mode == "dev-unsigned" {
 		result.Checks = append(result.Checks, CheckResult{
@@ -298,7 +252,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "signature-verify",
 			Pass:   false,
-			Detail: "No signatures found — signed bundle missing signature",
+			Detail: "No signatures found, signed bundle missing signature",
 		})
 		result.Pass = false
 	} else {
@@ -343,7 +297,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "chain-replay",
 			Pass:   false,
-			Detail: "No root hash — signed bundle missing chain",
+			Detail: "No root hash, signed bundle missing chain",
 		})
 		result.Pass = false
 	} else {
@@ -368,7 +322,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 					Name: "payload-hash",
 					Pass: false,
 					Detail: fmt.Sprintf(
-						"payloadHash mismatch at %d event(s) — payload bytes do not canonicalize to the recorded hash: %s",
+						"payloadHash mismatch at %d event(s), payload bytes do not canonicalize to the recorded hash: %s",
 						len(chainResult.PayloadMismatches), strings.Join(details, "; ")),
 				})
 				result.Pass = false
@@ -452,7 +406,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 			if !vr.Valid {
 				allTimestampsValid = false
 				timestampDetails = append(timestampDetails,
-					fmt.Sprintf("%s: INVALID — %s", vr.TSA, vr.Detail))
+					fmt.Sprintf("%s: INVALID, %s", vr.TSA, vr.Detail))
 			} else {
 				timestampDetails = append(timestampDetails,
 					fmt.Sprintf("%s: valid", vr.TSA))
@@ -506,7 +460,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	// ── Check 5: events.jsonl byte-integrity ─────────────────────────
 	// The producer hashes the literal UTF-8 bytes of events.jsonl into
 	// manifest.eventsJsonlSha256 *before* signing. We re-hash on read
-	// and compare — adding, removing, reordering, or any whitespace-
+	// and compare, adding, removing, reordering, or any whitespace-
 	// level change to events.jsonl fails verification on top of the
 	// per-event payloadHash + chain checks above.
 	eventsPath := filepath.Join(bundlePath, "events.jsonl")
@@ -577,7 +531,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "ruleset-integrity",
 			Pass:   false,
-			Detail: "manifest.rulesetHash is empty — cannot verify embedded ruleset",
+			Detail: "manifest.rulesetHash is empty, cannot verify embedded ruleset",
 		})
 		result.Pass = false
 	} else {
@@ -642,7 +596,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "rekor-verify",
 			Pass:   true, // Rekor is optional
-			Detail: fmt.Sprintf("Rekor verification skipped (%d entries) — optional transparency log", skippedCount),
+			Detail: fmt.Sprintf("Rekor verification skipped (%d entries), optional transparency log", skippedCount),
 		})
 	}
 
@@ -652,102 +606,5 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 // Print outputs the verification result in human-readable format.
 //
 // In dev-unsigned mode we deliberately refuse to print the plain
-// "PASS" banner — a dev-unsigned bundle is not evidence even when
+// "PASS" banner, a dev-unsigned bundle is not evidence even when
 // every check passes. The recipient must see the disclaimer.
-func (r *VerifyResult) Print() {
-	fmt.Println("╔═══════════════════════════════════════════════════════════════╗")
-	fmt.Println("║            DEPOSE Evidence Bundle Verification Report          ║")
-	fmt.Println("╚═══════════════════════════════════════════════════════════════╝")
-	fmt.Println()
-	fmt.Printf("  Bundle: %s\n", r.Bundle)
-	fmt.Printf("  Mode:   %s\n", r.Mode)
-	fmt.Println()
-
-	if r.Mode == "dev-unsigned" {
-		fmt.Println("  ⚠ THIS IS A DEVELOPMENT BUNDLE — NOT EVIDENCE")
-		fmt.Println("    No signature, no timestamp. Suitable for pipeline testing only.")
-		fmt.Println()
-	}
-
-	allPass := true
-	for _, check := range r.Checks {
-		status := "PASS"
-		icon := "✓"
-		if !check.Pass {
-			status = "FAIL"
-			icon = "✗"
-			allPass = false
-		}
-		fmt.Printf("  [%s] %s: %s\n", icon, check.Name, status)
-		fmt.Printf("         %s\n", check.Detail)
-	}
-
-	fmt.Println()
-	if allPass {
-		if r.Mode == "dev-unsigned" {
-			fmt.Println("  ═══ RESULT: PASS (dev-unsigned — not evidence) ═══")
-			fmt.Println()
-			fmt.Println("  All structural checks passed, but this bundle is NOT EVIDENCE:")
-			fmt.Println("  - signatures=[] and timestamps=[] (mode contract)")
-			fmt.Println("  - No trusted timestamp authority attested to its existence")
-			fmt.Println("  - Use mode=signed to produce an evidentiary bundle")
-		} else {
-			fmt.Println("  ═══ RESULT: PASS ═══")
-			fmt.Println()
-			fmt.Println("  This bundle is cryptographically intact:")
-			fmt.Println("  - Every event matches its recorded hash chain")
-			fmt.Println("  - The manifest signature is valid")
-			fmt.Println("  - A trusted timestamp authority confirmed this bundle existed")
-			fmt.Println("  - The embedded ruleset matches its declared hash")
-			fmt.Println("  - No files have been added, removed, or modified since creation")
-		}
-	} else {
-		fmt.Println("  ═══ RESULT: FAIL ═══")
-		fmt.Println()
-		fmt.Println("  This bundle may have been altered. One or more verification")
-		fmt.Println("  checks failed. See the details above for specific failures.")
-	}
-	fmt.Println()
-}
-
-// truncHex returns the first n hex chars of s, or s if shorter.
-func truncHex(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
-}
-
-// JSON returns the verification result as JSON (for machine consumers).
-func (r *VerifyResult) JSON() (string, error) {
-	data, err := json.MarshalIndent(r, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
-// lookupRevocation reads a producer key catalog from disk and returns
-// the entry matching `fingerprint` (case-insensitive hex), or nil if
-// the fingerprint is not present. A non-existent catalog file is an
-// error — the caller asked for revocation enforcement and we refuse
-// to silently accept "list missing → nothing revoked".
-func lookupRevocation(path, fingerprint string) (*keyCatalogEntry, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var cat keyCatalog
-	if err := json.Unmarshal(raw, &cat); err != nil {
-		return nil, fmt.Errorf("malformed catalog JSON: %w", err)
-	}
-	if cat.SchemaVersion == 0 {
-		return nil, fmt.Errorf("catalog is missing schemaVersion")
-	}
-	for i := range cat.Entries {
-		if strings.EqualFold(cat.Entries[i].Fingerprint, fingerprint) {
-			return &cat.Entries[i], nil
-		}
-	}
-	return nil, nil
-}

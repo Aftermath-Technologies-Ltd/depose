@@ -1,4 +1,4 @@
-// Package chain — tests for IRONROOT hash chain replay.
+// Package chain, tests for IRONROOT hash chain replay.
 package chain
 
 import (
@@ -92,7 +92,7 @@ func TestReplayAcceptsLegitimatePayload(t *testing.T) {
 }
 
 // TestRecomputePayloadHashIsDeterministic confirms the JCS path produces
-// the same hash regardless of input key order — that's what makes the
+// the same hash regardless of input key order; that's what makes the
 // hash a function of the value rather than the input encoding.
 func TestRecomputePayloadHashIsDeterministic(t *testing.T) {
 	a := `{"a":1,"b":"x","z":[1,2,3]}`

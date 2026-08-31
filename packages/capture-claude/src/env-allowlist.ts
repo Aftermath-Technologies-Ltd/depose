@@ -43,7 +43,7 @@ export interface FilterEnvOptions {
   /** Extra allowlist prefixes beyond the defaults */
   extraPrefixes?: string[];
   /**
-   * If true, secret values are captured in plaintext (dangerous — only
+   * If true, secret values are captured in plaintext (dangerous, only
    * for debugging). Default: false (secret values are redacted to
    * "sha256:<hex>").
    *
@@ -60,7 +60,7 @@ export interface FilterEnvOptions {
  * Secret-name keys (matching SECRET_KEY_PATTERN) have their values
  * redacted to "sha256:<hex>" by default, so the envSubset never
  * contains plaintext secrets. Enable captureSecretValues to store
- * them in plaintext (not recommended — intended for local debugging only).
+ * them in plaintext (not recommended, intended for local debugging only).
  */
 export function filterEnv(
   env: Record<string, string>,
@@ -101,7 +101,7 @@ export function filterEnv(
   for (const [key, value] of Object.entries(env)) {
     if (isEnvAllowed(key, extraPrefixes)) {
       if (!captureSecretValues && SECRET_KEY_PATTERN.test(key)) {
-        // Redact the value — store only its SHA-256 hash
+        // Redact the value, store only its SHA-256 hash
         filtered[key] = `sha256:${sha256String(value)}`;
       } else {
         filtered[key] = value;

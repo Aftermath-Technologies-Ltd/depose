@@ -48,7 +48,7 @@ func TestVerifyToken_RealFreeTSAFixture(t *testing.T) {
 
 func TestVerifyToken_HashMismatchFails(t *testing.T) {
 	token, _ := loadFreeTSAToken(t)
-	// Hash of an unrelated message — should not match the token's
+	// Hash of an unrelated message, should not match the token's
 	// HashedMessage field.
 	otherHash := sha256.Sum256([]byte("not the original message"))
 	res := VerifyToken(token, hex.EncodeToString(otherHash[:]))
@@ -60,8 +60,8 @@ func TestVerifyToken_HashMismatchFails(t *testing.T) {
 // TestVerifyToken_SubstringScanForgeryFails is the canary for the
 // security bug B1 fixed: the old verifier would happily PASS any
 // DER blob that *contained* the expected hash bytes anywhere in
-// its body. We construct exactly that — the expected hash appended
-// to a SEQUENCE-prefixed garbage blob — and confirm the new
+// its body. We construct exactly that, the expected hash appended
+// to a SEQUENCE-prefixed garbage blob, and confirm the new
 // verifier rejects it.
 func TestVerifyToken_SubstringScanForgeryFails(t *testing.T) {
 	_, expectedHash := loadFreeTSAToken(t)
@@ -106,20 +106,20 @@ func TestVerifyManifestProducedAt_NoBackdating(t *testing.T) {
 	tokens := []Token{
 		{TSA: "FreeTSA", Timestamp: "2025-05-18T16:00:00Z"},
 	}
-	// producedAt equal to TSA time — fine.
+	// producedAt equal to TSA time, fine.
 	if err := VerifyManifestProducedAt("2025-05-18T16:00:00Z", tokens); err != nil {
 		t.Errorf("equal times must pass: %v", err)
 	}
-	// producedAt strictly before TSA time — fine.
+	// producedAt strictly before TSA time, fine.
 	if err := VerifyManifestProducedAt("2025-05-18T15:59:59Z", tokens); err != nil {
 		t.Errorf("earlier produced time must pass: %v", err)
 	}
-	// producedAt one second after — within tolerance because TSAs
+	// producedAt one second after, within tolerance because TSAs
 	// report whole-second precision.
 	if err := VerifyManifestProducedAt("2025-05-18T16:00:01Z", tokens); err != nil {
 		t.Errorf("producedAt 1s after TSA must pass (truncation tolerance): %v", err)
 	}
-	// producedAt 2+ seconds after — must fail.
+	// producedAt 2+ seconds after; must fail.
 	if err := VerifyManifestProducedAt("2025-05-18T16:00:02Z", tokens); err == nil {
 		t.Errorf("producedAt 2s after TSA must fail; got nil")
 	}

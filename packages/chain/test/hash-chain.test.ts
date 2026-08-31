@@ -231,7 +231,7 @@ describe('verifyHashChain', () => {
 
     const { chainedEvents, rootHash } = buildHashChain([e1, e2]);
 
-    // Reverse order — chain hashes will no longer be valid
+    // Reverse order, chain hashes will no longer be valid
     const reversed = [chainedEvents[1]!, chainedEvents[0]!];
     // But note: the chainHash values themselves are wrong for the reversed order
     // because they were computed for the original order

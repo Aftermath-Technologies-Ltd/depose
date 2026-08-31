@@ -1,4 +1,4 @@
-// Key fingerprint helpers — DEPOSE producer identity in the
+// Key fingerprint helpers, DEPOSE producer identity in the
 // air-gapped key flow.
 //
 // A fingerprint is `SHA-256(<SPKI-DER-bytes of the public key>)`,
@@ -31,7 +31,7 @@ export function fingerprintPublicKeyPem(publicKeyPem: string): string {
  */
 export function formatFingerprintSshStyle(hexFingerprint: string): string {
   const buf = Buffer.from(hexFingerprint, 'hex');
-  // No padding, base64 URL-safe — matches ssh-keygen -lf output
+  // No padding, base64 URL-safe, matches ssh-keygen -lf output
   // for ed25519 keys.
   return 'SHA256:' + buf.toString('base64').replace(/=+$/, '');
 }

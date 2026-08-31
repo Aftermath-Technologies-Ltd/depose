@@ -52,7 +52,7 @@ describe('buildTimeline', () => {
       const _timeline = buildTimeline(claudeEvents, rules);
       // The terraform destroy and terraform apply -auto-approve should be
       // flagged as destructive (though they appear as tool_result, not
-      // shell_command_pre — so destructive ops index may be 0 for this
+      // shell_command_pre, so destructive ops index may be 0 for this
       // fixture since we only match shell_command_pre events in Phase 1)
       // The destructive ruleset is loaded and functional
       expect(rules.length).toBeGreaterThan(0);

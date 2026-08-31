@@ -1,6 +1,6 @@
 // packages/chain/src/index.ts
 //
-// Chain package — hash chain, signing, RFC 3161, sigstore, Rekor.
+// Chain package, hash chain, signing, RFC 3161, sigstore, Rekor.
 // Named exports only (BUILD_PLAN.md §3.1).
 
 // Hash chain (IRONROOT construction)
@@ -50,7 +50,7 @@ export {
   type TsrValidationResult,
 } from './timestamp-rfc3161.js';
 
-// Sigstore keyless (scaffold — not yet implemented, Ed25519 + RFC 3161 is
+// Sigstore keyless (scaffold, not yet implemented, Ed25519 + RFC 3161 is
 // the only signing path today)
 export {
   shouldUseSigstore,
@@ -58,7 +58,7 @@ export {
   type SigstoreOptions,
 } from './sign-sigstore.js';
 
-// Rekor transparency log (scaffold — not yet implemented)
+// Rekor transparency log (scaffold, not yet implemented)
 export {
   type RekorEntry,
   type RekorOptions,

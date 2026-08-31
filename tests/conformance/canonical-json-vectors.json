@@ -1,5 +1,5 @@
 {
-  "description": "RFC 8785 JCS conformance vectors for DEPOSE canonical JSON. Both packages/core/src/events/canonical-json.ts and apps/verify/canonical/jcs.go run these — any divergence breaks cross-language signature verification. See docs/canonical-json.md.",
+  "description": "RFC 8785 JCS conformance vectors for DEPOSE canonical JSON. Both packages/core/src/events/canonical-json.ts and apps/verify/canonical/jcs.go run these, any divergence breaks cross-language signature verification. See docs/canonical-json.md.",
   "vectors": [
     {
       "name": "primitive-null",

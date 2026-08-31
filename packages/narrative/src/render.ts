@@ -59,7 +59,7 @@ capture was not available. These are disclosed, not hidden. See Coverage Gaps be
 ### {{header}}
 
 {{#each events}}
-- **[{{type}}]** {{wallTs}} UTC — {{summary}} \`[#evt-{{id}}]\`
+- **[{{type}}]** {{wallTs}} UTC, {{summary}} \`[#evt-{{id}}]\`
 {{#if detail}}
   - {{detail}}
 {{/if}}
@@ -73,7 +73,7 @@ capture was not available. These are disclosed, not hidden. See Coverage Gaps be
 
 {{#if destructiveOps}}
 {{#each destructiveOps}}
-- **[{{severity}}]** {{wallTs}}: \`{{command}}\` — Rule: {{ruleId}} \`[#evt-{{eventId}}]\`
+- **[{{severity}}]** {{wallTs}}: \`{{command}}\`, Rule: {{ruleId}} \`[#evt-{{eventId}}]\`
 {{/each}}
 {{else}}
 No destructive operations detected.
@@ -88,7 +88,16 @@ No destructive operations detected.
 - **[{{reason}}]** {{wallTs}}: {{detail}} \`[#evt-{{id}}]\`
 {{/each}}
 {{else}}
-No coverage gaps — all tool results have matching pre-execution captures.
+No coverage gaps. All tool results have matching pre-execution captures.
+{{/if}}
+
+{{#if capturesExcluded}}
+**Capture records excluded:** {{capturesExcluded}} record(s) in the producer's
+capture store could not be attributed to this session and were left out of this
+bundle; {{capturesAttributed}} were included. The store is machine-wide, so it
+holds activity from unrelated work. Excluded records are counted in the signed
+manifest (\`counts.capturesExcluded\`) so this disclosure is covered by the
+signature rather than asserted only here.
 {{/if}}
 
 ---
@@ -265,6 +274,14 @@ export interface RenderOptions {
   sessionStartedAt: string;
   /** Session end timestamp */
   sessionEndedAt: string;
+  /** Capture records merged into this bundle. */
+  capturesAttributed?: number;
+  /**
+   * Capture records held by the producer that were not attributable to
+   * this session. Disclosed rather than silently omitted, matching how
+   * coverage gaps are handled.
+   */
+  capturesExcluded?: number;
 }
 
 // ── Template data shape ────────────────────────────────────────────
@@ -279,6 +296,8 @@ interface NarrativeData {
   totalCount: number;
   destructiveCount: number;
   gapCount: number;
+  capturesAttributed: number;
+  capturesExcluded: number;
   sections: Array<{ header: string; events: Array<{ type: string; wallTs: string; id: string; summary: string; detail: string }> }>;
   destructiveOps: Array<{ severity: string; wallTs: string; command: string; ruleId: string; eventId: string }>;
   gaps: Array<{ reason: string; wallTs: string; detail: string; id: string }>;
@@ -352,6 +371,8 @@ export function buildNarrativeData(
     totalCount: timeline.events.length,
     destructiveCount: timeline.destructiveOps.length,
     gapCount: timeline.gaps.length,
+    capturesAttributed: options.capturesAttributed ?? 0,
+    capturesExcluded: options.capturesExcluded ?? 0,
     sections,
     destructiveOps,
     gaps,
@@ -396,7 +417,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DEPOSE Reconstruction — {{bundleId}}</title>
+<title>DEPOSE Reconstruction: {{bundleId}}</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 2em auto; padding: 0 1em; color: #1a1a1a; line-height: 1.6; }
   h1 { border-bottom: 2px solid #333; padding-bottom: 0.3em; }
@@ -461,7 +482,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 {{/each}}
 </table>
 {{else}}
-<p>No coverage gaps — all tool results have matching pre-execution captures.</p>
+<p>No coverage gaps. All tool results have matching pre-execution captures.</p>
 {{/if}}
 <h2>Verification</h2>
 <p>This narrative is <strong>deterministically generated</strong> from the event timeline.

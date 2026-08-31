@@ -27,9 +27,9 @@ These are captured because their values are operationally relevant
 to understanding what an agent was authorized to do at the time of
 execution. However, they may contain sensitive values:
 
-- `AWS_SECRET_ACCESS_KEY` — full secret key.
-- `GH_TOKEN` — GitHub personal access token.
-- `ANTHROPIC_API_KEY` — API key with billing implications.
+- `AWS_SECRET_ACCESS_KEY`, full secret key.
+- `GH_TOKEN`, GitHub personal access token.
+- `ANTHROPIC_API_KEY`, API key with billing implications.
 
 **Mitigation:** The full env is hashed (SHA-256) for tamper-evidence
 without exposing non-allowlisted values. Users can customize the
@@ -156,7 +156,7 @@ rebuilding the hash chain and could introduce new `gap` events.
 The capture directory should be on a filesystem with appropriate
 access controls. If an attacker has persistent read access to the
 capture directory, they have a continuous surveillance capability
-regardless of DEPOSE — the mitigation is host-level access control.
+regardless of DEPOSE, the mitigation is host-level access control.
 
 ### 3.2 Attacker with a bundle (no key)
 
@@ -166,7 +166,7 @@ producer applied before sharing.
 
 **What they cannot do:**
 
-- Forge a valid bundle without the producer's private key — the
+- Forge a valid bundle without the producer's private key, the
   Ed25519 signature is over the canonical bytes of `manifest.json`
   with `signatures=[]` and `timestamps=[]`, and the manifest pins
   every other authenticated artifact transitively (see below).
@@ -190,12 +190,12 @@ producer applied before sharing.
 - Replay the bundle's timestamps against a different manifest. RFC
   3161 tokens commit to `SHA-256(unsigned manifest)` via
   `TSTInfo.HashedMessage`.
-- Claim the bundle proves something it does not — the verification
+- Claim the bundle proves something it does not, the verification
   report is deterministic and reproducible.
 
 **What they *can* do without changing the verification outcome:**
 
-- Modify `narrative.md` / `narrative.html` / `verify.txt` — these
+- Modify `narrative.md` / `narrative.html` / `verify.txt`; these
   are documented in `docs/bundle-format.md §4.3` as non-evidentiary.
   A modified narrative does not invalidate the bundle, but a
   recipient who reads it cannot rely on it; the canonical record is
@@ -434,18 +434,18 @@ verifier enforces the invariants of that declaration
 (`apps/verify/cmd/verify.go`, `mode-declaration` and
 `mode-contract` checks):
 
-- **`signed`** — the only mode admissible as evidence. Requires a
+- **`signed`**, the only mode admissible as evidence. Requires a
   non-empty `rootHash`, at least one Ed25519 signature, and at
   least one RFC 3161 timestamp. The verifier rejects a bundle
   declaring `signed` but missing either.
-- **`dev-unsigned`** — pipeline-testing bundles. `signatures` and
+- **`dev-unsigned`**, pipeline-testing bundles. `signatures` and
   `timestamps` must both be empty (the mode contract). The bundle
   directory is named `incident-unsigned-<id>` (not
   `incident-<id>`), and `verify.txt` plus `narrative.md` /
   `narrative.html` carry a "NOT EVIDENCE" banner. The verifier
   refuses to print plain "PASS" for a dev-unsigned bundle, even
   when every check is green, and instead emits
-  `PASS (dev-unsigned — not evidence)`.
+  `PASS (dev-unsigned, not evidence)`.
 
 A dev-unsigned bundle that smuggles a signature in is caught by
 the `mode-contract` check and fails verification.

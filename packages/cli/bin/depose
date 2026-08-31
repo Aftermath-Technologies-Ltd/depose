@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// packages/cli/bin/depose — CLI entrypoint
+// packages/cli/bin/depose: CLI entrypoint
 //
 // Invoked by pnpm via packages/cli/package.json "bin" field.
 // Delegates to the compiled main() function.

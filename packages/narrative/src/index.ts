@@ -1,6 +1,6 @@
 // packages/narrative/src/index.ts
 //
-// @depose/narrative — Deterministic narrative renderer for DEPOSE bundles.
+// @depose/narrative, Deterministic narrative renderer for DEPOSE bundles.
 //
 // BUILD_PLAN.md §6 Phase 4:
 //   "Template-driven, deterministic, every claim cites event ID.

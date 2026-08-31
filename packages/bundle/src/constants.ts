@@ -10,7 +10,7 @@
 // URL falls back to `releases/latest`. The release workflow MUST set
 // DEPOSE_RELEASE_TAG=${GITHUB_REF_NAME} before running `pnpm build`
 // so that bundles produced from a tagged release point recipients
-// at the verifier that matched that release — not at "whatever is
+// at the verifier that matched that release, not at "whatever is
 // latest tomorrow."
 
 // GitHub repository slug used by tooling (release scripts, etc.).
@@ -22,7 +22,7 @@
 // releases will write new bundles with identity URLs that reference the new
 // slug.  Old bundles continue to verify correctly because each verifier
 // release validates against the manifest URL recorded inside the bundle at
-// the time it was produced — no global rewrite is needed.
+// the time it was produced, no global rewrite is needed.
 const _repoSlug = process.env.DEPOSE_REPO_SLUG ?? 'Aftermath-Technologies-Ltd/depose';
 export const GITHUB_REPO_SLUG = _repoSlug;
 

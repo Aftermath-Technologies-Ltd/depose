@@ -12,7 +12,7 @@
 //   5. Writes a ShellCommandPrePayload JSON to $DEPOSE_CAPTURE_DIR/<ulid>.json
 //   6. Exits 0 (never blocks the tool call)
 //
-// The hook is observation-only; never deny or modify.
+// The hook is observation-only, never deny or modify.
 // Denial is governance; DEPOSE is forensics.
 
 import { hostname } from 'node:os';
@@ -87,7 +87,7 @@ export async function handlePreToolUse(
   // Walk parent process tree (best-effort, cached per session)
   const parentProcessTree = getCachedProcessTree(input.session_id);
 
-  // Every Claude tool capture is labelled 'claude-pretooluse' — the
+  // Every Claude tool capture is labelled 'claude-pretooluse', the
   // hook fires for Bash, Edit, and Write but they all originate
   // from the same pre-tool-use point.
   const source: ShellCommandPrePayload['source'] = 'claude-pretooluse';
@@ -107,7 +107,17 @@ export async function handlePreToolUse(
       sizeBytes: fa.sizeBytes,
     })),
     source,
-    captureSchemaVersion: 1,
+    captureSchemaVersion: 2,
+    // Recorded here, at capture time. Without it the normalizer had to
+    // stamp events with the bundle production time, which put every
+    // capture outside the correlation window against the session it
+    // belonged to.
+    capturedAt: new Date().toISOString(),
+    capturedAtSource: 'recorded',
+    // Scopes this record to the session that produced it. Claude Code's
+    // session_id is the same value the session JSONL carries as
+    // `sessionId`, which is what the capture scope matches against.
+    sessionId: input.session_id || null,
   };
 
   const capturePath = writeCaptureRecord(ulid, payload);
@@ -212,7 +222,7 @@ function walkProcessTree(): ProcessNode[] {
 
 /**
  * Get a ProcessNode for a given PID using `ps`.
- * Best-effort — returns null on failure.
+ * Best-effort, returns null on failure.
  */
 function getProcessNode(pid: number): ProcessNode | null {
   try {

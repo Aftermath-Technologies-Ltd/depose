@@ -1,4 +1,4 @@
-// Package chain — IRONROOT hash chain replay for verification.
+// Package chain, IRONROOT hash chain replay for verification.
 package chain
 
 import (
@@ -123,7 +123,7 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 		// ── Recompute payloadHash from the actual payload bytes ──
 		// Without this step, payloadHash is trusted from disk and the
 		// chain replay only proves the recorded payloadHash is
-		// internally consistent — not that the recorded payload
+		// internally consistent, not that the recorded payload
 		// canonicalizes to that hash. An attacker can then rewrite
 		// payload content without touching payloadHash and the chain
 		// still validates. We close that hole here by re-canonicalizing
@@ -210,7 +210,7 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 //	sha256(value) = hex(SHA-256(utf8(canonicalJson(value))))
 func recomputePayloadHash(rawPayload json.RawMessage) (string, error) {
 	if len(rawPayload) == 0 {
-		// Treat a missing payload as null for determinism — matches
+		// Treat a missing payload as null for determinism, matches
 		// canonicalJson(undefined/null) = "null" on the TS side.
 		sum := sha256.Sum256([]byte("null"))
 		return hex.EncodeToString(sum[:]), nil

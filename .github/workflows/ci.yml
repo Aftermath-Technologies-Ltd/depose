@@ -37,7 +37,13 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          # Pinned above 1.22: go1.22's linker omits LC_UUID from macOS
+          # binaries built with -s -w, and current macOS dyld refuses to
+          # load them ("missing LC_UUID load command"). The verifier built
+          # fine and then could not execute, so every test shelling out to
+          # it saw empty output. Surfaced when the macos-latest image moved,
+          # not by any source change.
+          go-version: '1.24'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -69,6 +75,21 @@ jobs:
             exit 1
           fi
 
+      - name: Forbid em dashes
+        # House style: no em dashes anywhere, including comments, docs,
+        # and user-visible strings. Use commas, semicolons, colons,
+        # parentheses, or separate sentences. A one-off cleanup does not
+        # hold without a check, so this is the check.
+        # The pattern is built from an escape rather than written
+        # literally, so this step does not match itself the way the
+        # stale-URL grep once did (ca085c6).
+        run: |
+          DASH=$(printf '\xe2\x80\x94')
+          if git grep -n -- "$DASH"; then
+            echo "Em dash found. Use a comma, semicolon, colon, parentheses, or split the sentence."
+            exit 1
+          fi
+
       - name: Forbid Math.random in evidence paths
         # B3 invariant: signatures, chains, and event IDs must come
         # from a CSPRNG, never Math.random. Production source under
@@ -87,8 +108,44 @@ jobs:
       - name: TypeScript tests
         run: pnpm test
 
+      - name: TypeScript tests against a poisoned host capture store
+        # The suite used to read the developer's real ~/.depose/captures
+        # and merge it into fixtures, so a 5-line fixture reported 18,831
+        # events on a machine with the hook installed. It passed in CI only
+        # because runners start with an empty home, which made the whole
+        # suite host-dependent. Plant records where the old code would have
+        # found them: tests/setup/isolate-env.ts must make them invisible,
+        # and the pinned fixture counts fail loudly if it ever stops.
+        run: |
+          mkdir -p "$HOME/.depose/captures"
+          for i in 1 2 3 4 5; do
+            cat > "$HOME/.depose/captures/01JPOISON00000000000000$i.json" <<'JSON'
+          {
+            "argv": ["terraform", "destroy", "-auto-approve"],
+            "cwd": "/some/unrelated/project",
+            "envHash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "envSubset": {},
+            "ttyId": null,
+            "user": "poison",
+            "hostname": "poison",
+            "parentProcessTree": [],
+            "fileArgs": [],
+            "source": "claude-pretooluse",
+            "captureSchemaVersion": 1
+          }
+          JSON
+          done
+          pnpm test
+
       - name: Go verifier tests
         run: cd apps/verify && go test ./...
+
+      - name: Go capture-shim tests
+        # The shim sits on PATH in front of rm, terraform, kubectl, aws, and
+        # psql. It had no tests, and the gap hid two real defects: a
+        # non-executable file could shadow the real binary, and stdin was
+        # drained before exec so every piped command lost its input.
+        run: cd apps/capture-shim && go test ./...
 
       - name: Install-from-pack E2E
         # Catches the kind of regressions unit tests miss:
@@ -113,7 +170,8 @@ jobs:
           cache: 'pnpm'
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          # 1.22 emits macOS binaries dyld will not load; see the CI job above.
+          go-version: '1.24'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -124,7 +182,7 @@ jobs:
         # CLI tarball has no runtime deps (everything is bundled), so an
         # SBOM "of the tarball" is empty. cdxgen is pnpm-aware and
         # produces a real SBOM of the source dep graph that went into
-        # the bundle — which is what a customer's SBOM should describe.
+        # the bundle, which is what a customer's SBOM should describe.
         run: |
           npx --yes @cyclonedx/cdxgen@12 \
             -t pnpm \
@@ -155,7 +213,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          # 1.22 emits macOS binaries dyld will not load; see the CI job above.
+          go-version: '1.24'
 
       - name: Build verifier
         run: |

@@ -4,7 +4,7 @@
 // is the enforcement point. These tests build bundles in both modes
 // and run depose-verify against them, asserting:
 //   - signed → expect to see "PASS" (no parenthetical disclaimer).
-//   - dev-unsigned → expect "PASS (dev-unsigned — not evidence)".
+//   - dev-unsigned → expect "PASS (dev-unsigned, not evidence)".
 //   - dev-unsigned mutated to carry a signature → mode-contract fails.
 //   - signed declared but signature stripped → mode-contract fails.
 
@@ -106,10 +106,10 @@ describe('mode contract', () => {
     expect(manifest.timestamps).toEqual([]);
 
     const verifyTxt = readFileSync(pathJoin(depopPath, 'verify.txt'), 'utf-8');
-    expect(verifyTxt).toMatch(/THIS IS A DEVELOPMENT BUNDLE — NOT EVIDENCE/);
+    expect(verifyTxt).toMatch(/THIS IS A DEVELOPMENT BUNDLE, NOT EVIDENCE/);
 
     const narrativeMd = readFileSync(pathJoin(depopPath, 'narrative.md'), 'utf-8');
-    expect(narrativeMd).toMatch(/THIS IS A DEVELOPMENT BUNDLE — NOT EVIDENCE/);
+    expect(narrativeMd).toMatch(/THIS IS A DEVELOPMENT BUNDLE, NOT EVIDENCE/);
   });
 
   it('signed bundle lands in incident-<id> without banner', async () => {
@@ -137,7 +137,7 @@ describe('mode contract', () => {
     ).rejects.toThrow(/mode="signed" requires a keyPair/);
   });
 
-  it('verifier prints "PASS (dev-unsigned — not evidence)" for clean dev-unsigned', async () => {
+  it('verifier prints "PASS (dev-unsigned, not evidence)" for clean dev-unsigned', async () => {
     if (!hasVerifyBinary()) return;
     const depopPath = await buildBundle({
       mode: 'dev-unsigned',
@@ -146,7 +146,7 @@ describe('mode contract', () => {
     });
     const result = runVerify(depopPath);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('PASS (dev-unsigned — not evidence)');
+    expect(result.stdout).toContain('PASS (dev-unsigned, not evidence)');
     expect(result.stdout).not.toMatch(/RESULT: PASS\b\s*$/m);
   });
 
@@ -159,7 +159,7 @@ describe('mode contract', () => {
     });
 
     // Mutate manifest to inject a bogus signature block. The mode is
-    // still "dev-unsigned" — that's the lie we want the verifier to
+    // still "dev-unsigned"; that's the lie we want the verifier to
     // catch.
     const manifestPath = pathJoin(depopPath, 'manifest.json');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));

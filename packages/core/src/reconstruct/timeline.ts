@@ -175,7 +175,7 @@ function buildTree(
     throw new Error(`Event not found: ${eventId}`);
   }
 
-  // Destructive matches — delegate to the shared matcher so
+  // Destructive matches, delegate to the shared matcher so
   // tool_call_intent (reconstruction from JSONL alone) is covered
   // identically to shell_command_pre (active capture).
   const destructiveMatches: Array<{

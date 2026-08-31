@@ -1,14 +1,14 @@
 // packages/cli/src/commands/key.ts
 //
-// `depose key` subcommands — local Ed25519 signing key lifecycle.
+// `depose key` subcommands, local Ed25519 signing key lifecycle.
 //
-//   fingerprint  — print the SHA-256 fingerprint of the active key
-//   rotate       — archive the current key, generate a new active one
-//   revoke <fp>  — mark a fingerprint as revoked (with --reason)
-//   catalog      — print/export the local key catalog
+//   fingerprint    print the SHA-256 fingerprint of the active key
+//   rotate         archive the current key, generate a new active one
+//   revoke <fp>    mark a fingerprint as revoked (with --reason)
+//   catalog        print/export the local key catalog
 //
 // The fingerprint is what recipients pin against. The producer
-// publishes it (and the catalog) out-of-band — a .well-known page,
+// publishes it (and the catalog) out-of-band, a .well-known page,
 // a signed git tag, an attorney's printed handshake. The verifier
 // rejects bundles signed under a fingerprint the recipient has not
 // pinned, and (when `--revocation-list <path>` is set) rejects

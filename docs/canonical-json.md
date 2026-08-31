@@ -1,7 +1,7 @@
 # DEPOSE canonical JSON
 
 DEPOSE serializes JSON deterministically so that the same logical
-value always produces the same bytes — across implementations and
+value always produces the same bytes, across implementations and
 across machines. This is what lets a signature created in TypeScript
 verify in Go (and vice versa).
 
@@ -10,7 +10,7 @@ We adopt JCS as-is for the subset of JSON that appears in DEPOSE
 bundles. Conformance vectors live in
 [`tests/conformance/canonical-json-vectors.json`](../tests/conformance/canonical-json-vectors.json).
 A CI job (`conformance-canonical-json`) runs the vectors against both
-the TypeScript and Go implementations on every PR — any divergence
+the TypeScript and Go implementations on every PR, any divergence
 blocks the merge.
 
 ## Where canonical JSON is used
@@ -35,8 +35,8 @@ JCS consumer.
 3. **String escapes** use the JSON minimum escape set:
    `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, `\t`, and `\u00XX` for the
    remaining C0 control characters (U+0000..U+001F). Any other
-   character — including `<`, `>`, `&`, `/`, and non-ASCII Unicode
-   — is emitted **literally as UTF-8**, never escaped.
+   character (including `<`, `>`, `&`, `/`, and non-ASCII Unicode)
+   is emitted **literally as UTF-8**, never escaped.
 4. **Numbers** are serialized via the ECMA-262 `ToString(Number)`
    algorithm: integers in `[-2^53, 2^53]` print without a decimal
    point or exponent; other values use the shortest unambiguous
@@ -55,7 +55,7 @@ literal UTF-8 for non-ASCII printable characters. We preprocess
 the value with `sortKeys` (recursive deep key sort) before calling
 `JSON.stringify`.
 
-`JSON.stringify` **does not** HTML-escape `<`, `>`, `&` — it leaves
+`JSON.stringify` **does not** HTML-escape `<`, `>`, `&`; it leaves
 them literal. This matches JCS.
 
 ### Go (`apps/verify/canonical/jcs.go`)

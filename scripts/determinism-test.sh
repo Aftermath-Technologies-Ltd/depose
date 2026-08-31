@@ -5,7 +5,7 @@
 #
 # Produces a bundle twice with a fixed ULID seed and pinned producedAt,
 # then recursively diffs the two output directories. The diff must be
-# empty — any nondeterminism (clock leaks, map iteration order, etc.)
+# empty, any nondeterminism (clock leaks, map iteration order, etc.)
 # will be caught here.
 #
 # Prerequisites:
@@ -22,13 +22,18 @@ SESSION_JSONL="$REPO_ROOT/examples/datatalks-reconstruction/session.synthetic.js
 FIXED_SEED=1716043800000
 PRODUCED_AT="2025-05-18T16:00:00.000Z"
 
-# Use consistent key + capture dirs so neither host state nor prior
-# capture records leak into the bundles. (The default capture-dir is
-# ~/.depose/captures, which a developer running the hook will have
-# populated — pin an empty one here so the test is self-contained.)
+# The key dir is pinned so host key state cannot vary the output.
+#
+# The capture dir deliberately is NOT pinned. This script used to pass
+# --capture-dir with an empty temp dir, because the default store
+# (~/.depose/captures) is machine-wide and a developer running the hook has
+# it populated, and every one of those records used to land in the bundle.
+# That workaround made the determinism test pass while the underlying defect
+# stayed live. Capture records are now scoped to the session being
+# reconstructed, so running against the real store is the stronger test:
+# it proves host state cannot reach the bundle at all.
 KEY_DIR=$(mktemp -d)
-EMPTY_CAPTURE_DIR=$(mktemp -d)
-trap 'rm -rf "$KEY_DIR" "$EMPTY_CAPTURE_DIR" "$REPO_ROOT/tmp-determinism-run1" "$REPO_ROOT/tmp-determinism-run2"' EXIT
+trap 'rm -rf "$KEY_DIR" "$REPO_ROOT/tmp-determinism-run1" "$REPO_ROOT/tmp-determinism-run2"' EXIT
 
 OUT1="$REPO_ROOT/tmp-determinism-run1"
 OUT2="$REPO_ROOT/tmp-determinism-run2"
@@ -43,7 +48,6 @@ echo "--- Run 1 ---"
   --fixed-seed "$FIXED_SEED" \
   --produced-at "$PRODUCED_AT" \
   --key-dir "$KEY_DIR" \
-  --capture-dir "$EMPTY_CAPTURE_DIR" \
   --session-id "determinism-test"
 
 echo ""
@@ -55,7 +59,6 @@ echo "--- Run 2 ---"
   --fixed-seed "$FIXED_SEED" \
   --produced-at "$PRODUCED_AT" \
   --key-dir "$KEY_DIR" \
-  --capture-dir "$EMPTY_CAPTURE_DIR" \
   --session-id "determinism-test"
 
 echo ""

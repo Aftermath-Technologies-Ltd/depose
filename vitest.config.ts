@@ -6,6 +6,9 @@ export default defineConfig({
     globals: false,
     include: ['packages/*/test/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
+    // Pins HOME and DEPOSE_CAPTURE_DIR to a temp dir before the module
+    // graph loads, so no suite reads the developer's real capture store.
+    setupFiles: ['tests/setup/isolate-env.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

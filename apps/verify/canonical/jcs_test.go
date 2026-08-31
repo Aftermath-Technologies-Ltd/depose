@@ -19,7 +19,7 @@ type vectorFile struct {
 }
 
 // TestConformance runs the shared JCS vector suite against the Go
-// canonicalizer. Same vectors run in TypeScript — any divergence
+// canonicalizer. Same vectors run in TypeScript, any divergence
 // breaks cross-language signature verification. See
 // docs/canonical-json.md.
 func TestConformance(t *testing.T) {
@@ -30,7 +30,7 @@ func TestConformance(t *testing.T) {
 	}
 
 	// We re-decode each vector's `input` with UseNumber to preserve
-	// numeric lexical form — JCS demands the producer's choice of
+	// numeric lexical form, JCS demands the producer's choice of
 	// integer vs decimal representation.
 	var doc vectorFile
 	if err := json.Unmarshal(raw, &doc); err != nil {

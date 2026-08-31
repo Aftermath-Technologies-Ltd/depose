@@ -18,7 +18,7 @@
 //
 // See BUILD_PLAN.md §5 for the full bundle layout.
 
-import { mkdirSync, writeFileSync, copyFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync, copyFileSync, existsSync } from 'node:fs';
 import { join, basename, dirname } from 'node:path';
 import type { Event, DestructiveRule } from '@depose/core';
 import { buildTimeline, sha256Bytes } from '@depose/core';
@@ -35,7 +35,7 @@ const BUNDLE_DIR_SIGNED = 'incident';
 const BUNDLE_DIR_DEV_UNSIGNED = 'incident-unsigned';
 const DEV_UNSIGNED_BANNER = [
   '═══════════════════════════════════════════════════════════════════',
-  '  THIS IS A DEVELOPMENT BUNDLE — NOT EVIDENCE',
+  '  THIS IS A DEVELOPMENT BUNDLE, NOT EVIDENCE',
   '',
   '  This bundle was produced with mode="dev-unsigned". It carries',
   '  NO Ed25519 signature and NO RFC 3161 timestamp. It is suitable',
@@ -55,7 +55,7 @@ const VERIFY_TXT = 'verify.txt';
 // ── Writer options ───────────────────────────────────────────────────
 
 export interface BundleWriterOptions {
-  /** Session ID (ULID) — used as bundle directory name */
+  /** Session ID (ULID), used as bundle directory name */
   sessionId: string;
   /** Agent ID (e.g., 'claude-code') */
   agentId: string;
@@ -69,7 +69,7 @@ export interface BundleWriterOptions {
   sessionEndedAt: string;
   /** Destructive ruleset (for counting destructive ops) */
   rules: DestructiveRule[];
-  /** Original ruleset bytes — written verbatim into the bundle and
+  /** Original ruleset bytes, written verbatim into the bundle and
    *  hashed into manifest.rulesetHash. The verifier re-reads the
    *  embedded file and re-hashes it to enforce ruleset integrity. */
   rulesetBytes: Buffer;
@@ -78,10 +78,10 @@ export interface BundleWriterOptions {
   /**
    * Bundle production mode (see BundleMode docstring).
    *
-   * `signed` — production. Requires keyPair. Builds chain, signs,
+   * `signed`, production. Requires keyPair. Builds chain, signs,
    *   requests RFC 3161 timestamps. The bundle is named
    *   `incident-<id>` and is the only mode acceptable as evidence.
-   * `dev-unsigned` — pipeline testing. signatures/timestamps are
+   * `dev-unsigned`, pipeline testing. signatures/timestamps are
    *   empty. The bundle is named `incident-unsigned-<id>` and
    *   verify.txt + narrative carry a "NOT EVIDENCE" banner. The
    *   chain is built only if keyPair is provided (this preserves
@@ -103,6 +103,21 @@ export interface BundleWriterOptions {
    *  JSONL, they are copied into raw/shell-history/ and raw/
    *  respectively. */
   sourceJsonlPath?: string;
+  /**
+   * Capture-store accounting, recorded in the signed manifest so a
+   * recipient can see that capture data existed and how much of it was
+   * deliberately left out as unattributable to this session.
+   */
+  capturesAttributed?: number;
+  capturesExcluded?: number;
+  /**
+   * Capture store the attributed records came from. When set, the records
+   * that actually entered this bundle are copied into raw/captures/ so a
+   * recipient can re-derive those events from the bundle's own source
+   * material. Only records already in the timeline are copied, so scoping
+   * still holds: nothing unrelated to the session reaches the bundle.
+   */
+  captureSourceDir?: string;
 }
 
 // ── Bundle output ────────────────────────────────────────────────────
@@ -184,7 +199,7 @@ export async function writeBundle(
   // We compute the exact UTF-8 byte sequence that will be written to
   // events.jsonl (sorted by id, one JSON object per line, trailing
   // newline) and embed its SHA-256 into the signed manifest. The
-  // verifier re-reads events.jsonl and compares — pinning the file's
+  // verifier re-reads events.jsonl and compares, pinning the file's
   // byte form directly, on top of the per-event chain.
   const eventsJsonlSorted = [...chainedEvents].sort((a, b) => a.id.localeCompare(b.id));
   const eventsJsonlContent = eventsJsonlSorted.map((e) => JSON.stringify(e)).join('\n') + '\n';
@@ -211,6 +226,8 @@ export async function writeBundle(
     rootHash,
     eventsJsonlSha256,
     keyFingerprint,
+    capturesAttributed: options.capturesAttributed,
+    capturesExcluded: options.capturesExcluded,
   });
 
   let signatures: SignatureBlock[] = [];
@@ -248,7 +265,7 @@ export async function writeBundle(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(
-        `Failed to obtain RFC 3161 timestamp — cannot produce signed bundle.\n${msg}\n` +
+        `Failed to obtain RFC 3161 timestamp, cannot produce signed bundle.\n${msg}\n` +
         `Use mode="dev-unsigned" if you need an unsigned bundle for pipeline testing.`
       );
     }
@@ -269,7 +286,7 @@ export async function writeBundle(
   const finalManifestJson = serializeManifest(manifest);
   writeFileSync(join(bundleDir, MANIFEST_PATH), finalManifestJson, 'utf-8');
 
-  // Write events.jsonl — the exact bytes we hashed into
+  // Write events.jsonl, the exact bytes we hashed into
   // manifest.eventsJsonlSha256 above. Re-serializing here would risk
   // a divergence between hashed bytes and on-disk bytes if any future
   // change to JSON.stringify-equivalent code drifted between the two
@@ -281,7 +298,7 @@ export async function writeBundle(
   // Copy source files when available. Do not create empty stubs.
   const rawDir = join(bundleDir, RAW_DIR);
 
-  // raw/claude-code/ — copy JSONL source when provided
+  // raw/claude-code/, copy JSONL source when provided
   if (sourceJsonlPath) {
     const rawClaudeDir = join(rawDir, 'claude-code');
     mkdirSync(rawClaudeDir, { recursive: true });
@@ -329,7 +346,7 @@ export async function writeBundle(
     writeFileSync(join(timestampDir, `${i}.tsr`), token.tokenBase64, 'base64');
   }
 
-  // rekor-entries.json — only write when there are actual entries
+  // rekor-entries.json; only write when there are actual entries
   // (currently there never are, so we skip the empty stub)
 
   // ── Write rules/ directory ─────────────────────────────────────────
@@ -346,20 +363,31 @@ export async function writeBundle(
   // iterating: the result is the same file set either way, but the
   // sort makes the iteration deterministic so any future
   // entry-derived state (counts, indices, manifest sums) cannot drift.
-  if (sourceJsonlPath) {
-    const srcDir = dirname(sourceJsonlPath);
-    const possibleCaptureDir = join(srcDir, 'capture');
-    if (existsSync(possibleCaptureDir)) {
-      const rawCaptureDir = join(rawDir, 'capture');
+  // raw/captures/, the pre-execution records behind the capture events in
+  // this bundle. Without them the bundle carries events derived from source
+  // material it does not contain, so a recipient cannot re-derive them: a
+  // chain-of-custody hole. Copy by event id rather than by directory sweep,
+  // which keeps the scoping guarantee intact.
+  if (options.captureSourceDir && existsSync(options.captureSourceDir)) {
+    const attributed = chainedEvents.filter(
+      (e) =>
+        e.type === 'shell_command_pre' &&
+        (e.payload as { capturedAtSource?: string }).capturedAtSource !== 'reconstructed'
+    );
+    if (attributed.length > 0) {
+      const rawCaptureDir = join(rawDir, 'captures');
       mkdirSync(rawCaptureDir, { recursive: true });
-      const files = readdirSync(possibleCaptureDir).sort();
-      for (const file of files) {
-        const srcFile = join(possibleCaptureDir, file);
-        const dstFile = join(rawCaptureDir, file);
+      for (const event of attributed) {
+        const srcFile = join(options.captureSourceDir, `${event.id}.json`);
+        if (!existsSync(srcFile)) continue;
         try {
-          copyFileSync(srcFile, dstFile);
-        } catch {
-          // skip files that can't be copied (e.g., subdirectories)
+          copyFileSync(srcFile, join(rawCaptureDir, `${event.id}.json`));
+        } catch (err) {
+          warnings.push(
+            `Could not copy capture record ${event.id} into raw/captures/ ` +
+              `(${err instanceof Error ? err.message : String(err)}). The event ` +
+              `remains in the timeline but its source record is not in the bundle.`
+          );
         }
       }
     }
@@ -378,6 +406,8 @@ export async function writeBundle(
     sessionId,
     sessionStartedAt,
     sessionEndedAt,
+    capturesAttributed: options.capturesAttributed,
+    capturesExcluded: options.capturesExcluded,
   };
   const narrativeMd = renderMarkdown(timeline, narrativeOptions);
   writeFileSync(
@@ -412,7 +442,7 @@ export async function writeBundle(
 // ── HTML banner wrapper for dev-unsigned narrative ──────────────────
 
 function wrapHtmlBanner(html: string): string {
-  const banner = '<div style="background:#7a1f1f;color:#fff;padding:1em 1.5em;border-bottom:4px solid #ff0;font-family:-apple-system,Segoe UI,sans-serif;font-weight:bold"><strong>THIS IS A DEVELOPMENT BUNDLE — NOT EVIDENCE.</strong> mode="dev-unsigned": no signature, no timestamp.</div>';
+  const banner = '<div style="background:#7a1f1f;color:#fff;padding:1em 1.5em;border-bottom:4px solid #ff0;font-family:-apple-system,Segoe UI,sans-serif;font-weight:bold"><strong>THIS IS A DEVELOPMENT BUNDLE, NOT EVIDENCE.</strong> mode="dev-unsigned": no signature, no timestamp.</div>';
   if (html.includes('<body>')) {
     return html.replace('<body>', `<body>${banner}`);
   }
@@ -425,8 +455,8 @@ function wrapHtmlBanner(html: string): string {
 // ── Verify text ──────────────────────────────────────────────────────
 
 /**
- * Build verify.txt — plain-English instructions for the recipient
- * (written for an attorney, not an engineer — BUILD_PLAN.md §5).
+ * Build verify.txt, plain-English instructions for the recipient
+ * (written for an attorney, not an engineer, BUILD_PLAN.md §5).
  */
 function buildVerifyTxt(manifest: Manifest): string {
   return [

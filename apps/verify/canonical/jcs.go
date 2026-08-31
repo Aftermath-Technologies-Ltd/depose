@@ -58,8 +58,8 @@ func writeValue(buf *bytes.Buffer, v interface{}) error {
 		return writeNumberRaw(buf, x.String())
 	case float64:
 		// Path used when the caller hand-builds values without
-		// UseNumber. Reuse the standard encoder for the number form
-		// — it follows ECMA-262 ToString(Number) for finite values.
+		// UseNumber. Reuse the standard encoder for the number form:
+		// it follows ECMA-262 ToString(Number) for finite values.
 		bts, err := json.Marshal(x)
 		if err != nil {
 			return err
@@ -115,7 +115,7 @@ func writeValue(buf *bytes.Buffer, v interface{}) error {
 }
 
 // writeNumberRaw writes a numeric value that was decoded as
-// json.Number. We accept the lexical form the decoder produced —
+// json.Number. We accept the lexical form the decoder produced ,
 // JCS-compliant producers (TypeScript JSON.stringify) emit the
 // shortest unambiguous form, and re-parsing through json.Number
 // preserves those bytes.

@@ -24,7 +24,8 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          # 1.22 emits macOS binaries dyld will not load; see .github/workflows/ci.yml.
+          go-version: '1.24'
 
       - name: Cross-compile (darwin/linux × arm64/amd64)
         env:
@@ -47,7 +48,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
 
-      - name: Cosign sign — keyless (OIDC → Fulcio → Rekor)
+      - name: Cosign sign, keyless (OIDC → Fulcio → Rekor)
         # Signs SHA256SUMS, producing SHA256SUMS.sig and
         # SHA256SUMS.pem (the short-lived Fulcio cert). Recipients
         # verify with `cosign verify-blob --certificate ... --signature ...

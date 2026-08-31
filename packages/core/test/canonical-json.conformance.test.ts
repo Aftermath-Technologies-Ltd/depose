@@ -4,7 +4,7 @@
 // vectors from tests/conformance/canonical-json-vectors.json. Any
 // divergence between the two languages means a signature signed by
 // the TypeScript producer will not verify in the Go verifier (or
-// vice versa) — that breaks the entire cross-language trust path.
+// vice versa); that breaks the entire cross-language trust path.
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

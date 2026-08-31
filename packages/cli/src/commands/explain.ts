@@ -1,15 +1,17 @@
 // packages/cli/src/commands/explain.ts
 //
-// `depose explain` — LLM-narrated postmortem to commentary.md.
+// `depose explain`: templated postmortem summary to commentary.md.
 //
-// BUILD_PLAN.md §6 Phase 4:
-//   "depose explain produces an LLM-narrated postmortem to commentary.md,
-//    explicitly EXCLUDED from events.jsonl, EXCLUDED from rootHash,
-//    with a banner: 'AI-GENERATED COMMENTARY — NOT EVIDENCE.'"
+// BUILD_PLAN.md §6 Phase 4 specified an LLM-narrated postmortem. No model
+// was ever wired up; generateCommentary below is deterministic Handlebars-
+// style templating over the timeline. The banner and the CLI help said
+// "AI-GENERATED" anyway, which claimed a provenance the output does not
+// have. For a tool whose product is credibility, a command that misstates
+// how its own output was produced is a defect, so the labelling now
+// matches the implementation.
 //
-// This command reads the bundle timeline and generates a human-readable
-// narrative. The output is NOT evidence — it is commentary for human
-// convenience only. It is structurally excluded from the signed content.
+// The output is still NOT evidence: it is a convenience summary,
+// structurally excluded from the signed content.
 //
 // Named exports only (BUILD_PLAN.md §3.1).
 
@@ -40,13 +42,14 @@ export interface ExplainCommandArgs {
   [key: string]: string | boolean | string[] | undefined;
 }
 
-// ── AI-GENERATED banner ────────────────────────────────────────────
+// ── Not-evidence banner ────────────────────────────────────────────
 
-const AI_COMMENTARY_BANNER = [
+const COMMENTARY_BANNER = [
   '═══════════════════════════════════════════════════════════════',
-  '  AI-GENERATED COMMENTARY — NOT EVIDENCE',
+  '  TEMPLATED COMMENTARY, NOT EVIDENCE',
   '',
-  '  This file was produced by an AI summarization system.',
+  '  This file is a deterministic template summary of the event',
+  '  timeline. No language model produced it and none is involved.',
   '  It is explicitly EXCLUDED from the signed content of this',
   '  bundle. It carries NO evidentiary weight. Modifying this file',
   '  does NOT affect bundle validity.',
@@ -61,8 +64,9 @@ const AI_COMMENTARY_BANNER = [
 /**
  * Handle `depose explain --from-claude <path>` or `depose explain --bundle <path>`.
  *
- * Produces commentary.md — an AI-narrated postmortem that is explicitly
- * EXCLUDED from the signed content of the bundle.
+ * Produces commentary.md, a deterministic template summary of the
+ * timeline that is explicitly EXCLUDED from the signed bundle content.
+ * No language model is involved.
  */
 export async function handleExplain(args: ExplainCommandArgs): Promise<void> {
   console.error('WARNING: depose explain is deprecated. Use narrative.md in the bundle instead.');
@@ -136,23 +140,22 @@ export async function handleExplain(args: ExplainCommandArgs): Promise<void> {
   const timeline = buildTimeline(events, rules);
   const summary = formatTimelineSummary(timeline);
 
-  // Generate commentary (deterministic, no actual LLM call — 
-  // this is a template-based commentary that summarizes the timeline)
+  // Deterministic template over the timeline. No model call.
   const commentary = generateCommentary(timeline, summary, agentId);
 
   // Write to bundle or standalone file
   if (bundlePath) {
     const resolvedBundle = resolve(bundlePath);
-    writeFileSync(join(resolvedBundle, 'commentary.md'), AI_COMMENTARY_BANNER + commentary, 'utf-8');
+    writeFileSync(join(resolvedBundle, 'commentary.md'), COMMENTARY_BANNER + commentary, 'utf-8');
     console.log(`Commentary written to: ${join(resolvedBundle, 'commentary.md')}`);
   } else {
     const resolvedOutput = outputDir ? resolve(outputDir) : resolve('./depose-output');
-    writeFileSync(join(resolvedOutput, 'commentary.md'), AI_COMMENTARY_BANNER + commentary, 'utf-8');
+    writeFileSync(join(resolvedOutput, 'commentary.md'), COMMENTARY_BANNER + commentary, 'utf-8');
     console.log(`Commentary written to: ${join(resolvedOutput, 'commentary.md')}`);
   }
 
   console.log('');
-  console.log('NOTE: commentary.md is AI-GENERATED and NOT EVIDENCE.');
+  console.log('NOTE: commentary.md is a templated summary, NOT EVIDENCE.');
   console.log('It is excluded from the signed bundle content.');
 }
 
@@ -163,8 +166,9 @@ export async function handleExplain(args: ExplainCommandArgs): Promise<void> {
  *
  * Per BUILD_PLAN.md §7.8: "Never put an LLM in the signed path."
  * This is a template-based generator that provides a structured
- * summary. In a full implementation, an LLM could enrich this,
- * but the output would ALWAYS be excluded from the signed path.
+ * summary. If a model-backed variant is ever added it must be opt-in
+ * and labelled as such, and its output would still be excluded from
+ * the signed path.
  */
 function generateCommentary(
   timeline: ReturnType<typeof buildTimeline>,

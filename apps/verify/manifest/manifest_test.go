@@ -30,7 +30,7 @@ func TestVerifySignature_CRLFPEM(t *testing.T) {
 		Type:  "PUBLIC KEY",
 		Bytes: pubDER,
 	})
-	// Convert LF to CRLF — the bug we're guarding against.
+	// Convert LF to CRLF, the bug we're guarding against.
 	pubPEMCRLF := strings.ReplaceAll(string(pubPEM), "\n", "\r\n")
 
 	m := &Manifest{

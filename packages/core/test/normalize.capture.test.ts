@@ -41,8 +41,24 @@ function teardown(): void {
   }
 }
 
-function writeCaptureFile(dir: string, ulid: string, payload: ShellCommandPrePayload): void {
+/**
+ * Turn a readable label into a valid 26-character Crockford Base32 ULID.
+ * The normalizer rejects filenames that are not valid ULIDs, because the
+ * filename becomes the event id and an unvalidated one used to be
+ * accepted verbatim. Keeping the label as a prefix keeps failures legible.
+ */
+function testUlid(label: string): string {
+  const cleaned = label
+    .toUpperCase()
+    .replace(/[ILOU]/g, '0') // excluded from the Crockford alphabet
+    .replace(/[^0-9A-Z]/g, '0');
+  return (cleaned + '0'.repeat(26)).slice(0, 26);
+}
+
+function writeCaptureFile(dir: string, label: string, payload: ShellCommandPrePayload): string {
+  const ulid = testUlid(label);
   writeFileSync(join(dir, `${ulid}.json`), JSON.stringify(payload), 'utf-8');
+  return ulid;
 }
 
 const makePayload = (overrides: Partial<ShellCommandPrePayload> = {}): ShellCommandPrePayload => ({
@@ -56,7 +72,10 @@ const makePayload = (overrides: Partial<ShellCommandPrePayload> = {}): ShellComm
   parentProcessTree: [],
   fileArgs: [],
   source: 'claude-pretooluse',
-  captureSchemaVersion: 1,
+  captureSchemaVersion: 2,
+  capturedAt: '2026-05-19T14:30:00.000Z',
+  capturedAtSource: 'recorded',
+  sessionId: null,
   ...overrides,
 });
 

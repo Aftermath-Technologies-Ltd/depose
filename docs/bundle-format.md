@@ -3,7 +3,7 @@
 A DEPOSE bundle is the core product of DEPOSE: a directory tree
 containing a complete, verifiable evidence record of an AI coding
 agent session. This document specifies every aspect of the format so
-any third party — including the standalone `depose-verify` binary —
+any third party, including the standalone `depose-verify` binary ,
 can parse, validate, and reason about the bundle without any DEPOSE
 infrastructure.
 
@@ -88,7 +88,7 @@ incident-<ulid>/
 ## 3. Deterministic ordering
 
 `events.jsonl` is byte-pinned by `manifest.eventsJsonlSha256` and
-event order inside it is sorted by event id (ULID) — that's what the
+event order inside it is sorted by event id (ULID); that's what the
 verifier replays. Other files in the bundle are not order-sensitive
 to verification; their integrity flows through the per-event chain
 (`payloadHash` of payloads that reference artifact hashes) or via
@@ -145,30 +145,30 @@ events.jsonl  -->  per-event payloadHash (recomputed from payload bytes)
 
 Therefore, the following content is **signed** (tampering invalidates verification):
 
-- `events.jsonl` — every byte. Authenticated two independent ways:
+- `events.jsonl`, every byte. Authenticated two independent ways:
   (1) the verifier re-canonicalizes each event's `payload` and SHA-256s
   it to confirm the stored `payloadHash` matches, then replays the
   IRONROOT chain to confirm `rootHash`; (2) the verifier re-hashes
   the whole file and compares to `manifest.eventsJsonlSha256`. Both
   must pass.
-- `manifest.json` — root hash, counts, ruleset hash, events.jsonl
+- `manifest.json`, root hash, counts, ruleset hash, events.jsonl
   hash, session metadata.
-- `rules/destructive.yaml` — indirectly, because its SHA-256 is stored
+- `rules/destructive.yaml`, indirectly, because its SHA-256 is stored
   as `manifest.rulesetHash`. Changing the rules without updating the
   manifest breaks verification.
 
 ### 4.2 Unsigned but integrity-checked content
 
-- `raw/...` — verbatim source data. Not directly signed, but the normalizer
+- `raw/...`, verbatim source data. Not directly signed, but the normalizer
   produced the signed `events.jsonl` from this data. If a raw source file is
   modified, it does not invalidate the bundle, but a reviewer could detect
   the inconsistency by re-normalizing the raw data and comparing against
   `events.jsonl`.
-- `artifacts/...` — file snapshots. Their content hashes appear in the signed
+- `artifacts/...`, file snapshots. Their content hashes appear in the signed
   event payloads (via `fileArgs.preSha256` / `fileArgs.postSha256` fields in
   `ShellCommandPrePayload`). If an artifact file is modified, the verifier
   checks its SHA-256 against the event payload and flags a mismatch.
-- `attestations/signatures.json` — contains the signature over `manifest.json`.
+- `attestations/signatures.json`, contains the signature over `manifest.json`.
   Not self-signed, but verified by the verifier using the embedded public key
   or Fulcio certificate.
 
@@ -177,12 +177,12 @@ Therefore, the following content is **signed** (tampering invalidates verificati
 The following files are **explicitly excluded** from the signed trust path and
 are **not evidence**:
 
-- `narrative.md` — template-rendered prose. Deterministic, but derived from
+- `narrative.md`, template-rendered prose. Deterministic, but derived from
   `events.jsonl` (which is signed). Modifying it does not invalidate the bundle.
-- `narrative.html` — same as above, HTML render.
-- `verify.txt` — human-readable instructions. Not integrity-checked.
-- `commentary.md` (if present) — AI-generated postmortem produced by
-  `depose explain`. Explicitly labeled "AI-GENERATED COMMENTARY — NOT EVIDENCE."
+- `narrative.html`, same as above, HTML render.
+- `verify.txt`, human-readable instructions. Not integrity-checked.
+- `commentary.md` (if present), AI-generated postmortem produced by
+  `depose explain`. Explicitly labeled "AI-GENERATED COMMENTARY, NOT EVIDENCE."
   Excluded from `events.jsonl`, excluded from `rootHash`, and ignored by the
   verifier entirely.
 
@@ -244,7 +244,7 @@ interface Manifest {
    * interpret that field as nodeVersion when schemaVersion=1.
    */
   schemaVersion: 2;
-  bundleId: string;                // ULID — matches directory name
+  bundleId: string;                // ULID, matches directory name
   producedAt: string;              // ISO 8601 UTC
   producer: {
     tool: "depose";
@@ -350,7 +350,7 @@ flexibility for multi-party attestation.
   `SupportedSchemaMax = N+1` exists, older verifiers still verify
   `schemaVersion = N` bundles by design.
 - New event types and new payload fields are **additive** within a
-  schema version — they do not break existing verifiers that ignore
+  schema version; they do not break existing verifiers that ignore
   unknown fields.
 - Breaking changes (field removal, semantic alteration) require a
   major schema version bump and a new verifier code path.
@@ -371,7 +371,7 @@ flexibility for multi-party attestation.
   for the session capture environment (nullable when unknown).
   This is intentional: it aids verification of the
   capture environment and does not expose the hostname or IP.
-- Full environment variables are never stored — only an allowlisted subset and
+- Full environment variables are never stored, only an allowlisted subset and
   a SHA-256 hash of the full environment for tamper-evidence.
 - File content capture defaults to hash-only; full content storage requires
   explicit user opt-in and is limited to files under 1 MB.

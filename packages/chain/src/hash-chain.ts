@@ -12,7 +12,7 @@
 //   { id, wallTs, monoNs, sessionId, agentId, parentEventId, type, payloadHash }
 //
 // Note: payloadHash is included both as standalone input and inside metadata.
-// That is intentional and matches IRONROOT — do not "deduplicate" it.
+// That is intentional and matches IRONROOT, do not "deduplicate" it.
 
 import { createHash } from 'node:crypto';
 import { canonicalJson, type Event, type EventBase } from '@depose/core';
