@@ -149,12 +149,17 @@ jobs:
         # evidence out of every bundle built afterwards.
         run: cd apps/collect-execve && go test ./...
 
-      - name: Go execve-collector builds for macOS
+      - name: Go execve-collector typechecks for macOS
         # macOS gets no kernel collector, by decision (docs/decisions.md
         # D18), and the build-tagged stub that says so has to keep
         # compiling. Nobody runs it on darwin, which is exactly why it
         # rots without this.
-        run: cd apps/collect-execve && GOOS=darwin go build ./...
+        #
+        # vet rather than build: build ignores _test.go, and the first
+        # thing this step caught was a test file that compiled only on
+        # Linux. Catching that here means the Linux runners fail fast
+        # instead of leaving it to the macOS matrix leg.
+        run: cd apps/collect-execve && GOOS=darwin go vet ./...
 
       - name: Go capture-shim tests
         # The shim sits on PATH in front of rm, terraform, kubectl, aws, and

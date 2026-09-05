@@ -26,7 +26,6 @@
 package probe
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -37,23 +36,6 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
 )
-
-// ErrNotSupported is returned on platforms with no eBPF at all.
-var ErrNotSupported = errors.New("kernel execve capture needs Linux eBPF; on this platform DEPOSE captures through the agent hook only")
-
-// eventSize is the fixed record the program writes: 8 bytes of pid, 8 of
-// monotonic nanoseconds, 16 of comm.
-const eventSize = 32
-
-// commLen is TASK_COMM_LEN.
-const commLen = 16
-
-// Event is one exec as the kernel reported it.
-type Event struct {
-	PID    int
-	MonoNs uint64
-	Comm   string
-}
 
 // Probe is an attached tracepoint and its ring buffer.
 type Probe struct {
@@ -169,37 +151,6 @@ func (p *Probe) Read() (Event, error) {
 		return Event{}, fmt.Errorf("read the execve ring buffer: %w", err)
 	}
 	return Decode(sample.RawSample)
-}
-
-// Decode parses one 32-byte ring buffer record.
-//
-// Exported so the record layout is testable without a kernel; the layout
-// is the only contract between the assembled program and userspace.
-//
-// @param raw - The bytes the program wrote.
-// @returns The decoded exec, or an error naming the size mismatch.
-func Decode(raw []byte) (Event, error) {
-	if len(raw) < eventSize {
-		return Event{}, fmt.Errorf("execve ring buffer record is %d bytes, want %d", len(raw), eventSize)
-	}
-	comm := raw[16:32]
-	if end := indexZero(comm); end >= 0 {
-		comm = comm[:end]
-	}
-	return Event{
-		PID:    int(binary.LittleEndian.Uint64(raw[0:8])),
-		MonoNs: binary.LittleEndian.Uint64(raw[8:16]),
-		Comm:   string(comm),
-	}, nil
-}
-
-func indexZero(b []byte) int {
-	for i, c := range b {
-		if c == 0 {
-			return i
-		}
-	}
-	return -1
 }
 
 // Close detaches the probe and releases the ring buffer.

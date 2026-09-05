@@ -11,20 +11,7 @@
 // only. See docs/capture-coverage.md.
 package probe
 
-import (
-	"errors"
-	"fmt"
-)
-
-// ErrNotSupported is returned by Open on every non-Linux platform.
-var ErrNotSupported = errors.New("kernel execve capture needs Linux eBPF; on this platform DEPOSE captures through the agent hook only")
-
-// Event is one exec as the kernel reported it. Never produced here.
-type Event struct {
-	PID    int
-	MonoNs uint64
-	Comm   string
-}
+import "fmt"
 
 // Probe is never constructed on this platform.
 type Probe struct{}
