@@ -4,7 +4,7 @@
 // Only allowlisted keys are stored in plaintext in capture records.
 // The full env is hashed (not stored) for tamper-evidence.
 //
-// See BUILD_PLAN.md §7.2 (Privacy) and §7.3 (Security).
+// See docs/threat-model.md §4 (env allowlist) and §3.1 (capture store).
 
 /**
  * Default allowlist of environment variable prefixes to capture.

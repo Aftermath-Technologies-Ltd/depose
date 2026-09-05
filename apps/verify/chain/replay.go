@@ -10,15 +10,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 
 	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/canonical"
 )
 
 // Event represents a minimal event for chain verification.
+//
+// MonoNs is kept as the raw JSON token: schema 3 writes it as a decimal
+// string, schema 2 wrote a number, and the chain metadata must be
+// re-canonicalized with exactly the form the producer hashed.
 type Event struct {
 	ID            string          `json:"id"`
 	WallTs        string          `json:"wallTs"`
-	MonoNs        int             `json:"monoNs"`
+	MonoNs        json.RawMessage `json:"monoNs"`
 	SessionID     string          `json:"sessionId"`
 	AgentID       string          `json:"agentId"`
 	ParentEventID *string         `json:"parentEventId"`
@@ -28,24 +34,51 @@ type Event struct {
 	ChainHash     string          `json:"chainHash,omitempty"`
 }
 
-// EventMetadata is the set of fields included in chain hash computation.
-type EventMetadata struct {
-	ID            string          `json:"id"`
-	WallTs        string          `json:"wallTs"`
-	MonoNs        int             `json:"monoNs"`
-	SessionID     string          `json:"sessionId"`
-	AgentID       string          `json:"agentId"`
-	ParentEventID *string         `json:"parentEventId"`
-	Type          string          `json:"type"`
-	PayloadHash   string          `json:"payloadHash"`
-}
-
 // ReplayResult holds the outcome of chain replay.
 type ReplayResult struct {
 	RootHash          string
 	EventCount        int
 	HashMismatches    []HashMismatch
 	PayloadMismatches []PayloadMismatch
+	// NumericMonoNs counts events whose monoNs was written as a JSON
+	// number rather than a decimal string. Schema 3 requires strings.
+	NumericMonoNs int
+}
+
+// monoNsPattern is the schema 3 wire form: a non-negative decimal
+// integer string with no leading zeros.
+var monoNsPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
+
+// MonoNsValue decodes a monoNs token to int64 and reports whether it was
+// a string. A string must match monoNsPattern and fit int64; a number
+// must be a non-negative integer.
+func MonoNsValue(raw json.RawMessage) (value int64, isString bool, err error) {
+	if len(raw) == 0 {
+		return 0, false, fmt.Errorf("monoNs is missing")
+	}
+	if raw[0] == '"' {
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return 0, true, fmt.Errorf("monoNs is not a JSON string: %w", err)
+		}
+		if !monoNsPattern.MatchString(s) {
+			return 0, true, fmt.Errorf("monoNs %q is not a non-negative decimal integer", s)
+		}
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return 0, true, fmt.Errorf("monoNs %q does not fit int64", s)
+		}
+		return v, true, nil
+	}
+	var n json.Number
+	if err := json.Unmarshal(raw, &n); err != nil {
+		return 0, false, fmt.Errorf("monoNs is neither a string nor a number: %w", err)
+	}
+	v, err := n.Int64()
+	if err != nil || v < 0 {
+		return 0, false, fmt.Errorf("monoNs %s is not a non-negative integer", n.String())
+	}
+	return v, false, nil
 }
 
 // HashMismatch records a chain hash mismatch at a specific event.
@@ -70,7 +103,7 @@ type PayloadMismatch struct {
 
 // ReplayChain reads events.jsonl and replays the IRONROOT hash chain.
 //
-// Chain construction (verbatim from BUILD_PLAN.md §6):
+// Chain construction (docs/bundle-format.md#hash-chain):
 //
 //	chainHash[0] = SHA-256( zero32 || payloadHash[0] || eventMetadata[0] )
 //	chainHash[i] = SHA-256( chainHash[i-1] || payloadHash[i] || eventMetadata[i] )
@@ -111,13 +144,20 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 		return &ReplayResult{RootHash: "", EventCount: 0}, nil
 	}
 
-	// Sort events by id (ULID) for deterministic replay
-	// (they should already be sorted, but we verify)
-	sortEventsByID(events)
+	// The chain is defined over ascending id order and the producer
+	// writes the file in that order. Re-sorting here would let an
+	// out-of-order file replay to the sealed root while the file on disk
+	// says something else; the file must be in order as written.
+	for i := 1; i < len(events); i++ {
+		if events[i].ID < events[i-1].ID {
+			return nil, fmt.Errorf("events.jsonl is not sorted by id at line %d: %s follows %s", i+1, events[i].ID, events[i-1].ID)
+		}
+	}
 
 	var prevHash [32]byte // zero32 for first event
 	var mismatches []HashMismatch
 	var payloadMismatches []PayloadMismatch
+	numericMonoNs := 0
 
 	for i, evt := range events {
 		// ── Recompute payloadHash from the actual payload bytes ──
@@ -153,10 +193,21 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 			parentEventID = *evt.ParentEventID
 		}
 
+		monoValue, monoIsString, err := MonoNsValue(evt.MonoNs)
+		if err != nil {
+			return nil, fmt.Errorf("event %s: %w", evt.ID, err)
+		}
+		var monoNs interface{} = json.Number(strconv.FormatInt(monoValue, 10))
+		if monoIsString {
+			monoNs = strconv.FormatInt(monoValue, 10)
+		} else {
+			numericMonoNs++
+		}
+
 		metadataMap := map[string]interface{}{
 			"id":            evt.ID,
 			"wallTs":        evt.WallTs,
-			"monoNs":        evt.MonoNs,
+			"monoNs":        monoNs,
 			"sessionId":     evt.SessionID,
 			"agentId":       evt.AgentID,
 			"parentEventId": parentEventID,
@@ -200,6 +251,7 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 		EventCount:        len(events),
 		HashMismatches:    mismatches,
 		PayloadMismatches: payloadMismatches,
+		NumericMonoNs:     numericMonoNs,
 	}, nil
 }
 
@@ -227,43 +279,4 @@ func recomputePayloadHash(rawPayload json.RawMessage) (string, error) {
 	}
 	sum := sha256.Sum256(canonicalBytes)
 	return hex.EncodeToString(sum[:]), nil
-}
-
-// sortEventsByID sorts events by their ULID id field.
-func sortEventsByID(events []Event) {
-	for i := 1; i < len(events); i++ {
-		for j := i; j > 0 && events[j].ID < events[j-1].ID; j-- {
-			events[j], events[j-1] = events[j-1], events[j]
-		}
-	}
-}
-
-// hexDecode decodes a hex string to bytes.
-func hexDecode(s string) ([]byte, error) {
-	if len(s)%2 != 0 {
-		return nil, fmt.Errorf("odd length hex string")
-	}
-	b := make([]byte, len(s)/2)
-	for i := 0; i < len(s); i += 2 {
-		hi, ok1 := hexVal(s[i])
-		lo, ok2 := hexVal(s[i+1])
-		if !ok1 || !ok2 {
-			return nil, fmt.Errorf("invalid hex char in %q", s)
-		}
-		b[i/2] = hi<<4 | lo
-	}
-	return b, nil
-}
-
-func hexVal(c byte) (byte, bool) {
-	switch {
-	case c >= '0' && c <= '9':
-		return c - '0', true
-	case c >= 'a' && c <= 'f':
-		return c - 'a' + 10, true
-	case c >= 'A' && c <= 'F':
-		return c - 'A' + 10, true
-	default:
-		return 0, false
-	}
 }

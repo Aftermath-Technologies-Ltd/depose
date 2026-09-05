@@ -198,7 +198,7 @@ export function normalizeCaptureRecords(
       // Tie-breaker only. Real ordering comes from wallTs; this keeps
       // same-millisecond captures stable, and files are read in ULID order,
       // which is capture order.
-      monoNs: monoOffset + recordCount,
+      monoNs: BigInt(monoOffset + recordCount),
       sessionId,
       agentId: payload.source === 'shell-shim' ? 'shell' : agentId,
       parentEventId: null,
@@ -254,7 +254,7 @@ function captureFailedEvent(
   return {
     id,
     wallTs: payload.capturedAt,
-    monoNs,
+    monoNs: BigInt(monoNs),
     sessionId,
     agentId,
     parentEventId: null,

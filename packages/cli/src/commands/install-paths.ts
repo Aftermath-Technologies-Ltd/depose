@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 // ── Constants ────────────────────────────────────────────────────────
 
-/** Default shim binary allowlist (BUILD_PLAN.md §6) */
+/** Default shim binary allowlist (docs/shim-installation.md) */
 export const SHIM_ALLOWLIST = [
   'terraform',
   'aws',

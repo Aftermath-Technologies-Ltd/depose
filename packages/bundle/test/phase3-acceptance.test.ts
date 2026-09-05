@@ -2,7 +2,7 @@
 //
 // Phase 3 acceptance tests: active capture layer.
 // Exercises the full capture -> normalize -> merge -> bundle pipeline.
-// See BUILD_PLAN.md §6 (Phase 3) for acceptance criteria.
+// Acceptance criteria: docs/capture-coverage.md.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
@@ -83,7 +83,7 @@ describe('Phase 3 acceptance: capture -> merge -> bundle pipeline', () => {
     const toolResultEvent: Event = {
       id: generateUlid(),
       wallTs: captureEvent.wallTs,
-      monoNs: captureEvent.monoNs + 1,
+      monoNs: captureEvent.monoNs + 1n,
       sessionId: 'pipeline-test-session',
       agentId: 'claude-code',
       parentEventId: captureEvent.id,

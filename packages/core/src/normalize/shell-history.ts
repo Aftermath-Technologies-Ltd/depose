@@ -9,7 +9,7 @@
 // This normalizer emits shell_command_pre and shell_command_post
 // events for each command found.
 //
-// See BUILD_PLAN.md §4.1 for the Event schema.
+// See docs/bundle-format.md#event-schema.
 
 // ── Shell history line formats ──────────────────────────────────────
 

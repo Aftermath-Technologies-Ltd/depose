@@ -34,6 +34,10 @@ export function sortKeys(value: unknown): unknown {
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     return value;
   }
+  // bigint has no JSON form; the wire representation is its decimal string.
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
   if (Array.isArray(value)) {
     return value.map(sortKeys);
   }

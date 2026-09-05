@@ -1,7 +1,7 @@
 // packages/core/test/schema.test.ts
 //
 // Tests for event schema types and utilities.
-// BUILD_PLAN.md §4.1, §4.2
+// docs/bundle-format.md#event-schema
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -183,7 +183,7 @@ describe('isEventType', () => {
     const event: EventBase = {
       id: '01JABC1234',
       wallTs: '2025-01-01T00:00:00Z',
-      monoNs: 0,
+      monoNs: 0n,
       sessionId: 'sess-1',
       agentId: 'claude-code',
       parentEventId: null,
@@ -198,7 +198,7 @@ describe('isEventType', () => {
     const event: EventBase = {
       id: '01JABC1234',
       wallTs: '2025-01-01T00:00:00Z',
-      monoNs: 0,
+      monoNs: 0n,
       sessionId: 'sess-1',
       agentId: 'claude-code',
       parentEventId: null,

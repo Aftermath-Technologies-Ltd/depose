@@ -11,7 +11,7 @@
 // binary resolution in install-paths.ts. This file holds uninstall and
 // re-exports the surface the CLI wires up.
 //
-// See BUILD_PLAN.md §6 (Phase 3).
+// See docs/hook-installation.md and docs/shim-installation.md.
 
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';

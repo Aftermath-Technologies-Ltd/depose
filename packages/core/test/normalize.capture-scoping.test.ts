@@ -245,7 +245,7 @@ describe('capture timestamps', () => {
       {
         id: testUlid('intent'),
         wallTs: capturedAt,
-        monoNs: 1,
+        monoNs: 1n,
         sessionId: SESSION,
         agentId: 'claude-code',
         parentEventId: null,
@@ -256,7 +256,7 @@ describe('capture timestamps', () => {
       {
         id: testUlid('result'),
         wallTs: '2026-05-19T14:30:02.000Z',
-        monoNs: 2,
+        monoNs: 2n,
         sessionId: SESSION,
         agentId: 'claude-code',
         parentEventId: null,

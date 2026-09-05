@@ -1,7 +1,7 @@
 // packages/core/test/normalize.capture.test.ts
 //
 // Phase 3 acceptance tests: capture record normalization and merge integration.
-// See BUILD_PLAN.md §6 (Phase 3) for acceptance criteria.
+// Acceptance criteria: docs/capture-coverage.md.
 //
 // Tests validate:
 //   1. Hook capture record -> normalize -> merge links to tool_result
@@ -112,7 +112,7 @@ describe('Phase 3 acceptance: normalizeCaptureRecords', () => {
     const toolResultEvent: Event = {
       id: generateUlid(),
       wallTs: captureEvent.wallTs,
-      monoNs: captureEvent.monoNs + 1,
+      monoNs: captureEvent.monoNs + 1n,
       sessionId: 'acceptance-test-1',
       agentId: 'claude-code',
       parentEventId: captureEvent.id,
@@ -172,7 +172,7 @@ describe('Phase 3 acceptance: normalizeCaptureRecords', () => {
     const toolResultEvent: Event = {
       id: generateUlid(),
       wallTs: new Date().toISOString(),
-      monoNs: 0,
+      monoNs: 0n,
       sessionId: 'acceptance-test-3',
       agentId: 'claude-code',
       parentEventId: null,

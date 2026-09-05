@@ -8,8 +8,7 @@
 //   3. Identifies destructive operations (via ruleset matching)
 //   4. Cross-correlates captures vs. aftermath (git reflog, fs state)
 //
-// See BUILD_PLAN.md §4.1 for the Event schema.
-// See BUILD_PLAN.md §5 (Phase 1) for scope.
+// See docs/bundle-format.md#event-schema.
 
 import type {
   Event,
@@ -20,6 +19,7 @@ import type {
 } from '../events/schema.js';
 import type { DestructiveRule, RuleMatch } from './destructive-rules.js';
 import { buildDestructiveOpsIndex, matchDestructiveRules } from './destructive-match.js';
+import { compareByTime } from '../events/event-io.js';
 
 // ── Timeline types ───────────────────────────────────────────────────
 
@@ -80,11 +80,7 @@ export function buildTimeline(
   rules: DestructiveRule[]
 ): ReconstructionTimeline {
   // Sort events (should already be sorted, but ensure it)
-  const sorted = [...events].sort((a, b) => {
-    const tsCmp = a.wallTs.localeCompare(b.wallTs);
-    if (tsCmp !== 0) return tsCmp;
-    return a.monoNs - b.monoNs;
-  });
+  const sorted = [...events].sort(compareByTime);
 
   // Build parent-child graph
   const eventMap = new Map<string, Event>();

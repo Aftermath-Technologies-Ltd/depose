@@ -26,7 +26,7 @@ export interface InstallClaudeOptions {
 /**
  * Install the PreToolUse hook into Claude Code settings.json.
  *
- * Steps (BUILD_PLAN.md §6, Phase 3):
+ * Steps (docs/hook-installation.md):
  *   1. Read existing settings.json (or create empty)
  *   2. Create backup: .claude/settings.json.depose-backup-<ts>
  *   3. Merge hook config with conflict detection

@@ -1,7 +1,7 @@
 // packages/core/test/normalize.merge.test.ts
 //
 // Tests for event merge (multi-source, gap detection).
-// BUILD_PLAN.md §5 (Phase 1): merge with gap detection.
+// Merge with gap detection (docs/bundle-format.md#gap-events).
 //
 // Tests exercise:
 //   1. Single terraform destroy session (no gaps)
@@ -71,7 +71,7 @@ describe('mergeEvents', () => {
         shellEvents.push({
           id,
           wallTs: cmd.timestamp || '2025-05-18T15:31:00.000Z',
-          monoNs: 1,
+          monoNs: 1n,
           sessionId: shellSessionId,
           agentId: 'shell' as const,
           parentEventId: null,
@@ -115,7 +115,7 @@ describe('mergeEvents', () => {
         shellEvents.push({
           id,
           wallTs: '2025-05-18T15:31:00.000Z',
-          monoNs: 1,
+          monoNs: 1n,
           sessionId: shellSessionId,
           agentId: 'shell' as const,
           parentEventId: null,
@@ -175,7 +175,7 @@ describe('mergeEvents', () => {
       const earlier = {
         id: '01JABC12345678901234567890',
         wallTs: '2025-05-18T15:30:00.000Z',
-        monoNs: 0,
+        monoNs: 0n,
         sessionId: 'sess-1',
         agentId: 'claude-code' as const,
         parentEventId: null,
@@ -224,7 +224,7 @@ describe('mergeEvents', () => {
         shellEvents.push({
           id,
           wallTs: cmd.timestamp || '2025-05-18T15:31:00.000Z',
-          monoNs: shellEvents.length,
+          monoNs: BigInt(shellEvents.length),
           sessionId: shellSessionId,
           agentId: 'shell' as const,
           parentEventId: null,
@@ -307,7 +307,7 @@ describe('destructive rules matching', () => {
     const event = {
       id: ulidFromTime(Date.now()),
       wallTs: '2025-05-18T15:30:00.000Z',
-      monoNs: 0,
+      monoNs: 0n,
       sessionId: 'sess-1',
       agentId: 'shell' as const,
       parentEventId: null,
@@ -355,7 +355,7 @@ describe('F-06: tool_result correlation via tool_call_intent', () => {
     const intentA: Event = {
       id: ulidFromTime(baseTime),
       wallTs: new Date(baseTime).toISOString(),
-      monoNs: 0,
+      monoNs: 0n,
       sessionId: 'sess-f06',
       agentId: 'claude-code',
       parentEventId: null,
@@ -373,7 +373,7 @@ describe('F-06: tool_result correlation via tool_call_intent', () => {
     const intentB: Event = {
       id: ulidFromTime(baseTime + 1000),
       wallTs: new Date(baseTime + 1000).toISOString(),
-      monoNs: 1000,
+      monoNs: 1000n,
       sessionId: 'sess-f06',
       agentId: 'claude-code',
       parentEventId: null,
@@ -392,7 +392,7 @@ describe('F-06: tool_result correlation via tool_call_intent', () => {
     const resultA: Event = {
       id: ulidFromTime(baseTime + 2000),
       wallTs: new Date(baseTime + 2000).toISOString(),
-      monoNs: 2000,
+      monoNs: 2000n,
       sessionId: 'sess-f06',
       agentId: 'claude-code',
       parentEventId: null,
@@ -411,7 +411,7 @@ describe('F-06: tool_result correlation via tool_call_intent', () => {
     const resultB: Event = {
       id: ulidFromTime(baseTime + 3000),
       wallTs: new Date(baseTime + 3000).toISOString(),
-      monoNs: 3000,
+      monoNs: 3000n,
       sessionId: 'sess-f06',
       agentId: 'claude-code',
       parentEventId: null,
@@ -437,7 +437,7 @@ describe('F-06: tool_result correlation via tool_call_intent', () => {
     const shellPreA: Event = {
       id: ulidFromTime(baseTime + 500),
       wallTs: new Date(baseTime + 500).toISOString(),
-      monoNs: 500,
+      monoNs: 500n,
       sessionId: 'sess-f06',
       agentId: 'shell',
       parentEventId: null,
@@ -463,7 +463,7 @@ describe('F-06: tool_result correlation via tool_call_intent', () => {
     const shellPreB: Event = {
       id: ulidFromTime(baseTime + 1500),
       wallTs: new Date(baseTime + 1500).toISOString(),
-      monoNs: 1500,
+      monoNs: 1500n,
       sessionId: 'sess-f06',
       agentId: 'shell',
       parentEventId: null,
@@ -526,7 +526,7 @@ describe('F-32: payloadHash integrity after merge', () => {
     const intent: Event = {
       id: ulidFromTime(baseTime),
       wallTs: new Date(baseTime).toISOString(),
-      monoNs: 0,
+      monoNs: 0n,
       sessionId: 'sess-f32b',
       agentId: 'claude-code',
       parentEventId: null,
@@ -544,7 +544,7 @@ describe('F-32: payloadHash integrity after merge', () => {
     const result: Event = {
       id: ulidFromTime(baseTime + 1000),
       wallTs: new Date(baseTime + 1000).toISOString(),
-      monoNs: 1000,
+      monoNs: 1000n,
       sessionId: 'sess-f32b',
       agentId: 'claude-code',
       parentEventId: null,
@@ -569,7 +569,7 @@ describe('F-32: payloadHash integrity after merge', () => {
     const shellPre: Event = {
       id: ulidFromTime(baseTime + 500),
       wallTs: new Date(baseTime + 500).toISOString(),
-      monoNs: 500,
+      monoNs: 500n,
       sessionId: 'sess-f32b',
       agentId: 'shell',
       parentEventId: null,

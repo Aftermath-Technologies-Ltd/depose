@@ -36,6 +36,14 @@ export {
 } from './ids.js';
 
 export {
+  serializeEvent,
+  parseEventLine,
+  parseMonoNs,
+  compareByTime,
+  bigintReplacer,
+} from './event-io.js';
+
+export {
   canonicalJson,
   sortKeys,
   sha256,

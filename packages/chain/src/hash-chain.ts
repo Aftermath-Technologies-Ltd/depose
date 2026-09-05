@@ -2,7 +2,7 @@
 //
 // IRONROOT-style hash chain for DEPOSE evidence integrity.
 //
-// Chain construction (verbatim from BUILD_PLAN.md §6 Phase 2):
+// Chain construction (docs/bundle-format.md#hash-chain):
 //
 //   chainHash[0]   = SHA-256( zero32 || payloadHash[0] || eventMetadata[0] )
 //   chainHash[i]   = SHA-256( chainHash[i-1] || payloadHash[i] || eventMetadata[i] )
@@ -26,7 +26,7 @@ const ZERO_32 = Buffer.alloc(32, 0);
 
 /**
  * Extract the metadata fields used in chain hash computation.
- * Per BUILD_PLAN.md §6: { id, wallTs, monoNs, sessionId, agentId,
+ * Per docs/bundle-format.md#hash-chain: { id, wallTs, monoNs, sessionId, agentId,
  * parentEventId, type, payloadHash }.
  * payloadHash is intentionally included in both standalone and metadata inputs.
  */
@@ -44,6 +44,22 @@ export function extractEventMetadata(event: EventBase): Record<string, unknown> 
 }
 
 // ── Chain computation ─────────────────────────────────────────────────
+
+/**
+ * The chain is defined over events in ascending id order and the
+ * verifier replays the file in the order written, so an unsorted input
+ * would seal a chain the verifier can never reproduce. Fail here instead.
+ */
+function assertSortedById(events: Event[]): void {
+  for (let i = 1; i < events.length; i++) {
+    if (events[i]!.id < events[i - 1]!.id) {
+      throw new Error(
+        `events are not sorted by id at index ${i} (${events[i]!.id} follows ${events[i - 1]!.id}); ` +
+        `sort by id before building the chain`
+      );
+    }
+  }
+}
 
 /**
  * Compute a single chain hash for event at index i, given the previous
@@ -74,6 +90,7 @@ export function computeChainHash(
  *
  * @param events - Events sorted by id (ULID time-sort)
  * @returns Chained events and root hash
+ * @throws Error when the events are not in ascending id order
  */
 export function buildHashChain(events: Event[]): {
   chainedEvents: Event[];
@@ -82,6 +99,7 @@ export function buildHashChain(events: Event[]): {
   if (events.length === 0) {
     return { chainedEvents: [], rootHash: '' };
   }
+  assertSortedById(events);
 
   const chainedEvents: Event[] = [];
   let prevHash: Buffer = ZERO_32;

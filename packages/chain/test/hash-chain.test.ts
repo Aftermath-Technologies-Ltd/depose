@@ -21,7 +21,7 @@ function makeTestEvent(overrides: Partial<Event> = {}): Event {
   return {
     id,
     wallTs: '2025-05-18T15:30:00.000Z',
-    monoNs: 0,
+    monoNs: 0n,
     sessionId: '01JTEST0000000000000000001',
     agentId: 'claude-code',
     parentEventId: null,

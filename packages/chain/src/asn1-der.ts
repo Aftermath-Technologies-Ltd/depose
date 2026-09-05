@@ -85,8 +85,15 @@ export function parseDerElement(buf: Buffer, offset: number): DerElement | null 
     valueLen = 0;
     headerLen += 1; // count the length byte itself
     for (let i = 0; i < numLenBytes; i++) {
-      valueLen = (valueLen << 8) | buf[offset + headerLen]!;
+      // Multiply rather than shift: a 4-byte length with the top bit set
+      // overflows JavaScript's 32-bit signed shift to a negative number,
+      // which would pass the bounds check below and walk backwards.
+      valueLen = valueLen * 256 + buf[offset + headerLen]!;
       headerLen++;
+    }
+    // DER requires the shortest length encoding.
+    if (valueLen < 0x80 || (numLenBytes > 1 && valueLen < 2 ** (8 * (numLenBytes - 1)))) {
+      return null;
     }
   }
 

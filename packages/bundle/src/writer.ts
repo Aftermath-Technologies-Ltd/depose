@@ -20,7 +20,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Event, DestructiveRule } from '@depose/core';
-import { buildTimeline, sha256Bytes } from '@depose/core';
+import { buildTimeline, sha256Bytes, serializeEvent } from '@depose/core';
 import {
   buildManifest,
   serializeManifest,
@@ -177,7 +177,7 @@ export async function writeBundle(
     rootHash = chainResult.rootHash;
   }
   const eventsJsonlBytes = Buffer.from(
-    chainedEvents.map((e) => JSON.stringify(e)).join('\n') + '\n',
+    chainedEvents.map((e) => serializeEvent(e)).join('\n') + '\n',
     'utf-8'
   );
 

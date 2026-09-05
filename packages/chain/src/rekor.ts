@@ -2,8 +2,7 @@
 //
 // Optional Rekor transparency log integration for DEPOSE evidence bundles.
 //
-// Per BUILD_PLAN.md §6 Phase 2:
-//   "optional Rekor submission"
+// Optional Rekor submission.
 //
 // Rekor provides a public, append-only transparency log that records
 // when a signature was created. This provides:

@@ -13,7 +13,7 @@
 //   - process_spawn events for git operations
 //   - gap events for reflog changes without a matching command
 //
-// See BUILD_PLAN.md §4.1 for the Event schema.
+// See docs/bundle-format.md#event-schema.
 
 import type {
   AgentId,
@@ -130,7 +130,7 @@ export function parseGitReflog(content: string): GitReflogEntry[] {
  *      reflog records the RESULT, not the command)
  *
  * This is intentional: reflog changes without a captured command
- * are gaps per BUILD_PLAN.md §8.8 ("show the gap").
+ * are gaps (docs/bundle-format.md#producer-invariants: show the gap).
  */
 export function reflogToEvents(
   entries: GitReflogEntry[],
@@ -196,7 +196,7 @@ interface BuildEventParams {
   agentId: AgentId;
   type: string;
   parentEventId: string | null;
-  monoNs: number;
+  monoNs: number | bigint;
   wallTs: string;
   payload: unknown;
 }
@@ -208,7 +208,7 @@ function buildEvent(params: BuildEventParams): Event {
   return {
     id,
     wallTs,
-    monoNs,
+    monoNs: BigInt(monoNs),
     sessionId,
     agentId,
     parentEventId,

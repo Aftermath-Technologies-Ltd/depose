@@ -1,10 +1,10 @@
 // Package main, depose-verify: standalone verifier for .depo evidence bundles.
 //
 // Reads a .depo bundle directory and validates:
-//   1. Manifest signature (Ed25519)
-//   2. Hash chain integrity (IRONROOT replay)
-//   3. Artifact SHA-256 hashes
-//   4. RFC 3161 timestamp validity
+//  1. Manifest signature (Ed25519)
+//  2. Hash chain integrity (IRONROOT replay)
+//  3. Artifact SHA-256 hashes
+//  4. RFC 3161 timestamp validity
 //
 // Pure stdlib + minimal deps. No network required for core verification.
 // Rekor verification is optional and skipped gracefully if unavailable.

@@ -8,7 +8,7 @@
 //   - RFC 3161 timestamps (unless --skip-timestamp)
 //   - Rekor transparency log (deferred)
 //
-// Named exports only (BUILD_PLAN.md §3.1).
+// Named exports only.
 
 import { resolve } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';

@@ -1,7 +1,7 @@
 // packages/narrative/test/render.test.ts
 //
 // Golden snapshot tests for the deterministic narrative renderer.
-// BUILD_PLAN.md §6 Phase 4: template-driven, deterministic, every
+// Template-driven, deterministic, every
 // claim cites event ID. No LLM in signed path.
 
 import { describe, it, expect } from 'vitest';
@@ -32,7 +32,7 @@ import {
 
 const BASE = {
   wallTs: '2025-01-15T10:00:00.000Z',
-  monoNs: 1,
+  monoNs: 1n,
   sessionId: '01JKTEST000000000000000000',
   agentId: 'claude-code' as const,
   parentEventId: null,
@@ -46,17 +46,17 @@ function makePrompt(id: string, text = 'List my S3 buckets'): Event {
 
 function makeAssistant(id: string, content = 'Response'): Event {
   const payload: AssistantMessagePayload = { content };
-  return { ...BASE, id, type: 'assistant_message' as const, payload, monoNs: 2 };
+  return { ...BASE, id, type: 'assistant_message' as const, payload, monoNs: 2n };
 }
 
 function makeToolCallIntent(id: string): Event {
   const payload: ToolCallIntentPayload = { toolName: 'Bash', toolInput: { command: 'ls' } };
-  return { ...BASE, id, type: 'tool_call_intent' as const, payload, monoNs: 3 };
+  return { ...BASE, id, type: 'tool_call_intent' as const, payload, monoNs: 3n };
 }
 
 function _makeToolResult(id: string): Event {
   const payload: ToolResultPayload = { toolName: 'Bash', output: 'file1\nfile2', exitCode: 0 };
-  return { ...BASE, id, type: 'tool_result' as const, payload, monoNs: 4 };
+  return { ...BASE, id, type: 'tool_result' as const, payload, monoNs: 4n };
 }
 
 function makeGap(id: string, affectedIds: string[] = []): Event {
@@ -65,7 +65,7 @@ function makeGap(id: string, affectedIds: string[] = []): Event {
     detail: 'No shell_command_pre for this tool result',
     affectedEventIds: affectedIds,
   };
-  return { ...BASE, id, type: 'gap' as const, payload, monoNs: 5 };
+  return { ...BASE, id, type: 'gap' as const, payload, monoNs: 5n };
 }
 
 function makeTimeline(overrides: Partial<ReconstructionTimeline> = {}): ReconstructionTimeline {
@@ -359,8 +359,8 @@ describe('groupEventsIntoSections', () => {
 
   it('creates separate sections for different hours', () => {
     const events: Event[] = [
-      { ...BASE, id: '01JKPROMPT00000000000001', type: 'prompt' as const, payload: { text: 'Hello' } as PromptPayload, monoNs: 1, wallTs: '2025-01-15T10:00:00.000Z' },
-      { ...BASE, id: '01JKPROMPT00000000000002', type: 'prompt' as const, payload: { text: 'World' } as PromptPayload, monoNs: 2, wallTs: '2025-01-15T11:00:00.000Z' },
+      { ...BASE, id: '01JKPROMPT00000000000001', type: 'prompt' as const, payload: { text: 'Hello' } as PromptPayload, monoNs: 1n, wallTs: '2025-01-15T10:00:00.000Z' },
+      { ...BASE, id: '01JKPROMPT00000000000002', type: 'prompt' as const, payload: { text: 'World' } as PromptPayload, monoNs: 2n, wallTs: '2025-01-15T11:00:00.000Z' },
     ];
 
     const sections = groupEventsIntoSections(events);

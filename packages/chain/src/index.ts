@@ -1,7 +1,7 @@
 // packages/chain/src/index.ts
 //
 // Chain package, hash chain, signing, RFC 3161, sigstore, Rekor.
-// Named exports only (BUILD_PLAN.md §3.1).
+// Named exports only.
 
 // Hash chain (IRONROOT construction)
 export {

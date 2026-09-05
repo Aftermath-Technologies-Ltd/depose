@@ -4,12 +4,12 @@
 // scan over the DER blob, which a forger could pass by appending the
 // expected hash to any DER. Now we:
 //
-//   1. ParseResponse the TimeStampResp bytes (digitorus/timestamp).
-//   2. Reject any hashAlgorithm that is not SHA-256.
-//   3. Compare TSTInfo.HashedMessage to the expected SHA-256.
-//   4. Parse the embedded SignedData (pkcs7) and verify its signature
-//      with the embedded TSA signing certificate, validating the
-//      chain against a truststore of embedded RFC 3161 roots.
+//  1. ParseResponse the TimeStampResp bytes (digitorus/timestamp).
+//  2. Reject any hashAlgorithm that is not SHA-256.
+//  3. Compare TSTInfo.HashedMessage to the expected SHA-256.
+//  4. Parse the embedded SignedData (pkcs7) and verify its signature
+//     with the embedded TSA signing certificate, validating the
+//     chain against a truststore of embedded RFC 3161 roots.
 //
 // The truststore is package-level state initialized once in init(),
 // and contains the embedded FreeTSA root plus the system trust pool
@@ -97,11 +97,11 @@ func LoadTimestamps(bundleDir string) ([]Token, error) {
 
 // VerifyToken performs full RFC 3161 verification:
 //
-//   1. Base64 decode + ParseResponse.
-//   2. hashAlgorithm must be SHA-256 (reject MD5, SHA-1).
-//   3. TSTInfo.HashedMessage must equal the expected SHA-256 bytes.
-//   4. SignedData signature must verify against the embedded TSA
-//      cert; the cert chain must validate against trustPool.
+//  1. Base64 decode + ParseResponse.
+//  2. hashAlgorithm must be SHA-256 (reject MD5, SHA-1).
+//  3. TSTInfo.HashedMessage must equal the expected SHA-256 bytes.
+//  4. SignedData signature must verify against the embedded TSA
+//     cert; the cert chain must validate against trustPool.
 //
 // Returns a VerifyResult with Valid=false and a Detail string on
 // any failure. The forged-substring attack the previous verifier
@@ -145,17 +145,8 @@ func VerifyToken(token Token, expectedHashHex string) *VerifyResult {
 	}
 
 	// Signature + chain validation over the SignedData.
-	p7, err := pkcs7.Parse(parsed.RawToken)
-	if err != nil {
-		result.Detail = fmt.Sprintf("parse SignedData: %v", err)
-		return result
-	}
-	// Use VerifyWithChainAtTime so an expired TSA cert that was
-	// valid at the time of timestamping still passes; that is the
-	// whole point of long-term RFC 3161 timestamps.
-	if err := p7.VerifyWithChainAtTime(getTrustPool(), parsed.Time); err != nil {
-		result.Detail = fmt.Sprintf(
-			"SignedData signature/chain INVALID: %v", err)
+	if err := verifySignedData(parsed); err != nil {
+		result.Detail = err.Error()
 		return result
 	}
 
@@ -169,11 +160,45 @@ func VerifyToken(token Token, expectedHashHex string) *VerifyResult {
 // parseTSR tries ParseResponse first (full TimeStampResp envelope)
 // and falls back to Parse (bare TimeStampToken). Producers may emit
 // either depending on the TSA endpoint.
-func parseTSR(b []byte) (*digitstamp.Timestamp, error) {
-	if t, err := digitstamp.ParseResponse(b); err == nil {
+//
+// The bytes are checked for strict DER well-formedness first (der.go),
+// and the library calls run under a recover guard: a panic inside a
+// third-party parser becomes an error, never a crash.
+func parseTSR(b []byte) (ts *digitstamp.Timestamp, err error) {
+	if derErr := checkDER(b); derErr != nil {
+		return nil, derErr
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			ts = nil
+			err = fmt.Errorf("TSR parser panicked on malformed input: %v", r)
+		}
+	}()
+	if t, respErr := digitstamp.ParseResponse(b); respErr == nil {
 		return t, nil
 	}
 	return digitstamp.Parse(b)
+}
+
+// verifySignedData parses the token's SignedData and verifies its
+// signature and certificate chain at the token's own time, so an expired
+// TSA cert that was valid when it signed still passes; that is the whole
+// point of long-term RFC 3161 timestamps. Runs under a recover guard for
+// the same reason parseTSR does.
+func verifySignedData(parsed *digitstamp.Timestamp) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("SignedData parser panicked on malformed input: %v", r)
+		}
+	}()
+	p7, parseErr := pkcs7.Parse(parsed.RawToken)
+	if parseErr != nil {
+		return fmt.Errorf("parse SignedData: %w", parseErr)
+	}
+	if verifyErr := p7.VerifyWithChainAtTime(getTrustPool(), parsed.Time); verifyErr != nil {
+		return fmt.Errorf("SignedData signature/chain INVALID: %w", verifyErr)
+	}
+	return nil
 }
 
 // bytesEqualConstantTime is a length-checking constant-time compare.
@@ -231,4 +256,3 @@ func parseTimestamp(s string) (time.Time, error) {
 	}
 	return time.Parse("2006-01-02T15:04:05.000Z", s)
 }
-

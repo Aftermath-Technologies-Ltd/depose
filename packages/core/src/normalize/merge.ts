@@ -24,6 +24,7 @@ import type {
 } from '../events/schema.js';
 import { findMatchingShellPre } from './merge-correlate.js';
 import { buildEvent, truncateArgv, captureFailedToGap } from './merge-support.js';
+import { compareByTime } from '../events/event-io.js';
 
 // ── Merge options ────────────────────────────────────────────────────
 
@@ -119,12 +120,7 @@ export function mergeEvents(
     deduped.push(normalized);
   }
 
-  // Sort by (wallTs, monoNs)
-  deduped.sort((a, b) => {
-    const tsCmp = a.wallTs.localeCompare(b.wallTs);
-    if (tsCmp !== 0) return tsCmp;
-    return a.monoNs - b.monoNs;
-  });
+  deduped.sort(compareByTime);
 
   // Build lookup maps for correlation
   const toolCallIntentMap = new Map<string, Event>();
@@ -226,7 +222,7 @@ export function mergeEvents(
         agentId,
         type: 'gap',
         parentEventId: toolResult.id,
-        monoNs: toolResult.monoNs + 1,
+        monoNs: toolResult.monoNs + 1n,
         wallTs: toolResult.wallTs,
         payload: gapPayload,
       });
@@ -250,7 +246,7 @@ export function mergeEvents(
         agentId,
         type: 'gap',
         parentEventId: shellPre.id,
-        monoNs: shellPre.monoNs + 1,
+        monoNs: shellPre.monoNs + 1n,
         wallTs: shellPre.wallTs,
         payload: gapPayload,
       });
@@ -261,11 +257,7 @@ export function mergeEvents(
 
   // Combine: original events + gap events, re-sorted
   allEvents.push(...deduped);
-  allEvents.sort((a, b) => {
-    const tsCmp = a.wallTs.localeCompare(b.wallTs);
-    if (tsCmp !== 0) return tsCmp;
-    return a.monoNs - b.monoNs;
-  });
+  allEvents.sort(compareByTime);
 
   return {
     events: allEvents,

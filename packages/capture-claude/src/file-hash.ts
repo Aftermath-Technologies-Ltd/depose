@@ -3,7 +3,7 @@
 // File hashing for pre-execution capture.
 // Hashes file-path arguments referenced in tool input.
 //
-// See BUILD_PLAN.md §4.2 (ShellCommandPrePayload.fileArgs).
+// See docs/bundle-format.md#event-schema (ShellCommandPrePayload.fileArgs).
 //
 // F-16: Only destructive tools (Edit, Write, Bash with destructive
 // commands) trigger file hashing. Non-destructive tools (Read, Glob,
@@ -199,7 +199,7 @@ function extractFilePaths(
 /**
  * Heuristic extraction of file paths from a shell command string.
  * Looks for paths starting with / or ./ or patterns that look like file arguments.
- * This is best-effort; the shim is best-effort per BUILD_PLAN.md §6 (Phase 3).
+ * This is best-effort, like the shim (docs/capture-coverage.md).
  */
 function extractPathsFromCommand(cmd: string): string[] {
   const paths: string[] = [];

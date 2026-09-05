@@ -224,7 +224,7 @@ export function createShellCommandEvent(
   return {
     id,
     wallTs,
-    monoNs,
+    monoNs: BigInt(monoNs),
     sessionId,
     agentId: 'shell',
     parentEventId: null,

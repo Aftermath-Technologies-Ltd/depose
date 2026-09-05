@@ -2,7 +2,7 @@
 //
 // CLI main entrypoint.
 //
-// Commands (BUILD_PLAN.md §3, §6):
+// Commands:
 //   depose record --from-claude <path>     ← canonical production verb
 //   depose package --from-claude <path>    ← alias (adds --skip-timestamp for dev)
 //   depose reconstruct --from-claude <session-id>  ← deprecated, use record

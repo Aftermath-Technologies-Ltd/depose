@@ -2,7 +2,7 @@
 //
 // Ed25519 signing for DEPOSE evidence bundles.
 //
-// Key management story (BUILD_PLAN.md §6 Phase 2):
+// Key management story (docs/key-management.md):
 //   - Default: project-local Ed25519 keypair at ~/.depose/keys/signing.key
 //   - Key stored with 0600 permissions, never logged
 //   - Optional: sigstore keyless if SIGSTORE_OIDC=1 or CI with OIDC (deferred)

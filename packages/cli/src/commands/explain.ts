@@ -24,6 +24,7 @@ import {
   formatTimelineSummary,
   loadDestructiveRules,
   generateUlid,
+  parseEventLine,
   type Event,
   type AgentId,
 } from '@depose/core';
@@ -111,7 +112,7 @@ export async function handleExplain(args: ExplainCommandArgs): Promise<void> {
       .trim()
       .split('\n')
       .filter((line) => line.trim().length > 0)
-      .map((line) => JSON.parse(line) as Event);
+      .map((line) => parseEventLine(line));
   } else {
     // Read events from JSONL source
     const resolvedJsonl = resolve(jsonlPath!);
@@ -167,7 +168,7 @@ export async function handleExplain(args: ExplainCommandArgs): Promise<void> {
 /**
  * Generate a deterministic commentary from the timeline.
  *
- * Per BUILD_PLAN.md §7.8: "Never put an LLM in the signed path."
+ * Never put an LLM in the signed path (docs/architecture.md §4.1).
  * This is a template-based generator that provides a structured
  * summary. If a model-backed variant is ever added it must be opt-in
  * and labelled as such, and its output would still be excluded from

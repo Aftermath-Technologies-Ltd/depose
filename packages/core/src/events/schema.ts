@@ -91,8 +91,12 @@ export interface EventBase {
   id: string;
   /** ISO 8601 UTC wall clock timestamp (e.g. "2025-05-18T15:30:00.000Z") */
   wallTs: string;
-  /** Monotonic nanoseconds since session start (for ordering within same wallTs) */
-  monoNs: number;
+  /**
+   * Monotonic nanoseconds since session start (for ordering within the
+   * same wallTs). A bigint in memory, a decimal string on the wire; see
+   * event-io.ts.
+   */
+  monoNs: bigint;
   /** Session identifier (ULID or session-specific ID) */
   sessionId: string;
   /** Which agent/tool produced this event */

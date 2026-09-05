@@ -2,7 +2,7 @@
 //
 // RFC 3161 timestamping for DEPOSE evidence bundles.
 //
-// TSA configuration (BUILD_PLAN.md §6 Phase 2):
+// TSA configuration:
 //   Primary: FreeTSA (https://freetsa.org)
 //   Fallback: DigiCert
 //   Record which TSA responded in the token metadata.

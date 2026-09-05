@@ -15,7 +15,7 @@ interface BuildEventParams {
   agentId: AgentId;
   type: string;
   parentEventId: string | null;
-  monoNs: number;
+  monoNs: number | bigint;
   wallTs: string;
   payload: unknown;
 }
@@ -27,7 +27,7 @@ export function buildEvent(params: BuildEventParams): Event {
   return {
     id,
     wallTs,
-    monoNs,
+    monoNs: BigInt(monoNs),
     sessionId,
     agentId,
     parentEventId,

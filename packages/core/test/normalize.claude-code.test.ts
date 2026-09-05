@@ -1,7 +1,7 @@
 // packages/core/test/normalize.claude-code.test.ts
 //
 // Tests for Claude Code JSONL normalizer.
-// BUILD_PLAN.md §5 (Phase 1): passive reconstruction.
+// Passive reconstruction from the session JSONL.
 //
 // Tests exercise:
 //   1. Single terraform destroy session (no gaps)
@@ -192,7 +192,7 @@ describe('normalizeClaudeCodeJsonl', () => {
       const event = events[0];
       expect(event.id).toHaveLength(26); // ULID
       expect(event.wallTs).toBe('2025-05-18T15:30:00.000Z');
-      expect(event.monoNs).toBe(0);
+      expect(event.monoNs).toBe(0n);
       expect(event.agentId).toBe('claude-code');
       expect(event.parentEventId).toBeNull();
       expect(event.type).toBe('prompt');

@@ -39,7 +39,7 @@ export interface InstallShellOptions {
 /**
  * Install shell shim entries for destructive binaries.
  *
- * Steps (BUILD_PLAN.md §6, Phase 3):
+ * Steps (docs/shim-installation.md):
  *   1. Create $DEPOSE_BIN_DIR (default ~/.depose/bin) with 0755
  *   2. Copy depose-shim binary to $DEPOSE_BIN_DIR/depose-shim
  *   3. Create symlinks for each binary in allowlist (idempotent)

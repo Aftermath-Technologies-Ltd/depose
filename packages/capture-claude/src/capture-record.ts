@@ -3,8 +3,7 @@
 // Writes capture records (ShellCommandPrePayload JSON) to $DEPOSE_CAPTURE_DIR.
 // Each record is written as a separate file named by ULID.
 //
-// See BUILD_PLAN.md §6 (Phase 3): "Writes a ShellCommandPrePayload JSON
-// to $DEPOSE_CAPTURE_DIR/<ulid>.json"
+// The hook writes a ShellCommandPrePayload JSON to $DEPOSE_CAPTURE_DIR/<ulid>.json.
 
 import { writeFileSync, mkdirSync, chmodSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -33,7 +32,7 @@ export function getCaptureDir(): string {
 /**
  * Write a capture record to $DEPOSE_CAPTURE_DIR/<ulid>.json.
  *
- * The file is written with 0600 permissions (BUILD_PLAN.md §7.3).
+ * The file is written with 0600 permissions (docs/threat-model.md §3.1).
  *
  * @param ulid - ULID for this capture record (used as filename)
  * @param payload - The ShellCommandPrePayload to write

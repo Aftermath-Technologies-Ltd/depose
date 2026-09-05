@@ -14,8 +14,7 @@
 // facts (start time, the agent's own session id, working directories), and
 // delegates each line to the format-specific normalizer.
 //
-// See BUILD_PLAN.md §4.1 for the Event schema.
-// See BUILD_PLAN.md §5 (Phase 1) for scope: passive reconstruction only.
+// See docs/bundle-format.md#event-schema. Scope: passive reconstruction only.
 
 import type { Event } from '../events/schema.js';
 import { generateUlid } from '../events/ids.js';
@@ -41,7 +40,7 @@ export type {
  *
  * Each line is parsed as JSON. Lines that fail to parse are skipped
  * and recorded as warnings (not errors; we never silently drop data
- * per BUILD_PLAN.md §8.8).
+ * per docs/bundle-format.md#producer-invariants).
  *
  * Events are emitted in order:
  *   1. prompt (from "user" lines)

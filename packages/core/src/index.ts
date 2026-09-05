@@ -38,6 +38,15 @@ export {
   clearFixedUlidSeed,
 } from './events/ids.js';
 
+// Event wire form
+export {
+  serializeEvent,
+  parseEventLine,
+  parseMonoNs,
+  compareByTime,
+  bigintReplacer,
+} from './events/event-io.js';
+
 // Canonical JSON and hashing
 export {
   canonicalJson,

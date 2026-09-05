@@ -2,9 +2,6 @@
 //
 // Sigstore keyless signing for DEPOSE evidence bundles (optional).
 //
-// Per BUILD_PLAN.md §6 Phase 2:
-//   "Sigstore keyless: deferred to end of week 2 if Ed25519 path is
-//    fully green; otherwise pushed to Phase 4 polish."
 //
 // This module provides the interface for Sigstore keyless signing
 // when SIGSTORE_OIDC=1 is set or a CI environment with OIDC is detected.
