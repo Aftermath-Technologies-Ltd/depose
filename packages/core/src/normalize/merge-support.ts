@@ -4,7 +4,7 @@
 // binary search used to enter the correlation window, and argv rendering
 // for gap messages.
 
-import type { AgentId, Event } from '../events/schema.js';
+import type { AgentId, Event, CaptureFailedPayload, GapPayload } from '../events/schema.js';
 import { sha256 } from '../events/canonical-json.js';
 import { ulidFromTime } from '../events/ids.js';
 
@@ -69,3 +69,37 @@ export function truncateArgv(argv: string[], maxChars = 200): string {
   return `${joined.slice(0, maxChars)}... (${joined.length} chars, full argv in the linked event)`;
 }
 
+
+/**
+ * Turn a capture_failed event into the gap event the timeline carries.
+ *
+ * The gap keeps the record's id so raw/captures/<id>.json in the bundle
+ * is the source record for the gap, and the failure's own capture time so
+ * it sorts where the lost capture would have been.
+ *
+ * @param event - A capture_failed event from the capture store.
+ * @returns The equivalent gap event with reason `capture_failed`.
+ */
+export function captureFailedToGap(event: Event): Event {
+  const failure = event.payload as CaptureFailedPayload;
+  const tool = failure.toolName ? ` while capturing ${failure.toolName}` : '';
+  const payload: GapPayload = {
+    reason: 'capture_failed',
+    affectedEventIds: [],
+    detail:
+      `The capture hook threw ${failure.errorClass} in phase "${failure.phase}"${tool} ` +
+      `at ${failure.capturedAt} and wrote no capture record: ${failure.message}. ` +
+      `Whatever the agent ran at that moment has no pre-execution record.`,
+  };
+  return {
+    id: event.id,
+    wallTs: event.wallTs,
+    monoNs: event.monoNs,
+    sessionId: event.sessionId,
+    agentId: event.agentId,
+    parentEventId: null,
+    type: 'gap',
+    payload,
+    payloadHash: sha256(payload),
+  };
+}

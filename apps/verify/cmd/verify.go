@@ -37,7 +37,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	if err != nil {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "manifest-parse",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: fmt.Sprintf("Failed to parse manifest.json: %v", err),
 		})
 		result.Pass = false
@@ -56,7 +56,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	}
 	result.Checks = append(result.Checks, CheckResult{
 		Name:   "manifest-parse",
-		Pass:   true,
+		Status: StatusPass,
 		Detail: parseDetail,
 	})
 
@@ -67,8 +67,8 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	// a future or stale schema.
 	if m.SchemaVersion < SupportedSchemaMin || m.SchemaVersion > SupportedSchemaMax {
 		result.Checks = append(result.Checks, CheckResult{
-			Name: "schema-version",
-			Pass: false,
+			Name:   "schema-version",
+			Status: StatusFail,
 			Detail: fmt.Sprintf(
 				"unsupported schemaVersion %d (this verifier supports [%d, %d])",
 				m.SchemaVersion, SupportedSchemaMin, SupportedSchemaMax),
@@ -78,7 +78,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	}
 	result.Checks = append(result.Checks, CheckResult{
 		Name:   "schema-version",
-		Pass:   true,
+		Status: StatusPass,
 		Detail: fmt.Sprintf("schemaVersion %d is supported", m.SchemaVersion),
 	})
 
@@ -90,20 +90,20 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	case "signed", "dev-unsigned":
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "mode-declaration",
-			Pass:   true,
+			Status: StatusPass,
 			Detail: fmt.Sprintf("producer.mode=%q recognized", m.Producer.Mode),
 		})
 	case "":
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "mode-declaration",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: "producer.mode is missing, bundle predates the mode contract or has been stripped",
 		})
 		result.Pass = false
 	default:
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "mode-declaration",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: fmt.Sprintf("producer.mode=%q is not a recognized mode (expected signed or dev-unsigned)", m.Producer.Mode),
 		})
 		result.Pass = false
@@ -119,8 +119,8 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	case "dev-unsigned":
 		if len(m.Signatures) > 0 || len(m.Timestamps) > 0 {
 			result.Checks = append(result.Checks, CheckResult{
-				Name: "mode-contract",
-				Pass: false,
+				Name:   "mode-contract",
+				Status: StatusFail,
 				Detail: fmt.Sprintf(
 					"dev-unsigned requires signatures=[] and timestamps=[]; got %d signature(s) and %d timestamp(s)",
 					len(m.Signatures), len(m.Timestamps)),
@@ -129,15 +129,15 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		} else {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "mode-contract",
-				Pass:   true,
+				Status: StatusPass,
 				Detail: "dev-unsigned: signatures=[], timestamps=[] (as required)",
 			})
 		}
 	case "signed":
 		if len(m.Signatures) == 0 || len(m.Timestamps) == 0 {
 			result.Checks = append(result.Checks, CheckResult{
-				Name: "mode-contract",
-				Pass: false,
+				Name:   "mode-contract",
+				Status: StatusFail,
 				Detail: fmt.Sprintf(
 					"signed requires at least one signature and at least one timestamp; got %d signature(s) and %d timestamp(s)",
 					len(m.Signatures), len(m.Timestamps)),
@@ -146,7 +146,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		} else {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "mode-contract",
-				Pass:   true,
+				Status: StatusPass,
 				Detail: "signed: signatures and timestamps both present",
 			})
 		}
@@ -163,8 +163,8 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		want := opt.ExpectedKeyFingerprint
 		if got == "" {
 			result.Checks = append(result.Checks, CheckResult{
-				Name: "key-fingerprint-pin",
-				Pass: false,
+				Name:   "key-fingerprint-pin",
+				Status: StatusFail,
 				Detail: fmt.Sprintf(
 					"--expected-key-fingerprint=%s, but manifest has no producer.keyFingerprint",
 					want),
@@ -172,8 +172,8 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 			result.Pass = false
 		} else if !strings.EqualFold(got, want) {
 			result.Checks = append(result.Checks, CheckResult{
-				Name: "key-fingerprint-pin",
-				Pass: false,
+				Name:   "key-fingerprint-pin",
+				Status: StatusFail,
 				Detail: fmt.Sprintf(
 					"key fingerprint mismatch: manifest=%s..., expected=%s...",
 					truncHex(got, 16), truncHex(want, 16)),
@@ -182,7 +182,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		} else {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "key-fingerprint-pin",
-				Pass:   true,
+				Status: StatusPass,
 				Detail: fmt.Sprintf("manifest key fingerprint matches expectation (%s...)", truncHex(got, 16)),
 			})
 		}
@@ -199,14 +199,14 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		case loadErr != nil:
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "revocation-list",
-				Pass:   false,
+				Status: StatusFail,
 				Detail: fmt.Sprintf("Failed to load revocation list %q: %v", opt.RevocationListPath, loadErr),
 			})
 			result.Pass = false
 		case entry != nil && entry.Status == "revoked":
 			result.Checks = append(result.Checks, CheckResult{
-				Name: "revocation-list",
-				Pass: false,
+				Name:   "revocation-list",
+				Status: StatusFail,
 				Detail: fmt.Sprintf(
 					"key fingerprint %s... is REVOKED in %s (reason: %q, revokedAt: %s)",
 					truncHex(m.Producer.KeyFingerprint, 16),
@@ -221,7 +221,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 			}
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "revocation-list",
-				Pass:   true,
+				Status: StatusPass,
 				Detail: detail,
 			})
 		}
@@ -234,8 +234,8 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	if opt.SignerIdentityRegex != "" {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "signer-identity",
-			Pass:   true,
-			Detail: fmt.Sprintf("--signer-identity=%q recorded (no Sigstore signature in this bundle)", opt.SignerIdentityRegex),
+			Status: StatusSkipped,
+			Detail: fmt.Sprintf("--signer-identity=%q recorded, but this bundle carries no Sigstore signature to bind it to", opt.SignerIdentityRegex),
 		})
 	}
 
@@ -245,13 +245,13 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	if m.Producer.Mode == "dev-unsigned" {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "signature-verify",
-			Pass:   true,
-			Detail: "skipped (dev-unsigned)",
+			Status: StatusSkipped,
+			Detail: "dev-unsigned bundles carry no signature",
 		})
 	} else if len(m.Signatures) == 0 {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "signature-verify",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: "No signatures found, signed bundle missing signature",
 		})
 		result.Pass = false
@@ -261,7 +261,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		if err != nil {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "signature-verify",
-				Pass:   false,
+				Status: StatusFail,
 				Detail: fmt.Sprintf("Cannot re-read manifest: %v", err),
 			})
 			result.Pass = false
@@ -269,14 +269,14 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 			if err := manifest.VerifySignature(m, rawManifest); err != nil {
 				result.Checks = append(result.Checks, CheckResult{
 					Name:   "signature-verify",
-					Pass:   false,
+					Status: StatusFail,
 					Detail: fmt.Sprintf("Signature INVALID: %v", err),
 				})
 				result.Pass = false
 			} else {
 				result.Checks = append(result.Checks, CheckResult{
 					Name:   "signature-verify",
-					Pass:   true,
+					Status: StatusPass,
 					Detail: fmt.Sprintf("Ed25519 signature valid (%d signature(s))", len(m.Signatures)),
 				})
 			}
@@ -290,13 +290,13 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	if m.RootHash == "" && m.Producer.Mode == "dev-unsigned" {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "chain-replay",
-			Pass:   true,
-			Detail: "skipped (dev-unsigned: no chain)",
+			Status: StatusSkipped,
+			Detail: "dev-unsigned bundle carries no chain (rootHash empty)",
 		})
 	} else if m.RootHash == "" {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "chain-replay",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: "No root hash, signed bundle missing chain",
 		})
 		result.Pass = false
@@ -305,7 +305,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		if err != nil {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "chain-replay",
-				Pass:   false,
+				Status: StatusFail,
 				Detail: fmt.Sprintf("Chain replay error: %v", err),
 			})
 			result.Pass = false
@@ -319,8 +319,8 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 						mm.Index, mm.EventID, mm.Expected[:16], mm.Computed[:16])
 				}
 				result.Checks = append(result.Checks, CheckResult{
-					Name: "payload-hash",
-					Pass: false,
+					Name:   "payload-hash",
+					Status: StatusFail,
 					Detail: fmt.Sprintf(
 						"payloadHash mismatch at %d event(s), payload bytes do not canonicalize to the recorded hash: %s",
 						len(chainResult.PayloadMismatches), strings.Join(details, "; ")),
@@ -328,8 +328,8 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 				result.Pass = false
 			} else {
 				result.Checks = append(result.Checks, CheckResult{
-					Name: "payload-hash",
-					Pass: true,
+					Name:   "payload-hash",
+					Status: StatusPass,
 					Detail: fmt.Sprintf(
 						"all %d event payloads re-hash to their recorded payloadHash",
 						chainResult.EventCount),
@@ -344,7 +344,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 				}
 				result.Checks = append(result.Checks, CheckResult{
 					Name:   "chain-replay",
-					Pass:   false,
+					Status: StatusFail,
 					Detail: fmt.Sprintf("Chain hash mismatch at %d event(s): %s",
 						len(chainResult.HashMismatches), strings.Join(details, "; ")),
 				})
@@ -352,7 +352,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 			} else if chainResult.RootHash != m.RootHash {
 				result.Checks = append(result.Checks, CheckResult{
 					Name:   "chain-replay",
-					Pass:   false,
+					Status: StatusFail,
 					Detail: fmt.Sprintf("Root hash mismatch: manifest=%s, computed=%s",
 						m.RootHash[:16], chainResult.RootHash[:16]),
 				})
@@ -360,7 +360,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 			} else {
 				result.Checks = append(result.Checks, CheckResult{
 					Name:   "chain-replay",
-					Pass:   true,
+					Status: StatusPass,
 					Detail: fmt.Sprintf("Chain valid: %d events, root hash %s...",
 						chainResult.EventCount, chainResult.RootHash[:16]),
 				})
@@ -374,13 +374,13 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	if m.Producer.Mode == "dev-unsigned" {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "timestamp-verify",
-			Pass:   true,
-			Detail: "skipped (dev-unsigned)",
+			Status: StatusSkipped,
+			Detail: "dev-unsigned bundles carry no timestamp",
 		})
 	} else if len(m.Timestamps) == 0 {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "timestamp-verify",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: "No RFC 3161 timestamps found",
 		})
 		result.Pass = false
@@ -416,7 +416,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		if !allTimestampsValid {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "timestamp-verify",
-				Pass:   false,
+				Status: StatusFail,
 				Detail: fmt.Sprintf("Timestamp validation failed: %s",
 					strings.Join(timestampDetails, "; ")),
 			})
@@ -424,7 +424,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		} else {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "timestamp-verify",
-				Pass:   true,
+				Status: StatusPass,
 				Detail: fmt.Sprintf("%d timestamp(s) valid: %s",
 					len(m.Timestamps), strings.Join(timestampDetails, "; ")),
 			})
@@ -444,14 +444,14 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		if err := timestamp.VerifyManifestProducedAt(m.ProducedAt, tsTokens); err != nil {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "timestamp-backdating",
-				Pass:   false,
+				Status: StatusFail,
 				Detail: err.Error(),
 			})
 			result.Pass = false
 		} else {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "timestamp-backdating",
-				Pass:   true,
+				Status: StatusPass,
 				Detail: "producedAt is not after any TSA timestamp",
 			})
 		}
@@ -468,7 +468,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	if err != nil {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "artifact-events-jsonl",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: fmt.Sprintf("Cannot read events.jsonl: %v", err),
 		})
 		result.Pass = false
@@ -478,8 +478,8 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		switch {
 		case m.EventsJsonlSha256 == "" && m.Producer.Mode == "signed":
 			result.Checks = append(result.Checks, CheckResult{
-				Name: "artifact-events-jsonl",
-				Pass: false,
+				Name:   "artifact-events-jsonl",
+				Status: StatusFail,
 				Detail: fmt.Sprintf(
 					"signed bundle missing manifest.eventsJsonlSha256 (computed sha256=%s...)",
 					computedHex[:16]),
@@ -489,13 +489,13 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 			// dev-unsigned: legacy bundles may have no field; report informationally.
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "artifact-events-jsonl",
-				Pass:   true,
+				Status: StatusPass,
 				Detail: fmt.Sprintf("events.jsonl sha256=%s... (no manifest pin in dev-unsigned)", computedHex[:16]),
 			})
 		case !strings.EqualFold(computedHex, m.EventsJsonlSha256):
 			result.Checks = append(result.Checks, CheckResult{
-				Name: "artifact-events-jsonl",
-				Pass: false,
+				Name:   "artifact-events-jsonl",
+				Status: StatusFail,
 				Detail: fmt.Sprintf(
 					"events.jsonl sha256 mismatch: manifest=%s..., computed=%s...",
 					m.EventsJsonlSha256[:16], computedHex[:16]),
@@ -503,8 +503,8 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 			result.Pass = false
 		default:
 			result.Checks = append(result.Checks, CheckResult{
-				Name: "artifact-events-jsonl",
-				Pass: true,
+				Name:   "artifact-events-jsonl",
+				Status: StatusPass,
 				Detail: fmt.Sprintf(
 					"events.jsonl (%d bytes) matches manifest.eventsJsonlSha256 %s...",
 					len(eventsData), computedHex[:16]),
@@ -523,14 +523,14 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	if err != nil {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "ruleset-integrity",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: fmt.Sprintf("Cannot read rules/destructive.yaml: %v", err),
 		})
 		result.Pass = false
 	} else if m.RulesetHash == "" {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "ruleset-integrity",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: "manifest.rulesetHash is empty, cannot verify embedded ruleset",
 		})
 		result.Pass = false
@@ -540,7 +540,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		if computedHex != m.RulesetHash {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "ruleset-integrity",
-				Pass:   false,
+				Status: StatusFail,
 				Detail: fmt.Sprintf("rules/destructive.yaml hash mismatch: manifest=%s..., computed=%s...",
 					m.RulesetHash[:16], computedHex[:16]),
 			})
@@ -548,10 +548,22 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		} else {
 			result.Checks = append(result.Checks, CheckResult{
 				Name:   "ruleset-integrity",
-				Pass:   true,
+				Status: StatusPass,
 				Detail: fmt.Sprintf("rules/destructive.yaml (%d bytes) matches manifest.rulesetHash %s...",
 					len(rulesetBytes), computedHex[:16]),
 			})
+		}
+	}
+
+	// ── Check 6b: files map and attestation files ────────────────────
+	// Every file in the tree is pinned by the signed manifest.files map,
+	// and the attestation artifacts the map cannot contain are bound to
+	// the manifest by content equality. A swapped raw JSONL, an added
+	// file, a deleted .tsr, or a truncated narrative all fail here.
+	for _, check := range []CheckResult{checkFilesMap(bundlePath, m), checkAttestationFiles(bundlePath, m)} {
+		result.Checks = append(result.Checks, check)
+		if check.Failed() {
+			result.Pass = false
 		}
 	}
 
@@ -572,14 +584,14 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	if len(missingPaths) > 0 {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "bundle-completeness",
-			Pass:   false,
+			Status: StatusFail,
 			Detail: fmt.Sprintf("Missing required files: %s", strings.Join(missingPaths, ", ")),
 		})
 		result.Pass = false
 	} else {
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "bundle-completeness",
-			Pass:   true,
+			Status: StatusPass,
 			Detail: "All required files present",
 		})
 	}
@@ -595,7 +607,7 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 		}
 		result.Checks = append(result.Checks, CheckResult{
 			Name:   "rekor-verify",
-			Pass:   true, // Rekor is optional
+			Status: StatusPass, // Rekor is optional
 			Detail: fmt.Sprintf("Rekor verification skipped (%d entries), optional transparency log", skippedCount),
 		})
 	}

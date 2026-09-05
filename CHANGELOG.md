@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Signed files map.** `manifest.files` pins every file in the bundle
+  tree (raw JSONL, narrative, verify.txt, artifacts) by SHA-256 and
+  length. The verifier's new `files-map` check fails on any added,
+  deleted, or modified file and on any symlink; `attestation-files`
+  binds `signatures.json` and every `.tsr` to the manifest. Schema
+  version is now 3; v2 bundles verify with a WARN naming what the map
+  did not cover. See `docs/bundle-format.md#files-map`.
+- **Hook failures leave evidence.** The Claude PreToolUse hook writes a
+  `capture_failed` record (phase, error class, sanitized message,
+  monotonic time) before exiting 0, falling back to
+  `capture-failed.log` when the record file cannot be written. The
+  merger turns each into a `gap` event with reason `capture_failed`,
+  counted in the signed manifest and named in the narrative.
+- **Verifier check statuses.** Every check reports `PASS`, `FAIL`,
+  `SKIPPED`, or `WARN`. A skipped check is never printed as a pass.
+- **docs/decisions.md** records design forks and the option taken.
+
 - **CLI bundling.** `pnpm build` now emits a single self-contained
   `depose.mjs` and `depose-hook.mjs` under `packages/cli/dist-bundle/`
   via esbuild. The published tarball no longer depends on private
@@ -45,6 +62,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Destructive rules never fired on hook-captured commands.** The hook
+  records a Bash tool call as `['bash', '-c', <command>]` and `argvHead`
+  rules matched a strict argv prefix, so on active capture no rule could
+  fire. Rules now match every simple command inside the shell string,
+  after splitting on `&&`, `||`, `;`, `|`, and newlines, recursing into
+  subshells and `$(...)`, and stripping `sudo`, `env`, `nice`, `time`,
+  `nohup`, `command`, `exec`, `timeout`, `xargs`, `doas`, and
+  `VAR=value` prefixes. Each match records which simple command fired
+  and its index. Regression fixtures cover both example incidents
+  through the hook path plus `sudo rm -rf`, `env X=1 terraform destroy`,
+  `cd /prod && rm -rf .`, and subshell/substitution shapes.
 - **Shim install would create dangling `rm` symlink.** If
   `apps/capture-shim/depose-shim` was not built, `depose install --shell`
   silently created symlinks (including `rm`) pointing to a non-existent

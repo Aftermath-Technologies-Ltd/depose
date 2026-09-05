@@ -97,7 +97,7 @@ describe('depose reconstruct', () => {
     const manifest = JSON.parse(
       readFileSync(pathJoin(outputDir, bundleDir!, 'manifest.json'), 'utf-8'),
     );
-    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.schemaVersion).toBe(3);
     expect(manifest.rootHash).toBe(''); // Phase 1: unsigned
     // Exact counts, not `> 0`. A lower bound passed on a machine with the
     // capture hook installed even when the bundle had absorbed 18,000

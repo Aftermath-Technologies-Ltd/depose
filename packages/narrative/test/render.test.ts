@@ -119,7 +119,16 @@ describe('renderMarkdown', () => {
       ],
       destructiveOps: [{
         event: toolEvent,
-        matches: [{ ruleId: 'rm-rf', severity: 'critical', matchedArgv: ['rm', '-rf'], matchedField: 'argv[0]' }],
+        matches: [{
+          ruleId: 'rm-rf',
+          severity: 'critical',
+          matchedArgv: ['rm', '-rf'],
+          matchedField: 'argvHead',
+          simpleCommandIndex: 0,
+          simpleCommand: ['rm', '-rf', '/data'],
+          simpleCommandCount: 1,
+          strippedWrappers: [],
+        }],
       }],
     });
 

@@ -1,70 +1,63 @@
 # DEPOSE Bundle Format (.depo)
 
-A DEPOSE bundle is the core product of DEPOSE: a directory tree
-containing a complete, verifiable evidence record of an AI coding
-agent session. This document specifies every aspect of the format so
-any third party, including the standalone `depose-verify` binary ,
-can parse, validate, and reason about the bundle without any DEPOSE
-infrastructure.
+A DEPOSE bundle is a directory tree containing a complete, verifiable
+evidence record of an AI coding agent session. This document is the
+normative specification: any third party, including the standalone
+`depose-verify` binary, can parse, validate, and reason about a bundle
+from this document alone, without DEPOSE infrastructure.
+
+Section anchors (`#files-map`, `#event-schema`, ...) are referenced
+from source comments. Keep them stable.
 
 ---
 
+<a id="container-format"></a>
 ## 1. Container format
 
-The bundle today ships as a **directory tree** rooted at
-`incident-<ulid>/`. Recipients can pack and unpack it with any tool
-that handles directories (e.g. `tar -cf` for transport). Integrity is
+The bundle ships as a **directory tree** rooted at `incident-<ulid>/`
+(`incident-unsigned-<ulid>/` for dev-unsigned bundles). Recipients can
+pack and unpack it with any tool that handles directories. Integrity is
 established by cryptographic primitives over the bundle's *contents*
-(per-event payloadHash, IRONROOT chain rootHash, manifest signature,
-`manifest.eventsJsonlSha256`, `manifest.rulesetHash`), not by tar
+(per-event `payloadHash`, the IRONROOT chain `rootHash`, the signed
+[files map](#files-map), the manifest signature), not by container
 metadata, so the in-flight container is the recipient's choice.
 
-> **Note on container determinism.** Earlier drafts of this document
-> specified a deterministic POSIX USTAR archive (fixed mtime, uid/gid
-> 0, lexicographic ordering). The producer does not ship that
-> container yet. `writer.ts` writes a directory tree.
->
-> If reproducible byte-identical *archives* matter for your workflow,
-> pack after produce with GNU tar (≥1.28):
->
-> ```bash
-> producedAt=$(jq -r .producedAt incident-<id>/manifest.json)
-> tar --sort=name \
->     --mtime="$producedAt" \
->     --owner=0 --group=0 --numeric-owner \
->     --format=ustar \
->     -cf bundle.tar incident-<id>/
-> ```
->
-> `--format=ustar` keeps the archive in POSIX USTAR rather than
-> emitting PAX extended headers, which is what most modern tar builds
-> default to. PAX headers carry per-entry mtimes with sub-second
-> precision and can defeat reproducibility across hosts. macOS BSD tar
-> does not accept these flags; use `gtar` from Homebrew on macOS.
->
-> A canonical tar packer inside the producer is tracked as future
-> work, at which point this manual step goes away.
+If reproducible byte-identical *archives* matter for your workflow, pack
+after produce with GNU tar (>= 1.28):
+
+```bash
+producedAt=$(jq -r .producedAt incident-<id>/manifest.json)
+tar --sort=name \
+    --mtime="$producedAt" \
+    --owner=0 --group=0 --numeric-owner \
+    --format=ustar \
+    -cf bundle.tar incident-<id>/
+```
+
+`--format=ustar` avoids PAX extended headers, whose sub-second mtimes
+defeat reproducibility across hosts. macOS BSD tar does not accept
+these flags; use `gtar` from Homebrew.
 
 ---
 
+<a id="directory-layout"></a>
 ## 2. Directory layout
 
 ```
 incident-<ulid>/
-  manifest.json                         # Entry point. Schema version, hashes, counts.
+  manifest.json                         # Entry point. Schema version, hashes, files map, counts.
   events.jsonl                          # One Event JSON per line, sorted by id (ULID).
   raw/
     claude-code/<session>.jsonl          # Verbatim Claude Code session transcript.
-    shell-history/<host>.txt            # Shell history at capture time.
-    git-reflog.txt                       # Git reflog at capture time.
-    capture/<event-id>.json             # Pre-execution capture records.
+    shell-history/shell-history.txt     # Shell history at capture time, when supplied.
+    git-reflog.txt                       # Git reflog at capture time, when supplied.
+    captures/<event-id>.json            # Capture records behind capture-derived events.
   artifacts/
     files-pre/<sha256>/<original-basename>   # File snapshots before destructive ops.
     files-post/<sha256>/<original-basename>  # File snapshots after destructive ops.
   attestations/
-    signatures.json                     # One or more signature blocks.
-    rfc3161-timestamps/<index>.tsr      # RFC 3161 timestamp tokens.
-    rekor-entries.json                  # Optional Rekor transparency log entries.
+    signatures.json                     # The manifest's signature blocks, verbatim.
+    rfc3161-timestamps/<index>.tsr      # RFC 3161 tokens, one per manifest.timestamps[].
   rules/
     destructive.yaml                    # Exact ruleset used; hash in manifest.
   narrative.md                          # Deterministic template-rendered narrative.
@@ -72,66 +65,51 @@ incident-<ulid>/
   verify.txt                            # Plain-English instructions for the recipient.
 ```
 
+Directories that would be empty are not created, except
+`attestations/rfc3161-timestamps/`, which always exists.
+
 ### 2.1 Path conventions
 
-- **Top-level directory name**: `incident-<ulid>` where `<ulid>` is the bundle's ULID
-  (same as `manifest.bundleId`). This provides a human-readable timestamp prefix
-  and global uniqueness.
-- **File basenames in artifacts**: Preserved as `<original-basename>` to maintain
-  readability. The SHA-256 subdirectory prevents name collisions and ties the file
-  to its content hash.
-- **Capture records**: Named by the event ID they correspond to, facilitating
-  direct correlation from `events.jsonl` entries.
+- **Top-level directory name**: `incident-<ulid>` where `<ulid>` is the
+  bundle's ULID (same as `manifest.bundleId`).
+- **File basenames in artifacts**: preserved as `<original-basename>`;
+  the SHA-256 subdirectory prevents collisions and ties the file to its
+  content hash.
+- **Capture records**: named by the event id they produced, so a
+  recipient can go from an `events.jsonl` row to its source record. This
+  includes `capture_failed` records, whose event id is the id of the
+  `gap` event they became (see [gap events](#gap-events)).
+- **No symlinks.** A bundle must not contain symlinks or any non-regular
+  file. The verifier fails the `files-map` check on sight of one.
 
 ---
 
+<a id="deterministic-ordering"></a>
 ## 3. Deterministic ordering
 
-`events.jsonl` is byte-pinned by `manifest.eventsJsonlSha256` and
-event order inside it is sorted by event id (ULID); that's what the
-verifier replays. Other files in the bundle are not order-sensitive
-to verification; their integrity flows through the per-event chain
-(`payloadHash` of payloads that reference artifact hashes) or via
-`manifest.rulesetHash`.
+`events.jsonl` is byte-pinned by `manifest.eventsJsonlSha256` and event
+order inside it is sorted by event id (ULID); that is what the verifier
+replays. Every other file is pinned by the [files map](#files-map), so
+no file in the bundle is order-sensitive to verification.
 
-If you want a byte-identical *archive* across rebuilds, see the
-note in §1 about packing with deterministic tar flags after produce.
-The order described below is the order a deterministic tar packer
-would use and the order future producer-side tar support will emit.
+### 3.1 events.jsonl ordering
 
-### 3.1 Ordering rules (recommended for archival packers)
-
-1. Directory entries precede their children.
-2. Within a directory, entries are sorted by full path (e.g., `artifacts/files-pre/...`
-   comes before `artifacts/files-post/...` because `files-pre` < `files-post`).
-3. `manifest.json` is the first file entry (its path sorts first).
-4. `events.jsonl` follows immediately after `manifest.json`.
-5. `raw/...` entries follow `events.jsonl`.
-6. `artifacts/...` entries follow all `raw/...` entries.
-7. `attestations/...` entries follow all `artifacts/...` entries.
-8. `rules/...` follows `attestations/...`.
-9. `narrative.md`, `narrative.html`, `verify.txt` are last, sorted lexicographically.
-
-### 3.2 events.jsonl ordering
-
-Events within `events.jsonl` are sorted by their `id` field (ULID). Since ULIDs
-encode a timestamp in their first 48 bits, this sort is also chronological within
-a session. Events from different sessions in the same bundle share the same sort
-key space; cross-session ordering follows ULID comparison.
+Events within `events.jsonl` are sorted by their `id` field (ULID). ULIDs
+encode a millisecond timestamp in their first 48 bits, so this sort is
+also chronological within a session.
 
 ---
 
+<a id="signed-content"></a>
 ## 4. Signed vs. unsigned content
 
-Not everything in the bundle is covered by the integrity signature. This section
-defines precisely what is signed, what is unsigned, and why.
+### 4.1 Signed content
 
-### 4.1 Signed content (covered by `rootHash`)
-
-The **root hash** is the terminal hash of the IRONROOT-style hash chain over
-`events.jsonl`. It transitively covers every event's payload, metadata, and
-chain linkage. The `rootHash` is embedded in `manifest.json`, and `manifest.json`
-is what the signature covers.
+The **root hash** is the terminal hash of the IRONROOT hash chain over
+`events.jsonl`. It transitively covers every event's payload, metadata,
+and chain linkage. `rootHash`, `eventsJsonlSha256`, `rulesetHash`, and
+the `files` map are embedded in `manifest.json`, and `manifest.json` is
+what the signature covers.
 
 The signed trust path is:
 
@@ -139,116 +117,183 @@ The signed trust path is:
 events.jsonl  -->  per-event payloadHash (recomputed from payload bytes)
               -->  IRONROOT chain  -->  rootHash
               -->  manifest.eventsJsonlSha256 (over the literal file bytes)
-              -->  manifest.json
-              -->  signature
+every other file  -->  manifest.files[path] = { sha256, bytes }
+              -->  manifest.json  -->  signature  -->  RFC 3161 token
 ```
 
-Therefore, the following content is **signed** (tampering invalidates verification):
+Therefore the following content is signed (tampering invalidates
+verification):
 
-- `events.jsonl`, every byte. Authenticated two independent ways:
-  (1) the verifier re-canonicalizes each event's `payload` and SHA-256s
-  it to confirm the stored `payloadHash` matches, then replays the
-  IRONROOT chain to confirm `rootHash`; (2) the verifier re-hashes
-  the whole file and compares to `manifest.eventsJsonlSha256`. Both
-  must pass.
-- `manifest.json`, root hash, counts, ruleset hash, events.jsonl
-  hash, session metadata.
-- `rules/destructive.yaml`, indirectly, because its SHA-256 is stored
-  as `manifest.rulesetHash`. Changing the rules without updating the
-  manifest breaks verification.
+- `events.jsonl`, every byte, authenticated two ways: the verifier
+  re-canonicalizes each `payload` and compares the SHA-256 to the stored
+  `payloadHash`, then replays the chain to `rootHash`; and it re-hashes
+  the whole file against `manifest.eventsJsonlSha256`.
+- `manifest.json`: root hash, counts, ruleset hash, events.jsonl hash,
+  files map, session metadata.
+- `rules/destructive.yaml`, via `manifest.rulesetHash`.
+- `raw/**`, `artifacts/**`, `narrative.md`, `narrative.html`,
+  `verify.txt`, and any other file in the tree, via the files map.
 
-### 4.2 Unsigned but integrity-checked content
+### 4.2 Bound by content equality rather than the files map
 
-- `raw/...`, verbatim source data. Not directly signed, but the normalizer
-  produced the signed `events.jsonl` from this data. If a raw source file is
-  modified, it does not invalidate the bundle, but a reviewer could detect
-  the inconsistency by re-normalizing the raw data and comparing against
-  `events.jsonl`.
-- `artifacts/...`, file snapshots. Their content hashes appear in the signed
-  event payloads (via `fileArgs.preSha256` / `fileArgs.postSha256` fields in
-  `ShellCommandPrePayload`). If an artifact file is modified, the verifier
-  checks its SHA-256 against the event payload and flags a mismatch.
-- `attestations/signatures.json`, contains the signature over `manifest.json`.
-  Not self-signed, but verified by the verifier using the embedded public key
-  or Fulcio certificate.
+Three paths cannot be hashed into the manifest because they are derived
+from the finished manifest:
 
-### 4.3 Unsigned and non-evidentiary content
+- `manifest.json` itself is covered by the signature.
+- `attestations/signatures.json` must carry exactly the blocks in
+  `manifest.signatures`.
+- `attestations/rfc3161-timestamps/<i>.tsr` must be the byte decoding of
+  `manifest.timestamps[i].tokenBase64`, and each token commits to
+  SHA-256 of the unsigned manifest through `TSTInfo.messageImprint`.
 
-The following files are **explicitly excluded** from the signed trust path and
-are **not evidence**:
+The `attestation-files` check enforces both equalities, so a deleted,
+swapped, or added attestation file fails verification.
 
-- `narrative.md`, template-rendered prose. Deterministic, but derived from
-  `events.jsonl` (which is signed). Modifying it does not invalidate the bundle.
-- `narrative.html`, same as above, HTML render.
-- `verify.txt`, human-readable instructions. Not integrity-checked.
-- `commentary.md` (if present), AI-generated postmortem produced by
-  `depose explain`. Explicitly labeled "AI-GENERATED COMMENTARY, NOT EVIDENCE."
-  Excluded from `events.jsonl`, excluded from `rootHash`, and ignored by the
-  verifier entirely.
+### 4.3 Integrity-pinned but non-evidentiary
 
+The narrative and `verify.txt` are pinned by the files map, so a
+modified copy is detected, but they are **derived** prose, not evidence.
+The canonical record is `events.jsonl` and the verifier's own report.
+`commentary.md` from `depose explain` is written *beside* a sealed
+bundle (`<bundle>-commentary.md`), never inside it, because a file added
+to the tree after sealing fails the files map.
+
+<a id="verifier-checks"></a>
 ### 4.4 Verifier behavior
+
+Every check reports one of four statuses. A skipped or warned check is
+never rendered as PASS:
+
+| Status | Meaning |
+|---|---|
+| `PASS` | The check ran and the bundle satisfied it. |
+| `FAIL` | The check ran and the bundle did not. The run fails. |
+| `SKIPPED` | The check did not run, by mode contract or missing input. |
+| `WARN` | The check ran; the bundle is weaker than current producers emit but not invalid (a downgrade, not a tamper). |
 
 The `depose-verify` binary checks, in order:
 
-1. **manifest-parse / schema-version / mode-declaration / mode-contract**:
-   `manifest.json` parses, `schemaVersion` is in the supported range,
-   and `producer.mode` (`signed` or `dev-unsigned`) is consistent with
-   the presence of signatures and timestamps.
-2. **signature-verify**: Ed25519 signature in
-   `attestations/signatures.json` (also embedded in `manifest.signatures[]`)
-   verifies against the bytes of `manifest.json` with `signatures=[]`
-   and `timestamps=[]`.
-3. **payload-hash**: For every event in `events.jsonl`, the verifier
-   canonicalizes `payload` (RFC 8785 JCS) and SHA-256s the bytes; the
-   result must equal the stored `payloadHash`. Detects payload-string
-   rewrites that leave the hash field untouched.
-4. **chain-replay**: Replay the IRONROOT hash chain over the events,
-   sorted by ULID id; the terminal hash must equal `manifest.rootHash`.
-   Detects any mutation to `payloadHash`, `chainHash`, or chained
-   metadata fields.
-5. **timestamp-verify**: For each RFC 3161 token, ASN.1-parse the
-   TimeStampToken, enforce `hashAlgorithm = SHA-256`, compare
-   `TSTInfo.HashedMessage` to SHA-256 of the unsigned manifest, and
-   verify the embedded TSA's PKCS7 signature + cert chain against
-   the embedded FreeTSA root + system pool.
-6. **timestamp-backdating**: `manifest.producedAt` must not be after
-   any TSA token's reported time (with a 1-second tolerance for
-   whole-second TSA truncation).
-7. **artifact-events-jsonl**: SHA-256 of the on-disk `events.jsonl`
-   bytes must equal `manifest.eventsJsonlSha256`. Detects line
-   reordering, whitespace insertion, or any byte-level mutation that
-   would not otherwise show up in the per-event chain.
-8. **ruleset-integrity**: SHA-256 of `rules/destructive.yaml` must
-   equal `manifest.rulesetHash`.
-9. **bundle-completeness**: All required files
-   (`manifest.json`, `events.jsonl`,
-   `attestations/signatures.json`, `rules/destructive.yaml`,
-   `verify.txt`) are present.
+1. **manifest-parse**: `manifest.json` parses. Failure stops the run.
+2. **schema-version**: `schemaVersion` is within the supported range
+   (see [versioning](#versioning)). Failure stops the run.
+3. **mode-declaration**, **mode-contract**: `producer.mode` is `signed`
+   or `dev-unsigned` and the presence of signatures and timestamps
+   matches the declared mode.
+4. **key-fingerprint-pin** (when `--expected-key-fingerprint` is given),
+   **revocation-list** (when `--revocation-list` is given),
+   **signer-identity** (when `--signer-identity` is given; SKIPPED until
+   a Sigstore signature exists to bind it to).
+5. **signature-verify**: the Ed25519 signature in `manifest.signatures[]`
+   verifies against the canonical bytes of `manifest.json` with
+   `signatures=[]` and `timestamps=[]`. SKIPPED in dev-unsigned mode.
+6. **payload-hash**, **chain-replay**: every event's `payload`
+   canonicalizes (RFC 8785 JCS) to its `payloadHash`, and the replayed
+   chain over events sorted by id ends at `manifest.rootHash`. SKIPPED
+   in dev-unsigned mode when `rootHash` is empty.
+7. **timestamp-verify**, **timestamp-backdating**: each RFC 3161 token
+   parses, uses SHA-256, commits to SHA-256 of the unsigned manifest, and
+   carries a valid TSA signature chaining to the embedded FreeTSA root or
+   the system pool; `manifest.producedAt` is not after any token's time
+   (1 s tolerance for whole-second TSAs). SKIPPED in dev-unsigned mode.
+8. **artifact-events-jsonl**: SHA-256 of the literal `events.jsonl`
+   bytes equals `manifest.eventsJsonlSha256`.
+9. **ruleset-integrity**: SHA-256 of `rules/destructive.yaml` equals
+   `manifest.rulesetHash`.
+10. **files-map**: the tree matches `manifest.files` exactly (see
+    [files map](#files-map)). WARN on schemaVersion 2 bundles, which
+    predate the map.
+11. **attestation-files**: `attestations/signatures.json` and every
+    `.tsr` match the manifest (see 4.2).
+12. **bundle-completeness**: `manifest.json`, `events.jsonl`,
+    `attestations/signatures.json`, `rules/destructive.yaml`, and
+    `verify.txt` are present.
+13. **rekor-verify**: SKIPPED; Rekor entries are not verified offline.
 
-In `signed` mode any failure produces `RESULT: FAIL` and a non-zero
-exit. In `dev-unsigned` mode signature and timestamp checks are
-skipped by mode-contract; chain replay and payload-hash still apply.
+In `signed` mode any FAIL produces `RESULT: FAIL` and a non-zero exit.
+A `dev-unsigned` bundle never prints plain `PASS`; it prints
+`PASS (dev-unsigned, not evidence)`.
 
 ---
 
-## 5. Manifest schema
+<a id="files-map"></a>
+## 5. Files map
 
-The `manifest.json` file is the entry point for the bundle. Its schema:
+`manifest.files` pins every file in the bundle tree except the three
+paths in 4.2. It is computed by the producer **after every other file is
+on disk** and **before** the manifest is signed, so the signature and
+the RFC 3161 token both cover it.
+
+### 5.1 Field layout
+
+```ts
+files: {
+  [relativePath: string]: {
+    sha256: string;   // lowercase hex SHA-256 of the file's bytes
+    bytes: number;    // byte length of the file
+  }
+}
+```
+
+Keys are paths relative to the bundle root using forward slashes, with
+no leading `./` or `/`, no empty segments, and no `.` or `..` segments.
+A key that violates this fails verification regardless of what is on
+disk. Canonical JSON (JCS) sorts the keys; producers emit them in the
+walk order below, which is the same order.
+
+### 5.2 Excluded paths
+
+```
+manifest.json
+attestations/signatures.json
+attestations/rfc3161-timestamps/*
+```
+
+A files map that lists any of these is invalid.
+
+### 5.3 Normative walk order
+
+Depth-first over the tree starting at the bundle root. Within each
+directory, entries are visited in byte-wise lexicographic order of their
+UTF-8 names. Directories are descended into when reached in that order;
+they contribute no entries of their own. Empty directories are ignored.
+A symlink or any non-regular file anywhere in the tree is an error.
+
+The resulting key order equals byte-wise lexicographic order of the full
+relative paths, which is also the JCS key order in the manifest.
+
+### 5.4 Verifier behavior
+
+The verifier walks the tree with the same rules and fails `files-map`
+when:
+
+- any path is on disk but absent from the map (a file was added),
+- any path is in the map but absent from disk (a file was deleted),
+- any `sha256` or `bytes` disagrees with the file on disk,
+- any symlink or non-regular file exists anywhere in the tree,
+- any key is unsafe (5.1) or excluded (5.2).
+
+On a `schemaVersion: 2` bundle, which has no `files` field, the check
+reports WARN and names what is therefore not integrity-covered.
+
+---
+
+<a id="manifest-schema"></a>
+## 6. Manifest schema
 
 ```ts
 interface Manifest {
   /**
-   * Schema version 2 adds producer.host.nodeVersion, producer.host.kernel
-   * (from os.release()), and session.host. v1 manifests (schemaVersion=1)
-   * used producer.host.kernel for the Node.js version; verifiers should
-   * interpret that field as nodeVersion when schemaVersion=1.
+   * 3: adds the signed `files` map.
+   * 2: added producer.host.nodeVersion, producer.host.kernel, session.host.
    */
-  schemaVersion: 2;
+  schemaVersion: 3;
   bundleId: string;                // ULID, matches directory name
   producedAt: string;              // ISO 8601 UTC
   producer: {
     tool: "depose";
     version: string;               // semver of the producing CLI
+    mode: "signed" | "dev-unsigned";
+    keyFingerprint?: string;       // SHA-256 of the signing key's SPKI DER (signed mode)
     host: {
       os: string;
       arch: string;
@@ -261,15 +306,16 @@ interface Manifest {
     sessionId: string;
     startedAt: string;
     endedAt: string;
-    host?: {
+    host: {
       os: string | null;
       arch: string | null;
       nodeVersion: string | null;
       kernel: string | null;
-    };
+    } | null;
   };
   rootHash: string;                // Terminal chain hash over events.jsonl
   eventsJsonlSha256: string;       // SHA-256 of the literal events.jsonl bytes
+  files: Record<string, { sha256: string; bytes: number }>;  // see §5
   signatures: SignatureBlock[];
   timestamps: Rfc3161Token[];
   rekor?: RekorEntry[];
@@ -279,17 +325,33 @@ interface Manifest {
     gaps: number;
     artifactsPre: number;
     artifactsPost: number;
+    capturesAttributed: number;
+    capturesExcluded: number;
   };
   rulesetHash: string;            // SHA-256 of rules/destructive.yaml
 }
 ```
 
-Full TypeScript definitions for `SignatureBlock`, `Rfc3161Token`, and `RekorEntry`
-are in `packages/bundle/src/manifest.ts`.
+Full TypeScript definitions for `SignatureBlock`, `Rfc3161Token`, and
+`RekorEntry` are in `packages/bundle/src/manifest.ts`. The Go verifier
+mirrors them in `apps/verify/manifest/manifest.go`.
+
+### 6.1 Signing procedure
+
+1. Build the manifest with `signatures: []` and `timestamps: []` and
+   the final `files` map.
+2. Serialize with RFC 8785 JCS. Sign the bytes with Ed25519 (pure, no
+   pre-hash). Put the signature block in `manifest.signatures`.
+3. Serialize the manifest again with `signatures: []` and
+   `timestamps: []` (identical bytes to step 2), SHA-256 it, and send
+   that digest to the TSA. Put the token in `manifest.timestamps`.
+4. Write `manifest.json` (JCS), `attestations/signatures.json`, and the
+   `.tsr` files.
 
 ---
 
-## 6. Event schema (events.jsonl)
+<a id="event-schema"></a>
+## 7. Event schema (events.jsonl)
 
 Each line is a canonical-JSON serialized `Event` object. Fields:
 
@@ -299,81 +361,163 @@ Each line is a canonical-JSON serialized `Event` object. Fields:
 | `wallTs`         | string (ISO 8601 UTC)    | Wall-clock timestamp                         |
 | `monoNs`         | number                   | Monotonic nanoseconds since session start    |
 | `sessionId`      | string                   | Session identifier                           |
-| `agentId`        | string enum              | Agent that produced this event               |
+| `agentId`        | string enum              | `claude-code`, `codex`, `cursor`, `shell`, `unknown` |
 | `parentEventId`  | string \| null           | Causal parent in the event graph             |
-| `type`           | string enum              | Event type (see EventType union)            |
-| `payload`        | unknown (discriminated)  | Type-specific data                           |
+| `type`           | string enum              | Event type (below)                           |
+| `payload`        | object (discriminated)   | Type-specific data                           |
 | `payloadHash`    | string (SHA-256)         | Hash of canonical JSON of payload            |
+| `correlation`    | object (optional)        | Cross-links set by the merger; not hashed    |
 | `chainHash`      | string (optional)        | Hash chain link; populated by chain pass     |
 
-Canonical JSON serialization follows RFC 8785 JSON Canonicalization Scheme (JCS).
-This ensures deterministic hashing across JavaScript runtimes and the Go verifier.
+Event types: `prompt`, `assistant_message`, `tool_call_intent`,
+`tool_call_executed`, `tool_result`, `file_diff`, `shell_command_pre`,
+`shell_command_post`, `env_change`, `process_spawn`, `error`, `gap`,
+`capture_failed`. Payload shapes are in
+`packages/core/src/events/payloads.ts`. `capture_failed` events exist
+only in the capture store; the merger replaces each with a `gap` event
+before anything reaches a bundle.
+
+<a id="hash-chain"></a>
+### 7.1 Hash chain
+
+```
+chainHash[0] = SHA-256( zero32 || payloadHash[0] || eventMetadata[0] )
+chainHash[i] = SHA-256( chainHash[i-1] || payloadHash[i] || eventMetadata[i] )
+rootHash     = chainHash[N-1]
+```
+
+`payloadHash` is fed as its UTF-8 hex string, not decoded bytes.
+`eventMetadata` is the JCS serialization of
+`{ id, wallTs, monoNs, sessionId, agentId, parentEventId, type, payloadHash }`.
+`payloadHash` appears both standalone and inside the metadata; that is
+intentional. Events are chained in `id` order.
+
+<a id="gap-events"></a>
+### 7.2 Gap events
+
+A `gap` event is the system's accounting of what it could not observe.
+`payload.reason` is one of:
+
+| Reason | Emitted when |
+|---|---|
+| `tool_result_without_pre_capture` | A tool result has no matching pre-execution capture. |
+| `pre_capture_without_tool_result` | A capture record has no matching tool result. |
+| `shell_history_without_jsonl_correlation` | A shell-history entry correlates to nothing in the session. |
+| `reflog_change_without_command` | A reflog change has no observed command. |
+| `jsonl_line_unparseable` | A session log line could not be parsed. |
+| `unknown_jsonl_line_type` | A session log line has an unrecognized type. |
+| `capture_failed` | The capture hook threw and wrote no record. The gap's `id` is the failure record's ULID; its `detail` names the hook phase, error class, and sanitized message. |
 
 ---
 
-## 7. Signature schemes
+<a id="destructive-ruleset"></a>
+## 8. Destructive ruleset
 
-### 7.1 Ed25519 (default)
+`rules/destructive.yaml`:
 
-- Local keypair stored at `~/.depose/keys/signing.key` (0600 permissions).
+```yaml
+version: 1
+rules:
+  - id: terraform-destroy
+    matcher:
+      argvHead: ["terraform", "destroy"]
+    severity: critical
+```
+
+Matcher criteria (all defined criteria must match):
+
+| Criterion | Semantics |
+|---|---|
+| `argvHead` | Case-insensitive exact match of the leading argv tokens. |
+| `argvContainsAny` | Some argv token contains one of the strings (case-sensitive). |
+| `anyArgvRegex` | Some argv token matches the regex (PCRE-style leading `(?i)` etc. honoured). |
+| `stdinRegex` | The simple command's full text matches the regex (stdin itself is not captured). |
+
+Severity is `critical`, `high`, `medium`, or `low`.
+
+<a id="destructive-rule-matching"></a>
+### 8.1 Destructive rule matching
+
+Rules match **simple commands**, not the recorded argv verbatim. The
+Claude PreToolUse hook records a Bash tool call as
+`["bash", "-c", "<command>"]`; a `tool_call_intent` from the session log
+carries the raw command string. Both are expanded the same way:
+
+1. If argv is `<shell> [flags] -c <string>`, the string is parsed as a
+   shell command list. `sh`, `bash`, `zsh`, `dash`, `ksh`, `fish`, and
+   `ash` count as shells, by basename; `-lc` and `-ec` count as `-c`.
+2. The list is split into simple commands on `&&`, `||`, `|`, `|&`,
+   `;`, `&`, and newlines, honouring single quotes, double quotes,
+   backslash escapes, comments, heredocs, and redirections (which are
+   removed along with their targets). Subshells `( ... )`, `$( ... )`,
+   and backticks are recursed into and their commands emitted in source
+   order.
+3. Each simple command has leading `VAR=value` assignments and these
+   wrappers stripped, repeatedly, with the flags each takes: `sudo`,
+   `doas`, `env`, `nice`, `time`, `nohup`, `command` (not `command -v`),
+   `exec`, `timeout`, `xargs`, `builtin`. A wrapped `<shell> -c` is
+   expanded per step 1.
+4. Every rule is tested against every simple command. A rule fires if
+   any simple command satisfies all of its criteria. The match records
+   `simpleCommandIndex` (zero-based, source order across the whole
+   compound command), `simpleCommand` (the argv after stripping),
+   `simpleCommandCount`, and `strippedWrappers`.
+
+The narrative renders the matched simple command with its position
+(`command 2 of 3`) and the wrappers it was reached through.
+
+---
+
+<a id="signature-schemes"></a>
+## 9. Signature schemes
+
+### 9.1 Ed25519
+
+- Local keypair stored at `~/.depose/keys/signing.key` (0600).
 - Public key embedded in the `SignatureBlock` as PEM.
-- Signature is over the canonical JSON of `manifest.json`.
+- Signature is over the JCS bytes of the unsigned manifest (§6.1).
 
-### 7.2 Sigstore Fulcio (opt-in)
+### 9.2 Sigstore Fulcio
 
-- Activated when `SIGSTORE_OIDC=1` or a CI environment with OIDC is detected.
-- Keyless signing via Fulcio; X.509 certificate embedded in the `SignatureBlock`.
-- No local key material required.
-- Identity bound to OIDC provider (GitHub Actions, Google, etc.).
-
-Both schemes can coexist in a single bundle's `signatures` array, providing
-flexibility for multi-party attestation.
+Not implemented. `SignatureBlock.scheme` reserves the value
+`sigstore-fulcio`; the verifier rejects any block that is not `ed25519`.
 
 ---
 
-## 8. Versioning
+<a id="versioning"></a>
+## 10. Versioning
 
-- `manifest.schemaVersion` is `2`. v1 bundles (schemaVersion=1) are still
-  accepted by the verifier, but `producer.host.kernel` in v1 bundles held the
-  Node.js version rather than the OS kernel release; interpret it as
-  `nodeVersion` when processing v1 manifests.
+- `manifest.schemaVersion` is `3`.
 - **Verifier compatibility policy.** A verifier with code-level
-  `SupportedSchemaMax = N` supports the range `[N-1, N]`. Bundles
-  with `schemaVersion` outside that range are rejected with
-  `unsupported schemaVersion` and a non-zero exit code; the verifier
-  does not attempt to parse a future schema's manifest, since silent
-  best-effort parsing of an evolved schema is how integrity bugs
-  get shipped.
-- Bumping `schemaVersion` from `N` to `N+1` requires a new verifier
-  release that raises both `SupportedSchemaMin` (to `N`) and
-  `SupportedSchemaMax` (to `N+1`). Once a verifier with
-  `SupportedSchemaMax = N+1` exists, older verifiers still verify
-  `schemaVersion = N` bundles by design.
-- New event types and new payload fields are **additive** within a
-  schema version; they do not break existing verifiers that ignore
-  unknown fields.
-- Breaking changes (field removal, semantic alteration) require a
-  major schema version bump and a new verifier code path.
-- The `producer.version` field (semver) identifies the specific
-  `depose` CLI that produced the bundle, enabling per-version
-  behavior if needed.
+  `SupportedSchemaMax = N` supports the range `[N-1, N]`; today that is
+  `[2, 3]`. Bundles outside that range are rejected with
+  `unsupported schemaVersion` and a non-zero exit; the verifier does not
+  attempt to parse a future schema's manifest.
+- A `schemaVersion: 2` bundle has no files map; the `files-map` check
+  reports WARN rather than FAIL for it.
+- New event types and payload fields are additive within a schema
+  version; they do not break verifiers that ignore unknown fields.
+- Breaking changes (field removal, semantic alteration) require a schema
+  version bump and a new verifier code path.
+- `producer.version` (semver) identifies the producing CLI.
 
 ---
 
-## 9. Security considerations
+<a id="security-considerations"></a>
+## 11. Security considerations
 
-- The bundle does **not** encrypt its contents. If confidentiality is required,
-  encrypt the `.depo` file at the transport layer (e.g., age, GPG, S3 SSE).
-- `manifest.producer.host` reveals the OS, architecture, Node.js version, and
-  kernel release of the producing machine. In v1 (schemaVersion=1) bundles,
-  the `kernel` field held the Node.js version instead of the OS kernel; this
-  was corrected in v2. `manifest.session.host` reveals the same information
-  for the session capture environment (nullable when unknown).
-  This is intentional: it aids verification of the
-  capture environment and does not expose the hostname or IP.
-- Full environment variables are never stored, only an allowlisted subset and
-  a SHA-256 hash of the full environment for tamper-evidence.
-- File content capture defaults to hash-only; full content storage requires
-  explicit user opt-in and is limited to files under 1 MB.
+- The bundle does **not** encrypt its contents. If confidentiality is
+  required, encrypt at the transport layer (age, GPG, S3 SSE).
+- `manifest.producer.host` reveals the OS, architecture, Node.js
+  version, and kernel release of the producing machine.
+  `manifest.session.host` reveals the same for the capture environment
+  (nullable). This aids verification of the capture environment and does
+  not expose the hostname or IP.
+- Full environment variables are never stored, only an allowlisted
+  subset and a SHA-256 of the full environment.
+- File content capture defaults to hash-only.
+- A `capture_failed` record carries the first line of the error message
+  with control characters removed and the home directory replaced by
+  `~`. It never carries a stack trace.
 
-See `docs/threat-model.md` for a complete security analysis.
+See `docs/threat-model.md` for the complete security analysis.

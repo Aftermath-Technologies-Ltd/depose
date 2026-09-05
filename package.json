@@ -22,7 +22,7 @@
     "test:all": "vitest run && npm run test:go",
     "test:watch": "vitest",
     "lint": "eslint packages/ tests/ --max-warnings 0",
-    "typecheck": "tsc --build --noEmit"
+    "typecheck": "pnpm -r run typecheck"
   },
   "devDependencies": {
     "@types/node": "^24.0.10",

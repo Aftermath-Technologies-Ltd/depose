@@ -52,7 +52,7 @@ The Claude Code PreToolUse hook only fires for tools that Claude Code explicitly
 
 ## What the shim does NOT catch
 
-Per BUILD_PLAN.md §6 (Phase 3), the shell shim is best-effort:
+The shell shim is best-effort:
 
 1. **Absolute paths**, `/usr/bin/terraform destroy` bypasses the shim's PATH interception.
 2. **Tool aliases**, `tofu destroy` instead of `terraform destroy` (unless user adds `tofu` to the shim allowlist).
@@ -103,6 +103,10 @@ the merger emits an event of `type: gap` with one of:
   that doesn't correlate to anything in the Claude Code session.
 - `reflog_change_without_command`, git reflog change with no
   observed command.
+- `capture_failed`, the hook threw before it could write a record.
+  The hook writes a `capture_failed` record (or, if even that fails,
+  a line in `capture-failed.log`) naming the phase and error; the
+  merger turns it into this gap so a lost capture is disclosed.
 
 The verifier replays the chain, including gap events, exactly as the
 producer wrote them. A bundle whose `counts.gaps` is zero is a

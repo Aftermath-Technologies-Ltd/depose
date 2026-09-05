@@ -187,6 +187,14 @@ producer applied before sharing.
   which is signed.
 - Modify `rules/destructive.yaml` without invalidating the
   `ruleset-integrity` check (manifest carries the SHA-256).
+- Modify, replace, add, or delete any other file in the tree. The
+  signed `manifest.files` map pins every file (`raw/`, `artifacts/`,
+  the narrative, `verify.txt`) by SHA-256 and length; the `files-map`
+  check walks the tree and fails on any difference, including a
+  planted symlink. The attestation files the map cannot contain are
+  bound by content equality in the `attestation-files` check, so a
+  deleted or swapped `.tsr` also fails. See
+  `docs/bundle-format.md#files-map`.
 - Replay the bundle's timestamps against a different manifest. RFC
   3161 tokens commit to `SHA-256(unsigned manifest)` via
   `TSTInfo.HashedMessage`.
@@ -195,11 +203,12 @@ producer applied before sharing.
 
 **What they *can* do without changing the verification outcome:**
 
-- Modify `narrative.md` / `narrative.html` / `verify.txt`; these
-  are documented in `docs/bundle-format.md §4.3` as non-evidentiary.
-  A modified narrative does not invalidate the bundle, but a
-  recipient who reads it cannot rely on it; the canonical record is
-  `events.jsonl` and the verifier's own report.
+- Nothing inside the bundle directory. Every file is either signed
+  through the files map or bound to the manifest by content equality.
+  The narrative and `verify.txt` remain non-evidentiary (they are
+  derived prose; the canonical record is `events.jsonl` and the
+  verifier's own report), but a modified copy is now detected rather
+  than tolerated.
 
 **Mitigation:** Before producing a bundle for sharing, audit the
 contents. Use the hash-only default for file contents. Trim the
@@ -413,7 +422,37 @@ going through the shell, cannot be intercepted by a PATH shim.
 gap event system will flag it if a `tool_result` appears without a
 corresponding `shell_command_pre` capture.
 
-### 6.5 Stdin tee threshold
+### 6.5 Hook failures
+
+The Claude PreToolUse hook exits 0 on any error so it can never block
+the agent. Before this behaviour was paired with evidence, an
+exception in the hook produced no record at all, and the resulting
+bundle looked complete. The hook now writes a `capture_failed` record
+(phase, error class, sanitized first line of the message, monotonic
+time, session id) before exiting, falling back to a line in
+`capture-failed.log` when the record file cannot be written. The
+merger turns each into a `gap` event with reason `capture_failed`,
+counted in the signed manifest and surfaced in the narrative.
+
+**Residual gap:** a failure while reading or parsing the hook's stdin
+cannot know the session id, so its record is unattributed and only
+enters a bundle when the producer opts in with
+`--include-unscoped-captures`.
+
+### 6.6 Destructive rules on wrapped commands
+
+Rules match every simple command a shell would run, after stripping
+`sudo`, `env`, `nice`, `time`, `nohup`, `command`, `exec`, `timeout`,
+`xargs`, `doas`, and `VAR=value` prefixes, and after recursing into
+`bash -c` strings, subshells, and command substitutions. Evasions this
+closes: `sudo rm -rf`, `env X=1 terraform destroy`,
+`cd /prod && rm -rf .`, `(cd /prod && rm -rf .)`, `$(terraform destroy)`.
+Evasions it does not close: a destructive command hidden in a script
+file the agent wrote earlier and then executed (`bash deploy.sh`), an
+alias, or a binary renamed by the agent. Those remain visible only as
+the file writes and executions themselves.
+
+### 6.7 Stdin tee threshold
 
 The shim tees stdin to a temp file for capture when stdin is under
 1 MB. Above 1 MB, stdin is hash-only with a metadata note. This
@@ -488,6 +527,8 @@ called out so the reader does not infer protection that isn't there:
 | Attacker modifies verifier | False PASS reports | Published checksums, reproducible builds | Recipient must verify the verifier |
 | Compromised host | All captures suspect | Post-hoc tamper detection only | Cannot defend against kernel-level adversary |
 | Shim bypass | Missing capture records | Gap events, Claude Code hook | Absolute paths, aliases, direct execve |
+| Hook exception | Lost capture looks like a clean timeline | capture_failed record and gap event | stdin read/parse failures are unattributed |
+| Wrapped destructive command | Rule never fires on active capture | Simple-command expansion and wrapper stripping | Commands hidden in scripts or aliases |
 | Large stdin not captured | Incomplete payload record | Configurable tee threshold | Producer must raise limits for relevant sessions |
 
 The core trade-off is between **evidentiary completeness** and

@@ -3,14 +3,28 @@
 // Capture-claude package, Claude Code PreToolUse hook support.
 // Phase 3: Active capture layer.
 //
-// Named exports only (BUILD_PLAN.md §3.1).
+// Named exports only.
 
-// Hook handler (main Phase 3 entrypoint)
+// Hook handler
 export {
   handlePreToolUse,
+  runHook,
   runHookCli,
+  clearProcessTreeCache,
   type HookInput,
+  type HookDeps,
+  type HookOutcome,
 } from './hook-entry.js';
+
+// Failure evidence
+export {
+  writeCaptureFailedRecord,
+  buildCaptureFailedPayload,
+  sanitizeErrorMessage,
+  type HookPhase,
+  type HookFailure,
+  type CaptureFailedOutcome,
+} from './capture-failed.js';
 
 // Capture record I/O
 export {

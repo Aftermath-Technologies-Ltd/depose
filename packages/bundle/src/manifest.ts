@@ -2,21 +2,24 @@
 //
 // Manifest schema and builder for .depo bundles.
 //
-// The manifest is the entrypoint of a .depo bundle (see BUILD_PLAN.md §4.3
-// and §5). It contains:
+// The manifest is the entrypoint of a .depo bundle. It contains:
 //   - Bundle metadata (schema version, ID, producer info, session info)
-//   - Integrity data (rootHash, signatures, timestamps)
+//   - Integrity data (rootHash, files map, signatures, timestamps)
 //   - Counts (events, destructive ops, gaps, artifacts)
 //   - Ruleset hash (for reproducibility)
 //
-// See BUILD_PLAN.md §4.3 for the full schema.
+// See docs/bundle-format.md#manifest-schema for the normative schema.
 
 import { canonicalJson, sha256String } from '@depose/core';
 import type { Event } from '@depose/core';
 import { buildDestructiveOpsIndex, type DestructiveRule } from '@depose/core';
 import { platform, arch, release } from 'node:os';
+import type { FilesMap } from './files-map.js';
 
-// ── Manifest types (verbatim from BUILD_PLAN.md §4.3) ────────────────
+// ── Manifest types ───────────────────────────────────────────────────
+
+/** Schema version this producer writes. */
+export const MANIFEST_SCHEMA_VERSION = 3;
 
 /**
  * Bundle production mode.
@@ -38,17 +41,14 @@ export type BundleMode = 'signed' | 'dev-unsigned';
 export interface Manifest {
   /**
    * Schema version of the manifest format.
-   * Version 2 adds `producer.host.nodeVersion` (replacing the misnamed `kernel`
-   * that held the Node.js version), a proper `producer.host.kernel` from
-   * `os.release()`, and `session.host` for session-capture environment metadata.
    *
-   * **Deprecation note:** v1 manifests (schemaVersion=1) used `producer.host.kernel`
-   * to store the Node.js process version (e.g. "v20.19.0") rather than the OS
-   * kernel release. Verifiers MUST continue to accept schemaVersion=1; the field
-   * should be interpreted as `nodeVersion` when the manifest declares
-   * schemaVersion=1.
+   * Version 3 adds the signed `files` map covering every file in the
+   * bundle tree. Version 2 added `producer.host.nodeVersion`, a proper
+   * `producer.host.kernel`, and `session.host`. The verifier accepts
+   * [2, 3]; a v2 bundle has no files map and the verifier reports that
+   * as a downgrade rather than a failure.
    */
-  schemaVersion: 2;
+  schemaVersion: 3;
   bundleId: string;
   producedAt: string;
   producer: {
@@ -111,6 +111,12 @@ export interface Manifest {
    * but requires a non-empty value in signed mode.
    */
   eventsJsonlSha256: string;
+  /**
+   * Every file in the bundle tree except manifest.json,
+   * attestations/signatures.json, and attestations/rfc3161-timestamps/*,
+   * keyed by relative path. Signed. See docs/bundle-format.md#files-map.
+   */
+  files: FilesMap;
   signatures: SignatureBlock[];
   timestamps: Rfc3161Token[];
   rekor?: RekorEntry[];
@@ -164,8 +170,8 @@ export interface RekorEntry {
 /**
  * Build a manifest from a list of events and destructive rules.
  *
- * This is the Phase 1 (unsigned) manifest builder. Signatures and
- * timestamps are empty (populated in Phase 2).
+ * Signatures and timestamps start empty; the writer fills them after
+ * the files map is final.
  *
  * @param events - Sorted list of events
  * @param rules - Destructive ruleset
@@ -186,6 +192,7 @@ export function buildManifest(
     rulesetHash: string;
     rootHash: string;
     eventsJsonlSha256: string;
+    files?: FilesMap;
     keyFingerprint?: string;
     capturesAttributed?: number;
     capturesExcluded?: number;
@@ -196,7 +203,7 @@ export function buildManifest(
   const fileChanges = events.filter((e) => e.type === 'file_diff');
 
   return {
-    schemaVersion: 2 as const,
+    schemaVersion: MANIFEST_SCHEMA_VERSION,
     bundleId: options.bundleId,
     producedAt: options.producedAt,
     producer: {
@@ -220,6 +227,7 @@ export function buildManifest(
     },
     rootHash: options.rootHash,
     eventsJsonlSha256: options.eventsJsonlSha256,
+    files: options.files ?? {},
     signatures: [],
     timestamps: [],
     counts: {

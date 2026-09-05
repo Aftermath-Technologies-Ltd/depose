@@ -1,6 +1,6 @@
 // packages/core/src/events/index.ts
 //
-// Named exports only (BUILD_PLAN.md §3.1).
+// Named exports only.
 // Re-exports all event types, payloads, and utilities.
 
 export type {
@@ -20,6 +20,7 @@ export type {
   ProcessSpawnPayload,
   ErrorPayload,
   GapPayload,
+  CaptureFailedPayload,
 } from './schema.js';
 
 export { isEventType } from './schema.js';

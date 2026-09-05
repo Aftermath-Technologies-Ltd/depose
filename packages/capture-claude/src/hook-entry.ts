@@ -4,24 +4,40 @@
 // Invoked by Claude Code via settings.json:
 //   { "hooks": { "PreToolUse": [{ "matcher": "Bash|Edit|Write", "hooks": [{ "type": "command", "command": "depose-hook pretooluse" }] }] } }
 //
-// Behavior (BUILD_PLAN.md §6, Phase 3):
+// Behavior:
 //   1. Reads the hook's JSON payload from stdin (tool name, tool input, cwd, session_id)
 //   2. Resolves env subset against the allowlist
-//   3. Walks the parent process tree (best-effort, platform-specific)
+//   3. Walks the parent process tree (best-effort, cached per session)
 //   4. SHA-256s any file paths referenced in tool input
 //   5. Writes a ShellCommandPrePayload JSON to $DEPOSE_CAPTURE_DIR/<ulid>.json
 //   6. Exits 0 (never blocks the tool call)
 //
 // The hook is observation-only, never deny or modify.
 // Denial is governance; DEPOSE is forensics.
+//
+// A failure in any phase writes a capture_failed record (capture-failed.ts)
+// before the hook exits 0, so a lost capture shows up as a gap in the
+// bundle instead of a clean timeline.
 
 import { hostname } from 'node:os';
-import { execSync } from 'node:child_process';
 import { generateUlid } from '@depose/core';
 import type { ShellCommandPrePayload, ProcessNode } from '@depose/core';
 import { filterEnv, parseExtraAllowlist, type FilterEnvOptions } from './env-allowlist.js';
 import { hashFileArgs, type FileArg } from './file-hash.js';
 import { writeCaptureRecord } from './capture-record.js';
+import {
+  getCachedProcessTree,
+  getCachedTty,
+  walkProcessTree,
+  resolveTty,
+} from './hook-process-tree.js';
+import {
+  writeCaptureFailedRecord,
+  type HookPhase,
+  type CaptureFailedOutcome,
+} from './capture-failed.js';
+
+export { clearProcessTreeCache } from './hook-process-tree.js';
 
 // ── Hook input schema ────────────────────────────────────────────────
 
@@ -40,96 +56,163 @@ export interface HookInput {
   session_id: string;
 }
 
-// ── Process tree cache (F-17) ──────────────────────────────────────────
-
 /**
- * Per-session cache for walkProcessTree results.
- * Keyed by session ID so different sessions get fresh lookups,
- * but within a session the process tree is stable (same parent chain).
+ * The I/O the hook performs, injectable so a test can force a failure in
+ * any one phase and prove the capture_failed path through the real code.
  */
-const processTreeCache = new Map<string, ProcessNode[]>();
-
-/**
- * Clear the process tree cache. Useful for testing.
- */
-export function clearProcessTreeCache(): void {
-  processTreeCache.clear();
+export interface HookDeps {
+  readStdin: () => Promise<string>;
+  env: () => NodeJS.ProcessEnv;
+  hashFileArgs: (toolName: string, toolInput: Record<string, unknown>) => FileArg[];
+  walkProcessTree: () => ProcessNode[];
+  resolveTty: () => string | null;
+  writeCaptureRecord: (ulid: string, payload: ShellCommandPrePayload) => string;
 }
+
+/** Outcome of one hook run. */
+export type HookOutcome =
+  | { ok: true; capturePath: string; ulid: string }
+  | { ok: false; phase: HookPhase; failure: CaptureFailedOutcome };
+
+const DEFAULT_DEPS: HookDeps = {
+  readStdin: async () => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    }
+    return Buffer.concat(chunks).toString('utf-8');
+  },
+  env: () => process.env,
+  hashFileArgs,
+  walkProcessTree,
+  resolveTty,
+  writeCaptureRecord,
+};
 
 // ── Main hook handler ────────────────────────────────────────────────
 
 /**
- * Process a PreToolUse hook invocation.
+ * Process a PreToolUse hook invocation from an already-parsed input.
  *
- * Reads JSON from stdin, builds a ShellCommandPrePayload, writes it
- * to the capture directory, and exits 0.
+ * Builds a ShellCommandPrePayload and writes it to the capture directory.
+ * Throws on failure; runHook is the layer that turns a throw into a
+ * capture_failed record.
  *
- * This function never throws to the caller; errors are logged to stderr
- * and the process exits 0 regardless (observation-only, never blocks).
+ * @param input - The parsed hook payload.
+ * @param deps - I/O overrides; defaults to the real host.
+ * @returns The record path and its ULID.
  */
 export async function handlePreToolUse(
-  input: HookInput
+  input: HookInput,
+  deps: Partial<HookDeps> = {}
+): Promise<{ capturePath: string; ulid: string }> {
+  const io = { ...DEFAULT_DEPS, ...deps };
+  const phase = { current: 'env' as HookPhase };
+  return capture(input, io, phase);
+}
+
+async function capture(
+  input: HookInput,
+  io: HookDeps,
+  phase: { current: HookPhase }
 ): Promise<{ capturePath: string; ulid: string }> {
   const ulid = generateUlid();
   const extraPrefixes = parseExtraAllowlist();
 
-  // Build env subset and hash (with secret redaction)
-  const env = reduceEnv(process.env);
+  phase.current = 'env';
+  const env = reduceEnv(io.env());
   const filterEnvOptions: FilterEnvOptions = { extraPrefixes };
   const { envSubset, envHash } = filterEnv(env, filterEnvOptions);
 
-  // Resolve file args for the tool (skipped for non-destructive tools)
-  const fileArgs: FileArg[] = hashFileArgs(input.tool_name, input.tool_input);
+  phase.current = 'file-hash';
+  const fileArgs: FileArg[] = io.hashFileArgs(input.tool_name, input.tool_input);
 
-  // Build argv from tool input
   const argv = buildArgv(input);
 
-  // Walk parent process tree (best-effort, cached per session)
-  const parentProcessTree = getCachedProcessTree(input.session_id);
+  phase.current = 'process-tree';
+  const parentProcessTree = getCachedProcessTree(input.session_id, io.walkProcessTree);
 
-  // Every Claude tool capture is labelled 'claude-pretooluse', the
-  // hook fires for Bash, Edit, and Write but they all originate
-  // from the same pre-tool-use point.
-  const source: ShellCommandPrePayload['source'] = 'claude-pretooluse';
+  phase.current = 'tty';
+  const ttyId = getCachedTty(input.session_id, io.resolveTty);
 
   const payload: ShellCommandPrePayload = {
     argv,
     cwd: input.cwd,
     envHash,
     envSubset,
-    ttyId: resolveTty(),
-    user: process.env.USER || process.env.LOGNAME || '',
-    hostname: process.env.HOSTNAME || hostname(),
+    ttyId,
+    user: env.USER || env.LOGNAME || '',
+    hostname: env.HOSTNAME || hostname(),
     parentProcessTree,
     fileArgs: fileArgs.map((fa) => ({
       path: fa.path,
       preSha256: fa.preSha256,
       sizeBytes: fa.sizeBytes,
     })),
-    source,
+    // Every Claude tool capture is labelled 'claude-pretooluse': the hook
+    // fires for Bash, Edit, and Write but they all originate from the same
+    // pre-tool-use point.
+    source: 'claude-pretooluse',
     captureSchemaVersion: 2,
-    // Recorded here, at capture time. Without it the normalizer had to
-    // stamp events with the bundle production time, which put every
-    // capture outside the correlation window against the session it
-    // belonged to.
+    // Recorded here, at capture time, so the normalizer never has to stamp
+    // events with the bundle production time.
     capturedAt: new Date().toISOString(),
     capturedAtSource: 'recorded',
-    // Scopes this record to the session that produced it. Claude Code's
-    // session_id is the same value the session JSONL carries as
+    // Claude Code's session_id is the value the session JSONL carries as
     // `sessionId`, which is what the capture scope matches against.
     sessionId: input.session_id || null,
   };
 
-  const capturePath = writeCaptureRecord(ulid, payload);
-
+  phase.current = 'write-record';
+  const capturePath = io.writeCaptureRecord(ulid, payload);
   return { capturePath, ulid };
+}
+
+/**
+ * Run the whole hook: read stdin, parse, capture. Never throws. On any
+ * failure a capture_failed record is written and the outcome says so.
+ *
+ * @param deps - I/O overrides; defaults to the real host.
+ * @returns What happened, for the CLI wrapper to report on stderr.
+ */
+export async function runHook(deps: Partial<HookDeps> = {}): Promise<HookOutcome> {
+  const io = { ...DEFAULT_DEPS, ...deps };
+  const phase = { current: 'read-input' as HookPhase };
+  let sessionId: string | null = null;
+  let toolName: string | null = null;
+  try {
+    const inputJson = await io.readStdin();
+    phase.current = 'parse-input';
+    const input = parseHookInput(inputJson);
+    sessionId = input.session_id || null;
+    toolName = input.tool_name;
+    const result = await capture(input, io, phase);
+    return { ok: true, ...result };
+  } catch (err) {
+    const failure = writeCaptureFailedRecord({ phase: phase.current, error: err, sessionId, toolName });
+    return { ok: false, phase: phase.current, failure };
+  }
+}
+
+function parseHookInput(json: string): HookInput {
+  const parsed = JSON.parse(json) as Partial<HookInput> | null;
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.tool_name !== 'string') {
+    throw new TypeError('hook input is missing tool_name; Claude Code sends {tool_name, tool_input, cwd, session_id}');
+  }
+  return {
+    tool_name: parsed.tool_name,
+    tool_input: parsed.tool_input && typeof parsed.tool_input === 'object' ? parsed.tool_input : {},
+    cwd: typeof parsed.cwd === 'string' ? parsed.cwd : '',
+    session_id: typeof parsed.session_id === 'string' ? parsed.session_id : '',
+  };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /**
  * Build argv array from tool input.
- * For Bash: tokenizes the command string.
+ * For Bash: ['bash', '-c', <command>], which destructive-rule matching
+ * expands back into simple commands.
  * For Edit/Write: ["<tool>", "<file_path>"].
  */
 function buildArgv(input: HookInput): string[] {
@@ -159,125 +242,27 @@ function buildArgv(input: HookInput): string[] {
  * Reduce process.env to Record<string, string> for filterEnv.
  */
 function reduceEnv(env: NodeJS.ProcessEnv): Record<string, string> {
-  const result: Record<string, string> = {};
+  const reduced: Record<string, string> = {};
   for (const [key, value] of Object.entries(env)) {
     if (value !== undefined) {
-      result[key] = value;
+      reduced[key] = value;
     }
   }
-  return result;
-}
-
-/**
- * Get the cached process tree for a session, or compute and cache it.
- * F-17: The process tree is stable within a session, so we cache it
- * after the first lookup to avoid redundant `ps` invocations.
- */
-function getCachedProcessTree(sessionId: string): ProcessNode[] {
-  const cached = processTreeCache.get(sessionId);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const tree = walkProcessTree();
-  processTreeCache.set(sessionId, tree);
-  return tree;
-}
-
-/**
- * Walk parent process tree (best-effort, macOS/Linux).
- * Uses a single batched `ps` call for efficiency (F-17).
- */
-function walkProcessTree(): ProcessNode[] {
-  const tree: ProcessNode[] = [];
-  try {
-    // Collect PIDs to query (walk up from current process)
-    const pids: number[] = [];
-    let currentPid = process.pid;
-    const seen = new Set<number>();
-
-    // First, collect the PID chain by doing individual lookups
-    // (we need ppid to walk up, so we can't batch everything at once)
-    for (let i = 0; i < 10; i++) {
-      if (seen.has(currentPid)) break;
-      seen.add(currentPid);
-      pids.push(currentPid);
-
-      const node = getProcessNode(currentPid);
-      if (!node || node.ppid === 0 || node.ppid === 1) break;
-
-      // Only continue if ppid wasn't already seen
-      if (seen.has(node.ppid)) {
-        tree.push(node);
-        break;
-      }
-
-      tree.push(node);
-      currentPid = node.ppid;
-    }
-  } catch {
-    // Best-effort; return whatever we got
-  }
-  return tree;
-}
-
-/**
- * Get a ProcessNode for a given PID using `ps`.
- * Best-effort, returns null on failure.
- */
-function getProcessNode(pid: number): ProcessNode | null {
-  try {
-    const output = execSync(
-      `ps -o ppid=,comm= -p ${pid} 2>/dev/null`,
-      { encoding: 'utf-8', timeout: 2000 }
-    ).trim();
-    if (!output) return null;
-    const parts = output.split(/\s+/);
-    const ppid = parseInt(parts[0] || '0', 10);
-    const exe = parts.slice(1).join(' ');
-    return { pid, ppid, exe, argv0: exe };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Resolve TTY identifier for the current process.
- * Returns the TTY device path or null.
- */
-function resolveTty(): string | null {
-  try {
-    const tty = execSync('tty 2>/dev/null', { encoding: 'utf-8' }).trim();
-    return tty || null;
-  } catch {
-    return null;
-  }
+  return reduced;
 }
 
 // ── CLI entrypoint ───────────────────────────────────────────────────
 
 /**
- * Run the hook as a CLI command.
- * Reads JSON from stdin, processes it, writes capture record.
- * Always exits 0 (never blocks the tool call).
+ * Run the hook as a CLI command and exit 0 whatever happens.
  */
 export async function runHookCli(): Promise<void> {
-  try {
-    // Read hook payload from stdin
-    const chunks: Buffer[] = [];
-    for await (const chunk of process.stdin) {
-      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-    }
-    const inputJson = Buffer.concat(chunks).toString('utf-8');
-    const input = JSON.parse(inputJson) as HookInput;
-
-    const result = await handlePreToolUse(input);
-    // Write result to stderr so Claude Code doesn't interpet it
-    process.stderr.write(`depose: capture ${result.ulid}\n`);
-  } catch (err) {
-    // Never block the tool call. Log to stderr.
-    process.stderr.write(
-      `depose: capture error (${err instanceof Error ? err.message : String(err)})\n`
-    );
+  const outcome = await runHook();
+  if (outcome.ok) {
+    process.stderr.write(`depose: capture ${outcome.ulid}\n`);
+  } else {
+    const where = outcome.failure.written === 'none' ? 'unrecorded' : `recorded as ${outcome.failure.ulid}`;
+    process.stderr.write(`depose: capture failed in ${outcome.phase} (${where})\n`);
   }
   process.exit(0);
 }

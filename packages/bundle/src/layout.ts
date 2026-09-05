@@ -1,7 +1,7 @@
 // packages/bundle/src/layout.ts
 //
 // Bundle path conventions and constants.
-// See BUILD_PLAN.md §5 for the full layout.
+// See docs/bundle-format.md#directory-layout for the full layout.
 
 export const BUNDLE_DIR_PREFIX = 'incident';
 export const MANIFEST_FILENAME = 'manifest.json';

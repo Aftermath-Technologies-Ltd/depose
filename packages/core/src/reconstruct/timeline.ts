@@ -18,11 +18,8 @@ import type {
   ToolResultPayload,
   GapPayload,
 } from '../events/schema.js';
-import {
-  buildDestructiveOpsIndex,
-  matchDestructiveRules,
-  type DestructiveRule,
-} from './destructive-rules.js';
+import type { DestructiveRule, RuleMatch } from './destructive-rules.js';
+import { buildDestructiveOpsIndex, matchDestructiveRules } from './destructive-match.js';
 
 // ── Timeline types ───────────────────────────────────────────────────
 
@@ -53,12 +50,7 @@ export interface ReconstructionTimeline {
   /** Destructive operations index */
   destructiveOps: Array<{
     event: Event;
-    matches: Array<{
-      ruleId: string;
-      severity: 'critical' | 'high' | 'medium' | 'low';
-      matchedArgv: string[];
-      matchedField: string;
-    }>;
+    matches: RuleMatch[];
   }>;
   /** Gap events (coverage holes) */
   gaps: Event[];

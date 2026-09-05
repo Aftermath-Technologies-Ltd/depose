@@ -4,9 +4,8 @@
 // Walks the timeline and emits prose with [#evt-<ulid>] anchors
 // that link to events.jsonl rows.
 //
-// BUILD_PLAN.md §6 Phase 4:
-//   "Template-driven, deterministic, every claim cites event ID.
-//    No LLM in signed path."
+// Template-driven, deterministic, every claim cites an event ID.
+// No LLM in the signed path.
 //
 // The narrative is EXCLUDED from rootHash. It is derived from
 // signed events. Modifying it does not affect bundle validity.
@@ -23,6 +22,7 @@ import type {
   PromptPayload,
   AssistantMessagePayload,
   ErrorPayload,
+  CaptureFailedPayload,
 } from '@depose/core';
 import type { ReconstructionTimeline } from '@depose/core';
 
@@ -73,7 +73,7 @@ capture was not available. These are disclosed, not hidden. See Coverage Gaps be
 
 {{#if destructiveOps}}
 {{#each destructiveOps}}
-- **[{{severity}}]** {{wallTs}}: \`{{command}}\`, Rule: {{ruleId}} \`[#evt-{{eventId}}]\`
+- **[{{severity}}]** {{wallTs}}: \`{{command}}\`{{position}}, Rule: {{ruleId}} \`[#evt-{{eventId}}]\`
 {{/each}}
 {{else}}
 No destructive operations detected.
@@ -207,6 +207,13 @@ export function summarizeEvent(event: Event): { summary: string; detail: string 
         detail: p.detail.length > 200 ? p.detail.slice(0, 197) + '...' : p.detail,
       };
     }
+    case 'capture_failed': {
+      const p = event.payload as CaptureFailedPayload;
+      return {
+        summary: `Capture failed: ${p.errorClass} in ${p.phase}`,
+        detail: p.message,
+      };
+    }
     default: {
       return { summary: `Unknown event type: ${(event as Event).type}`, detail: '' };
     }
@@ -299,7 +306,7 @@ interface NarrativeData {
   capturesAttributed: number;
   capturesExcluded: number;
   sections: Array<{ header: string; events: Array<{ type: string; wallTs: string; id: string; summary: string; detail: string }> }>;
-  destructiveOps: Array<{ severity: string; wallTs: string; command: string; ruleId: string; eventId: string }>;
+  destructiveOps: Array<{ severity: string; wallTs: string; command: string; position: string; ruleId: string; eventId: string }>;
   gaps: Array<{ reason: string; wallTs: string; detail: string; id: string }>;
 }
 
@@ -325,27 +332,22 @@ export function buildNarrativeData(
   }));
 
   const destructiveOps = timeline.destructiveOps.map((op) => {
-    // shell_command_pre carries argv already; tool_call_intent (the
-    // reconstruct-from-JSONL path) carries a free-form command string
-    // under toolInput.command. Render the command verbatim when we
-    // can find it; otherwise show the tool + stringified input.
-    let command = '(unknown)';
-    const payload = op.event.payload as unknown as Record<string, unknown>;
-    if (Array.isArray(payload.argv)) {
-      command = (payload.argv as string[]).join(' ');
-    } else if (typeof payload.toolName === 'string') {
-      const input = payload.toolInput as { command?: unknown } | null | undefined;
-      if (input && typeof input.command === 'string') {
-        command = input.command;
-      } else {
-        const stringified = payload.toolInput ? JSON.stringify(payload.toolInput) : '';
-        command = `${payload.toolName} ${stringified.slice(0, 80)}`;
-      }
-    }
+    // The match names the simple command that fired, after wrapper
+    // stripping, so `sudo bash -c "cd /prod && rm -rf ."` reads as
+    // `rm -rf .` with its position in the compound command alongside.
+    const first = op.matches[0];
+    const command = first ? first.simpleCommand.join(' ') : '(unknown)';
+    const position = first && first.simpleCommandCount > 1
+      ? ` (command ${first.simpleCommandIndex + 1} of ${first.simpleCommandCount})`
+      : '';
+    const wrappers = first && first.strippedWrappers.length > 0
+      ? ` via ${first.strippedWrappers.join(' ')}`
+      : '';
     return {
-      severity: op.matches[0]?.severity ?? 'medium',
+      severity: first?.severity ?? 'medium',
       wallTs: op.event.wallTs,
       command,
+      position: position + wrappers,
       ruleId: op.matches.map((m) => m.ruleId).join(', '),
       eventId: op.event.id,
     };
@@ -467,7 +469,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 <table>
 <tr><th>Severity</th><th>Time</th><th>Command</th><th>Rule</th><th>Event ID</th></tr>
 {{#each destructiveOps}}
-<tr class="destructive"><td>{{severity}}</td><td>{{wallTs}}</td><td><code>{{command}}</code></td><td>{{ruleId}}</td><td class="event-ref"><code>#evt-{{eventId}}</code></td></tr>
+<tr class="destructive"><td>{{severity}}</td><td>{{wallTs}}</td><td><code>{{command}}</code>{{position}}</td><td>{{ruleId}}</td><td class="event-ref"><code>#evt-{{eventId}}</code></td></tr>
 {{/each}}
 </table>
 {{else}}

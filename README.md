@@ -78,7 +78,7 @@ Verify the bundle from any host:
 ./apps/verify/build/depose-verify verify path/to/incident-<bundleId>
 ```
 
-A passing run prints `parse / signature / chain-replay / artifacts / timestamp` each `OK`, followed by `PASS  bundleId=... rootHash=...`. Recipients can pin the producer's key (`--expected-key-fingerprint`) or a revocation list (`--revocation-list`); see [docs/key-management.md](docs/key-management.md).
+A passing run prints every check with its status (`PASS`, `FAIL`, `SKIPPED`, or `WARN`; a skipped check is never shown as a pass), followed by `RESULT: PASS`. Recipients can pin the producer's key (`--expected-key-fingerprint`) or a revocation list (`--revocation-list`); see [docs/key-management.md](docs/key-management.md).
 
 Full command surface (`depose --help`): `record`, `package`, `reconstruct`, `verify`, `explain`, `install --claude|--shell`, `uninstall --claude|--shell`, `key {fingerprint,rotate,revoke,catalog}`.
 
@@ -107,7 +107,7 @@ A DEPOSE bundle is a directory tree:
 
 ```
 incident-01JABC.../
-├── manifest.json            ← bundleId, rootHash, eventsJsonlSha256, sigs, timestamps
+├── manifest.json            ← bundleId, rootHash, files map, sigs, timestamps
 ├── events.jsonl             ← every event in canonical JSON, byte-pinned by manifest
 ├── rules/destructive.yaml   ← ruleset used at reconstruction time
 ├── narrative.md / .html     ← templated prose with per-event citations
@@ -117,7 +117,7 @@ incident-01JABC.../
 └── raw/                     ← source JSONL, shell history fragments, capture records
 ```
 
-Tampering with any byte of `events.jsonl`, `manifest.json`, or `rules/destructive.yaml` causes verification to fail. Full format spec (canonical JSON rules, chain construction, signing procedure, manifest schema) lives in [docs/bundle-format.md](docs/bundle-format.md) and [docs/canonical-json.md](docs/canonical-json.md).
+Every file in the tree is pinned by a signed files map in `manifest.json`: changing, adding, or deleting any file (the raw JSONL, a timestamp token, the narrative) causes verification to fail with a named check. Full format spec (canonical JSON rules, chain construction, files map, signing procedure, manifest schema) lives in [docs/bundle-format.md](docs/bundle-format.md) and [docs/canonical-json.md](docs/canonical-json.md).
 
 ## Active capture
 
@@ -128,7 +128,7 @@ depose install --claude   # registers Claude Code PreToolUse hook
 depose install --shell    # shims terraform, aws, gh, kubectl, psql, gcloud, railway, rm
 ```
 
-Capture records land under `~/.depose/captures/`. Later `depose package` runs merge them with the session JSONL so every covered event has a verified pre-execution intent on record.
+Capture records land under `~/.depose/captures/`. Later `depose package` runs merge them with the session JSONL so every covered event has a verified pre-execution intent on record. If the hook itself throws, it writes a `capture_failed` record before exiting 0, and the bundle shows that as a gap event rather than a clean timeline. Destructive rules match every simple command inside a captured shell line, so `sudo rm -rf`, `env X=1 terraform destroy`, and `cd /prod && rm -rf .` all fire.
 
 Coverage matrix and threat-vs-coverage tradeoffs: [docs/capture-coverage.md](docs/capture-coverage.md). Install details: [docs/hook-installation.md](docs/hook-installation.md), [docs/shim-installation.md](docs/shim-installation.md).
 

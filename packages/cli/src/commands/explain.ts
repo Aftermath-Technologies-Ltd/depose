@@ -2,9 +2,9 @@
 //
 // `depose explain`: templated postmortem summary to commentary.md.
 //
-// BUILD_PLAN.md §6 Phase 4 specified an LLM-narrated postmortem. No model
-// was ever wired up; generateCommentary below is deterministic Handlebars-
-// style templating over the timeline. The banner and the CLI help said
+// The original plan called for an LLM-narrated postmortem. No model
+// was ever wired up; generateCommentary below is deterministic templating
+// over the timeline. The banner and the CLI help said
 // "AI-GENERATED" anyway, which claimed a provenance the output does not
 // have. For a tool whose product is credibility, a command that misstates
 // how its own output was produced is a defect, so the labelling now
@@ -13,7 +13,7 @@
 // The output is still NOT evidence: it is a convenience summary,
 // structurally excluded from the signed content.
 //
-// Named exports only (BUILD_PLAN.md §3.1).
+// Named exports only.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
@@ -143,11 +143,14 @@ export async function handleExplain(args: ExplainCommandArgs): Promise<void> {
   // Deterministic template over the timeline. No model call.
   const commentary = generateCommentary(timeline, summary, agentId);
 
-  // Write to bundle or standalone file
+  // Never write into a sealed bundle: every file in the tree is pinned by
+  // the signed files map, so an added commentary.md would fail
+  // verification. The commentary lands next to the bundle instead.
   if (bundlePath) {
     const resolvedBundle = resolve(bundlePath);
-    writeFileSync(join(resolvedBundle, 'commentary.md'), COMMENTARY_BANNER + commentary, 'utf-8');
-    console.log(`Commentary written to: ${join(resolvedBundle, 'commentary.md')}`);
+    const sidecar = `${resolvedBundle}-commentary.md`;
+    writeFileSync(sidecar, COMMENTARY_BANNER + commentary, 'utf-8');
+    console.log(`Commentary written to: ${sidecar}`);
   } else {
     const resolvedOutput = outputDir ? resolve(outputDir) : resolve('./depose-output');
     writeFileSync(join(resolvedOutput, 'commentary.md'), COMMENTARY_BANNER + commentary, 'utf-8');

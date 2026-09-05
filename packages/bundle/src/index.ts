@@ -1,9 +1,10 @@
 // packages/bundle/src/index.ts
 //
 // Bundle package, manifest, deterministic writer, layout.
-// Named exports only (BUILD_PLAN.md §3.1).
+// Named exports only.
 
 export {
+  MANIFEST_SCHEMA_VERSION,
   buildManifest,
   serializeManifest,
   serializeManifestForSigning,
@@ -45,3 +46,13 @@ export {
 } from './layout.js';
 
 export { VERIFIER_DOWNLOAD_URL, GITHUB_REPO_SLUG, DEPOSE_RELEASE_TAG } from './constants.js';
+
+export {
+  buildFilesMap,
+  hashFileEntry,
+  isFilesMapExcluded,
+  assertSafeRelativePath,
+  FILES_MAP_EXCLUDED,
+  type FileEntry,
+  type FilesMap,
+} from './files-map.js';

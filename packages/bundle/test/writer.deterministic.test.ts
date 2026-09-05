@@ -103,7 +103,7 @@ describe('writeBundle (unsigned mode)', () => {
         mode: 'dev-unsigned',
       });
 
-      expect(manifest.schemaVersion).toBe(2);
+      expect(manifest.schemaVersion).toBe(3);
       expect(manifest.bundleId).toBe('sess-test');
       expect(manifest.producedAt).toBe('2025-05-18T16:00:00.000Z');
       expect(manifest.producer.tool).toBe('depose');

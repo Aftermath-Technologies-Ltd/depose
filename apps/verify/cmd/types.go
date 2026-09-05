@@ -5,16 +5,35 @@ package cmd
 // the compatibility policy. Production bundles must declare a value
 // in this inclusive range; anything else fails closed.
 const (
-	SupportedSchemaMin = 1
-	SupportedSchemaMax = 2
+	SupportedSchemaMin = 2
+	SupportedSchemaMax = 3
+)
+
+// CheckStatus is the outcome of one check. A skipped or warned check is
+// never rendered as PASS; the report shows exactly which state it is in.
+type CheckStatus string
+
+const (
+	// StatusPass: the check ran and the bundle satisfied it.
+	StatusPass CheckStatus = "PASS"
+	// StatusFail: the check ran and the bundle did not satisfy it.
+	StatusFail CheckStatus = "FAIL"
+	// StatusSkipped: the check did not run, by mode contract or missing input.
+	StatusSkipped CheckStatus = "SKIPPED"
+	// StatusWarn: the check ran; the bundle is weaker than current
+	// producers emit but not invalid (a downgrade, not a tamper).
+	StatusWarn CheckStatus = "WARN"
 )
 
 // CheckResult represents the result of a single verification check.
 type CheckResult struct {
-	Name    string
-	Pass    bool
-	Detail  string
+	Name   string
+	Status CheckStatus
+	Detail string
 }
+
+// Failed reports whether the check counts against the bundle.
+func (c CheckResult) Failed() bool { return c.Status == StatusFail }
 
 // VerifyOpts configures optional pinning behavior the recipient
 // asks for: pinning to a specific key fingerprint (air-gapped key
@@ -54,7 +73,7 @@ type keyCatalog struct {
 
 // VerifyResult represents the overall verification result.
 type VerifyResult struct {
-	Pass   bool
+	Pass bool
 	// Mode is the declared producer.mode from the manifest ("signed"
 	// or "dev-unsigned"). Empty if the manifest could not be parsed.
 	Mode   string

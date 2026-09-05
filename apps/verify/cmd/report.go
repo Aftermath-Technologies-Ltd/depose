@@ -23,14 +23,17 @@ func (r *VerifyResult) Print() {
 
 	allPass := true
 	for _, check := range r.Checks {
-		status := "PASS"
 		icon := "✓"
-		if !check.Pass {
-			status = "FAIL"
+		switch check.Status {
+		case StatusFail:
 			icon = "✗"
 			allPass = false
+		case StatusSkipped:
+			icon = "-"
+		case StatusWarn:
+			icon = "!"
 		}
-		fmt.Printf("  [%s] %s: %s\n", icon, check.Name, status)
+		fmt.Printf("  [%s] %s: %s\n", icon, check.Name, check.Status)
 		fmt.Printf("         %s\n", check.Detail)
 	}
 
@@ -51,7 +54,7 @@ func (r *VerifyResult) Print() {
 			fmt.Println("  - The manifest signature is valid")
 			fmt.Println("  - A trusted timestamp authority confirmed this bundle existed")
 			fmt.Println("  - The embedded ruleset matches its declared hash")
-			fmt.Println("  - No files have been added, removed, or modified since creation")
+			fmt.Println("  - Every file in the tree matches the signed files map")
 		}
 	} else {
 		fmt.Println("  ═══ RESULT: FAIL ═══")

@@ -10,8 +10,9 @@
 //   4. Links related events (tool_call_intent → shell_command_pre → tool_result)
 //   5. Emits gap events for unmatched events
 //
-// See BUILD_PLAN.md §4.1 for the Event schema.
-// See BUILD_PLAN.md §5 (Phase 1) for scope.
+// A capture_failed event (the hook could not write a record) becomes a
+// gap event here, so a lost capture is disclosed in the timeline rather
+// than leaving it looking complete.
 
 import type {
   AgentId,
@@ -22,7 +23,7 @@ import type {
   GapPayload,
 } from '../events/schema.js';
 import { findMatchingShellPre } from './merge-correlate.js';
-import { buildEvent, truncateArgv } from './merge-support.js';
+import { buildEvent, truncateArgv, captureFailedToGap } from './merge-support.js';
 
 // ── Merge options ────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ export interface MergeOptions {
   agentId?: AgentId;
   /**
    * Time window (in seconds) for matching tool results to shell command
-   * pre-captures. Default: 5 seconds (BUILD_PLAN.md §6, Phase 3).
+   * pre-captures. Default: 5 seconds.
    */
   matchWindowSeconds?: number;
 }
@@ -110,6 +111,11 @@ export function mergeEvents(
     seenIds.add(event.id);
     // Ensure session ID is correct
     const normalized = { ...event, sessionId } as Event;
+    if (normalized.type === 'capture_failed') {
+      deduped.push(captureFailedToGap(normalized));
+      gapCount++;
+      continue;
+    }
     deduped.push(normalized);
   }
 

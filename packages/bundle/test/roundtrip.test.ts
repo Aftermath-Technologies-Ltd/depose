@@ -59,7 +59,7 @@ describe('roundtrip', () => {
     // Read back manifest
     const manifestContent = readFileSync(pathJoin(depopPath, 'manifest.json'), 'utf-8');
     const readManifest = JSON.parse(manifestContent);
-    expect(readManifest.schemaVersion).toBe(2);
+    expect(readManifest.schemaVersion).toBe(3);
     expect(readManifest.bundleId).toBe('sess-roundtrip');
     expect(readManifest.producer.tool).toBe('depose');
     expect(readManifest.counts.events).toBe(claudeEvents.length);

@@ -1,7 +1,7 @@
 // packages/core/src/index.ts
 //
 // Core package, event schema, normalizers, reconstruction.
-// Named exports only (BUILD_PLAN.md §3.1).
+// Named exports only.
 
 // Event types and payloads
 export type {
@@ -22,6 +22,7 @@ export type {
   ProcessSpawnPayload,
   ErrorPayload,
   GapPayload,
+  CaptureFailedPayload,
 } from './events/schema.js';
 
 export { isEventType } from './events/schema.js';
@@ -78,6 +79,7 @@ export {
 export {
   normalizeCaptureRecords,
   DEFAULT_CAPTURE_DIR,
+  CAPTURE_FAILED_SIDECAR,
   type CaptureNormalizeOptions,
   type CaptureNormalizeResult,
   type CaptureScope,
@@ -94,7 +96,15 @@ export {
   parseDestructiveRulesYaml,
   matchDestructiveRules,
   buildDestructiveOpsIndex,
+  simpleCommandsForEvent,
+  splitShellCommand,
+  expandArgv,
+  expandCommandString,
   type DestructiveRule,
   type RuleMatcher,
   type RuleMatch,
+  type RuleSeverity,
+  type RawSimpleCommand,
+  type SimpleCommandOrigin,
+  type SimpleCommand,
 } from './reconstruct/index.js';

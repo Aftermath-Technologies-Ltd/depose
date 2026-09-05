@@ -1,7 +1,6 @@
 // packages/core/src/reconstruct/index.ts
 //
-// Named exports only (BUILD_PLAN.md §3.1).
-// Re-exports reconstruction utilities.
+// Named exports only. Re-exports reconstruction utilities.
 
 export {
   buildTimeline,
@@ -13,9 +12,26 @@ export {
 export {
   loadDestructiveRules,
   parseDestructiveRulesYaml,
-  matchDestructiveRules,
-  buildDestructiveOpsIndex,
   type DestructiveRule,
   type RuleMatcher,
   type RuleMatch,
+  type RuleSeverity,
 } from './destructive-rules.js';
+
+export {
+  matchDestructiveRules,
+  buildDestructiveOpsIndex,
+  simpleCommandsForEvent,
+} from './destructive-match.js';
+
+export {
+  splitShellCommand,
+  type RawSimpleCommand,
+  type SimpleCommandOrigin,
+} from './shell-split.js';
+
+export {
+  expandArgv,
+  expandCommandString,
+  type SimpleCommand,
+} from './shell-expand.js';

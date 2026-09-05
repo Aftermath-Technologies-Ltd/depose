@@ -17,21 +17,25 @@ import (
 
 // Manifest represents the manifest.json structure.
 type Manifest struct {
-	SchemaVersion int              `json:"schemaVersion"`
-	BundleID      string           `json:"bundleId"`
-	ProducedAt    string           `json:"producedAt"`
-	Producer      ProducerInfo     `json:"producer"`
-	Session       SessionInfo      `json:"session"`
-	RootHash      string           `json:"rootHash"`
+	SchemaVersion int          `json:"schemaVersion"`
+	BundleID      string       `json:"bundleId"`
+	ProducedAt    string       `json:"producedAt"`
+	Producer      ProducerInfo `json:"producer"`
+	Session       SessionInfo  `json:"session"`
+	RootHash      string       `json:"rootHash"`
 	// EventsJsonlSha256 is the SHA-256 (lowercase hex) of the literal
 	// UTF-8 bytes of events.jsonl. Optional on older bundles; verifier
 	// requires it in `signed` mode.
-	EventsJsonlSha256 string           `json:"eventsJsonlSha256,omitempty"`
-	Signatures        []SignatureBlock `json:"signatures"`
-	Timestamps        []Rfc3161Token   `json:"timestamps"`
-	Rekor             []RekorEntry     `json:"rekor,omitempty"`
-	Counts            Counts           `json:"counts"`
-	RulesetHash       string           `json:"rulesetHash"`
+	EventsJsonlSha256 string `json:"eventsJsonlSha256,omitempty"`
+	// Files pins every file in the bundle tree except manifest.json,
+	// attestations/signatures.json, and the .tsr files. Nil on
+	// schemaVersion 2 bundles, which predate it.
+	Files       map[string]FileEntry `json:"files,omitempty"`
+	Signatures  []SignatureBlock     `json:"signatures"`
+	Timestamps  []Rfc3161Token       `json:"timestamps"`
+	Rekor       []RekorEntry         `json:"rekor,omitempty"`
+	Counts      Counts               `json:"counts"`
+	RulesetHash string               `json:"rulesetHash"`
 }
 
 type ProducerInfo struct {
@@ -50,10 +54,10 @@ type HostInfo struct {
 }
 
 type SessionInfo struct {
-	AgentID   string          `json:"agentId"`
-	SessionID string          `json:"sessionId"`
-	StartedAt string          `json:"startedAt"`
-	EndedAt   string          `json:"endedAt"`
+	AgentID   string           `json:"agentId"`
+	SessionID string           `json:"sessionId"`
+	StartedAt string           `json:"startedAt"`
+	EndedAt   string           `json:"endedAt"`
 	Host      *SessionHostInfo `json:"host,omitempty"`
 }
 
@@ -67,11 +71,17 @@ type SessionHostInfo struct {
 	Kernel      string `json:"kernel"`
 }
 
+// FileEntry is one files-map entry: the file's SHA-256 and byte length.
+type FileEntry struct {
+	Sha256 string `json:"sha256"`
+	Bytes  int64  `json:"bytes"`
+}
+
 type SignatureBlock struct {
-	Scheme      string `json:"scheme"`
-	Signature   string `json:"signature"`
-	PublicKey   string `json:"publicKey,omitempty"`
-	FulcioCert  string `json:"fulcioCert,omitempty"`
+	Scheme       string `json:"scheme"`
+	Signature    string `json:"signature"`
+	PublicKey    string `json:"publicKey,omitempty"`
+	FulcioCert   string `json:"fulcioCert,omitempty"`
 	SignedFields string `json:"signedFields"`
 }
 
@@ -88,11 +98,11 @@ type RekorEntry struct {
 }
 
 type Counts struct {
-	Events               int `json:"events"`
+	Events                int `json:"events"`
 	DestructiveOperations int `json:"destructiveOperations"`
-	Gaps                 int `json:"gaps"`
-	ArtifactsPre         int `json:"artifactsPre"`
-	ArtifactsPost        int `json:"artifactsPost"`
+	Gaps                  int `json:"gaps"`
+	ArtifactsPre          int `json:"artifactsPre"`
+	ArtifactsPost         int `json:"artifactsPost"`
 	// CapturesAttributed and CapturesExcluded record how much of the
 	// producer's capture store went into this bundle and how much was left
 	// out as unattributable to the session. Bundles produced before these
@@ -197,4 +207,3 @@ func StripSignatureFields(manifestJSON []byte) ([]byte, error) {
 	m["timestamps"] = []interface{}{}
 	return canonical.Marshal(m)
 }
-
