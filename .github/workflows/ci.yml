@@ -140,6 +140,22 @@ jobs:
       - name: Go verifier tests
         run: cd apps/verify && go test ./...
 
+      - name: Go execve-collector tests
+        # The collector writes into the same capture store the TypeScript
+        # normalizer reads, and neither can call the other: the contract
+        # is a fixture directory checked in from the Go side and read
+        # back from the TS side. A change to the record shape on either
+        # side has to break a test here rather than silently drop kernel
+        # evidence out of every bundle built afterwards.
+        run: cd apps/collect-execve && go test ./...
+
+      - name: Go execve-collector builds for macOS
+        # macOS gets no kernel collector, by decision (docs/decisions.md
+        # D18), and the build-tagged stub that says so has to keep
+        # compiling. Nobody runs it on darwin, which is exactly why it
+        # rots without this.
+        run: cd apps/collect-execve && GOOS=darwin go build ./...
+
       - name: Go capture-shim tests
         # The shim sits on PATH in front of rm, terraform, kubectl, aws, and
         # psql. It had no tests, and the gap hid two real defects: a
@@ -155,6 +171,58 @@ jobs:
         run: |
           (cd apps/verify && make build-local)
           bash scripts/install-from-pack-test.sh
+
+  fuzz:
+    # The DER parser is the one place in the verifier that reads bytes an
+    # attacker chose, and its seed corpus already carries one crasher a
+    # fuzzer found: a malformed length that panicked inside the PKCS#7
+    # BER decoder. Running the fuzzers only by hand means the next one
+    # gets found by whoever is holding the evidence.
+    #
+    # Short by design. This is a regression gate on every push, not a
+    # discovery run; discovery is `go test ./timestamp -fuzz=FuzzParseTSR
+    # -fuzztime=10m`, which docs/development.md tells you to do before
+    # touching anything under timestamp/.
+    name: Fuzz the DER parsers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Go TSR parser, seed corpus
+        # Without -fuzz this replays every checked-in seed and every
+        # crasher under testdata/fuzz, which is the regression half.
+        run: cd apps/verify && go test ./timestamp/ -run FuzzParseTSR
+
+      - name: Go TSR parser, 90 seconds of new inputs
+        run: cd apps/verify && go test ./timestamp -run '^$' -fuzz=FuzzParseTSR -fuzztime=90s
+
+      - name: TypeScript DER reader mutation loop
+        run: DEPOSE_FUZZ_ITERATIONS=200000 npx vitest run packages/chain/test/rfc3161-asn1.fuzz.test.ts
+
+      - name: Keep whatever the fuzzer found
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-findings
+          path: apps/verify/timestamp/testdata/fuzz/
+          if-no-files-found: ignore
 
   sbom:
     runs-on: ubuntu-latest
