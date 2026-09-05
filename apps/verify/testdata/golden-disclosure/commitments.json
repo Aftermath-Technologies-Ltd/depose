@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "sha256(jcs([salt, path, value]))",
+  "openings": [
+    {
+      "eventId": "06BNJ4BJ10NSMA673XH4KB90ZM",
+      "path": "/toolInput",
+      "salt": "d649e319e94653cd0f78edcf125a81455b1c4669e6c80e7c03a01979a10c22df",
+      "value": {
+        "command": "terraform plan -destroy -out=staging-destroy.tfplan",
+        "cwd": "/home/user/pocketos/staging",
+        "shell": "bash"
+      }
+    }
+  ]
+}

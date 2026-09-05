@@ -42,7 +42,8 @@ Agent transcripts on disk aren't evidence. Anyone with shell access can rewrite 
 
 | Property | Mechanism |
 |---|---|
-| **Tamper-evident** | IRONROOT hash chain over events, plus a per-event payload re-hash. Any byte change fails verification. |
+| **Tamper-evident** | IRONROOT hash chain over events, an RFC 6962 Merkle tree over the chain, a signed files map over every file. Any byte change fails verification. |
+| **Selectively disclosable** | Sealed fields are salted commitments; `depose disclose` proves a subset of events and fields against the signed root without re-signing. |
 | **Authenticated** | Ed25519 manifest signature, sealed by a key the producer controls. |
 | **Anti-backdated** | RFC 3161 timestamp from FreeTSA (DigiCert fallback) anchors the bundle to a moment in time. |
 
@@ -80,7 +81,16 @@ Verify the bundle from any host:
 
 A passing run prints every check with its status (`PASS`, `FAIL`, `SKIPPED`, or `WARN`; a skipped check is never shown as a pass), followed by `RESULT: PASS`. Recipients can pin the producer's key (`--expected-key-fingerprint`) or a revocation list (`--revocation-list`); see [docs/key-management.md](docs/key-management.md).
 
-Full command surface (`depose --help`): `record`, `package`, `reconstruct`, `verify`, `explain`, `install --claude|--shell`, `uninstall --claude|--shell`, `key {fingerprint,rotate,revoke,catalog}`.
+Hand a regulator part of the record without re-signing or exposing the rest:
+
+```bash
+./packages/cli/bin/depose disclose path/to/incident-<bundleId> --events 3-9 --fields /toolInput --out incident-disclosure
+./apps/verify/build/depose-verify verify incident-disclosure   # no access to the original needed
+```
+
+The disclosure carries the original signature and timestamp, the chosen events byte for byte, RFC 6962 audit paths against the sealed Merkle root for every position, and commitment openings for the chosen fields only. Withheld events reveal their count and positions, nothing else.
+
+Full command surface (`depose --help`): `record`, `package`, `disclose`, `reconstruct`, `verify`, `explain`, `install --claude|--shell`, `uninstall --claude|--shell`, `key {fingerprint,rotate,revoke,catalog}`.
 
 ## How it works
 

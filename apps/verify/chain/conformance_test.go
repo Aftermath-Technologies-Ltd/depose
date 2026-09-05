@@ -131,7 +131,7 @@ func TestMonoNsValueForms(t *testing.T) {
 // a number is hashed as a number, matching what v2 producers signed.
 func TestNumericMonoNsStillReplaysSchema2(t *testing.T) {
 	dir := t.TempDir()
-	payloadHash, _ := recomputePayloadHash([]byte(`{"text":"v2"}`))
+	payloadHash, _ := RecomputePayloadHash([]byte(`{"text":"v2"}`))
 	line := `{"id":"01JCONF0000000000000000001","wallTs":"2025-05-18T15:30:00.000Z","monoNs":7,"sessionId":"s","agentId":"claude-code","parentEventId":null,"type":"prompt","payload":{"text":"v2"},"payloadHash":"` + payloadHash + `"}`
 	if err := os.WriteFile(filepath.Join(dir, "events.jsonl"), []byte(line+"\n"), 0o600); err != nil {
 		t.Fatal(err)

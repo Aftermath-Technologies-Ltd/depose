@@ -177,7 +177,7 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 		// payload content without touching payloadHash and the chain
 		// still validates. We close that hole here by re-canonicalizing
 		// the payload through the JCS marshaller and SHA-256'ing it.
-		computedPayloadHash, err := recomputePayloadHash(evt.Payload)
+		computedPayloadHash, err := RecomputePayloadHash(evt.Payload)
 		if err != nil {
 			return nil, fmt.Errorf("recompute payloadHash for event %s: %w", evt.ID, err)
 		}
@@ -270,12 +270,12 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 	}, nil
 }
 
-// recomputePayloadHash canonicalizes the event's payload (RFC 8785 JCS)
+// RecomputePayloadHash canonicalizes the event's payload (RFC 8785 JCS)
 // and returns SHA-256 over the canonical bytes as a lowercase hex string.
 // Matches the TypeScript producer's `sha256(payload)` helper:
 //
 //	sha256(value) = hex(SHA-256(utf8(canonicalJson(value))))
-func recomputePayloadHash(rawPayload json.RawMessage) (string, error) {
+func RecomputePayloadHash(rawPayload json.RawMessage) (string, error) {
 	if len(rawPayload) == 0 {
 		// Treat a missing payload as null for determinism, matches
 		// canonicalJson(undefined/null) = "null" on the TS side.

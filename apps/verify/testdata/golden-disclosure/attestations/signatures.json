@@ -1,0 +1,10 @@
+{
+  "blocks": [
+    {
+      "scheme": "ed25519",
+      "signature": "9hDYbVPFMZJpJUgAjC/8RDK/1Q9S9X6v/Q6kdaIS6FpKpzmI3ZeHRuoQaQBF8CNUBxxFcmIfW6adOUv62MmWDA==",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEACrUb3sQZjOWd3Gr3tAIfFqiFOEum1ZTf+/jL5trbqB0=\n-----END PUBLIC KEY-----\n",
+      "signedFields": "manifest.json"
+    }
+  ]
+}

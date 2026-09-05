@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "bundleId": "golden-pocketos",
+  "merkleRoot": "3d23d5560faf3bb104d5ed56365defcc62409b51fe72a34df327bfe0113d6abf",
+  "leafCount": 10,
+  "producedAt": "2026-09-05T02:55:06.615Z",
+  "producer": {
+    "tool": "depose",
+    "version": "0.1.0"
+  },
+  "disclosed": [
+    {
+      "index": 0,
+      "eventId": "06BNJ4AYG2N7ZNMP1PNFQB6J5M",
+      "auditPath": [
+        "d77c491105ac21e2c6339d045ae3366b882e42ea1555928b90f0c44cfc6a8d2a",
+        "e71157fb023e9b8ff823f136e6668f231d8032cf35b40f3eaf7f33b9121521f3",
+        "e2325dc605ab524db47eea8defb0260691254cc417b5cb2d56597ac69d629198",
+        "470f2b61dfdceb682d82b90e30df7453789d571da2edc10fa8927b2cd2f4eec3"
+      ]
+    },
+    {
+      "index": 1,
+      "eventId": "06BNJ4BJ10NSMA673XH4KB90ZM",
+      "auditPath": [
+        "496cc357195954c5596002d217cbe863285e39ee3c73b03612d46ccc88547e2c",
+        "e71157fb023e9b8ff823f136e6668f231d8032cf35b40f3eaf7f33b9121521f3",
+        "e2325dc605ab524db47eea8defb0260691254cc417b5cb2d56597ac69d629198",
+        "470f2b61dfdceb682d82b90e30df7453789d571da2edc10fa8927b2cd2f4eec3"
+      ]
+    },
+    {
+      "index": 2,
+      "eventId": "06BNJ4BJ12EEPQPAADG1G5AKM0",
+      "auditPath": [
+        "1962cac78148f9ac5fca4c755ed24db314b871b92295642a8446efdba9a05a72",
+        "3b7832abfe10abf605cbf9d9125b04fe31881018fc55ce1470d26f50768c779d",
+        "e2325dc605ab524db47eea8defb0260691254cc417b5cb2d56597ac69d629198",
+        "470f2b61dfdceb682d82b90e30df7453789d571da2edc10fa8927b2cd2f4eec3"
+      ]
+    },
+    {
+      "index": 3,
+      "eventId": "06BNJ4DCM20YT22SWRZC33ZDQ8",
+      "auditPath": [
+        "fdf95a57444376ea73ac645c37b980fff1b41032bbd6c9963c3ebc25b8a5eb48",
+        "3b7832abfe10abf605cbf9d9125b04fe31881018fc55ce1470d26f50768c779d",
+        "e2325dc605ab524db47eea8defb0260691254cc417b5cb2d56597ac69d629198",
+        "470f2b61dfdceb682d82b90e30df7453789d571da2edc10fa8927b2cd2f4eec3"
+      ]
+    },
+    {
+      "index": 7,
+      "eventId": "06BNJ4TTA125HG6RVDSCZV8HF0",
+      "auditPath": [
+        "9d33ee03661ca117d48d16a10f0daaf3a3183c88435a4d3b7ca92bc1593fb6fb",
+        "fa54515f38b1370a6729ef5f00bbd272e80e3c4121d88cfd5e620de376caa6d6",
+        "d0ae6ef4dfdb13cf41a4eff4c13ed69be476a9b4ae3a48b4b582ea3e4934654a",
+        "470f2b61dfdceb682d82b90e30df7453789d571da2edc10fa8927b2cd2f4eec3"
+      ]
+    }
+  ],
+  "withheld": [
+    {
+      "index": 4,
+      "chainHash": "c278222566bdcababbf4c4549cf5341ee5bc2c03797bb1fbf27615c3b0b24fa0",
+      "auditPath": [
+        "0bd0c9da6478ca45a804e703e13633f4963b385f87c8d0bfb8c59fd2402ae8c3",
+        "f152a417fcfc43f4df1258776dd0a0aa7f5cdfb9d2a2c02b072d2b96e93146e7",
+        "d0ae6ef4dfdb13cf41a4eff4c13ed69be476a9b4ae3a48b4b582ea3e4934654a",
+        "470f2b61dfdceb682d82b90e30df7453789d571da2edc10fa8927b2cd2f4eec3"
+      ]
+    },
+    {
+      "index": 5,
+      "chainHash": "7e733ffb84c2b82a0c30ef043a4b47ef258e2b7fe1c735fa88af9d82bee6bc45",
+      "auditPath": [
+        "bfec34c022dc8a0da5c4d5479ae5e204ee655e320b61516aba9f08461e43065e",
+        "f152a417fcfc43f4df1258776dd0a0aa7f5cdfb9d2a2c02b072d2b96e93146e7",
+        "d0ae6ef4dfdb13cf41a4eff4c13ed69be476a9b4ae3a48b4b582ea3e4934654a",
+        "470f2b61dfdceb682d82b90e30df7453789d571da2edc10fa8927b2cd2f4eec3"
+      ]
+    },
+    {
+      "index": 6,
+      "chainHash": "70de0c31819fcb061c36f9e0aa4203aa3c39e839030bac3565a566ff3d586046",
+      "auditPath": [
+        "dbfb39db2ebfb1fb1b936ee9e6b1eb21a18bc3f3f98432fc4d53c8dd95131c70",
+        "fa54515f38b1370a6729ef5f00bbd272e80e3c4121d88cfd5e620de376caa6d6",
+        "d0ae6ef4dfdb13cf41a4eff4c13ed69be476a9b4ae3a48b4b582ea3e4934654a",
+        "470f2b61dfdceb682d82b90e30df7453789d571da2edc10fa8927b2cd2f4eec3"
+      ]
+    },
+    {
+      "index": 8,
+      "chainHash": "43d503816030e23d298d1c85dad463e49c8f2f1e4a72ada76d4102e7d3cc7be7",
+      "auditPath": [
+        "e4a81dcb59cec7b7d2674fd2ccde0bd6f4fe4f5b035906a819cc33f3f07dc77d",
+        "61821b0b20411b68d6f5e587ef84c995cc50b888c64c875c1974c1be90d7b51e"
+      ]
+    },
+    {
+      "index": 9,
+      "chainHash": "9cd617994e5eb7efa65687bf3aa4726741246e389a034b5fc782eae5aef58c90",
+      "auditPath": [
+        "d8b2fc9fe984f2b285d4819eed0c23dc01f9b19071b5e35b8c28bb80043c1d8b",
+        "61821b0b20411b68d6f5e587ef84c995cc50b888c64c875c1974c1be90d7b51e"
+      ]
+    }
+  ],
+  "fields": {
+    "disclosed": [
+      "/toolInput"
+    ],
+    "withheld": [
+      "/output",
+      "/toolCalls"
+    ]
+  },
+  "includedFiles": [
+    "rules/destructive.yaml"
+  ],
+  "consistency": null
+}

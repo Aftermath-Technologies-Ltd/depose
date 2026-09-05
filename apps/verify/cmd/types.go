@@ -79,6 +79,12 @@ type VerifyResult struct {
 	Mode   string
 	Bundle string
 	Checks []CheckResult
+	// Disclosure is true when the directory was verified as a disclosure
+	// bundle rather than a full one.
+	Disclosure bool
+	// DisclosedEvents and LeafCount describe a disclosure's coverage.
+	DisclosedEvents int
+	LeafCount       int
 }
 
 // VerifyBundle runs all verification checks on a .depo bundle directory.

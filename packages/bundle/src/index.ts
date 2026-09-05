@@ -48,6 +48,13 @@ export {
 export { VERIFIER_DOWNLOAD_URL, GITHUB_REPO_SLUG, DEPOSE_RELEASE_TAG } from './constants.js';
 
 export {
+  buildDisclosure,
+  type DisclosureDocument,
+  type DisclosureOptions,
+  type DisclosureResult,
+} from './disclosure.js';
+
+export {
   buildFilesMap,
   hashFileEntry,
   isFilesMapExcluded,

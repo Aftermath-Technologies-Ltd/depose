@@ -94,41 +94,55 @@ The bundle producer must exercise judgment before sharing.
 
 ---
 
-## 2. Redaction
+## 2. Verifiable disclosure (redaction without re-signing)
 
-DEPOSE does not currently provide an in-tool redaction workflow.
-Redaction is a producer responsibility, performed before sharing.
-After redaction, the bundle must be **re-signed**, because any
-modification invalidates the hash chain. This is by design:
-redaction is a deliberate act, not a silent filter.
+A producer rarely hands over the whole session. `depose disclose`
+produces a disclosure bundle that proves a chosen subset of events, and
+a chosen subset of fields within them, belongs to the originally sealed
+record, without re-signing anything and without the recipient ever
+seeing the original. See `docs/bundle-format.md#disclosure-bundles`.
 
-### Redaction workflow
+**What the recipient can verify from the disclosure alone:**
 
-1. Extract the `.depo` tarball.
-2. Modify content in `events.jsonl`, `raw/`, or `artifacts/` as
-   needed (e.g., replace `envSubset.AWS_SECRET_ACCESS_KEY` value
-   with `REDACTED`).
-3. Re-run `depose package` with the modified sources.
-4. The re-signed bundle has a new `rootHash`, new signatures, and
-   new RFC 3161 timestamps. The original bundle remains valid
-   under its own signatures.
+- The original manifest signature and RFC 3161 timestamp, unchanged.
+- That every disclosed event is a byte-identical member of the sealed
+  set at its stated position (RFC 6962 audit path to the signed Merkle
+  root, plus a recomputed chain link).
+- That every disclosed field opens to its sealed commitment
+  (`sha256(jcs([salt, path, value]))`), so a value cannot be substituted.
+- That any carried original file (the ruleset, the narrative) matches
+  the signed files map.
+- With two disclosures, that the later one extends the earlier
+  (consistency proof) and that shared events are identical.
 
-**Risk:** A recipient who receives both the original and redacted
-bundles can diff them to identify what was redacted. Even the
-existence of a redacted version may reveal that something was
-sensitive.
+**What a disclosure reveals about what it withholds, by design:**
 
-**Mitigation:** Only share the redacted bundle. Destroy or
-sequester the original per the producer's retention policy.
+- The number of sealed events and the positions of the withheld ones.
+  A recipient can see "events 4 through 9 were not disclosed" and
+  argue about it; they cannot see what those events were.
+- The chain hash of each withheld event (needed to recompute the
+  disclosed events' own chain links). It is a SHA-256 over metadata and
+  a payload hash; recovering the event requires guessing all of it.
+- Which fields of a disclosed event are withheld (the placeholder is
+  visible; its salt makes the value unguessable).
 
-### Redaction and gap events
+**Limits:**
 
-Redacting a `tool_result` event's output without also redacting the
-corresponding `tool_call_intent` and `shell_command_pre` events may
-create inconsistencies. The reconstructed timeline must remain
-coherent. The producer should redact at the field level where
-possible rather than removing entire events, which would require
-rebuilding the hash chain and could introduce new `gap` events.
+- Events whose payload contains no committed field (prompts and
+  assistant text by default) are hidden only by the one-wayness of
+  their payload hash. A recipient who can guess the exact metadata and
+  text can confirm the guess. Declare `prompt.text` and
+  `assistant_message.content` in the ruleset's `disclosable` list to
+  commit them.
+- The narrative in the original bundle is derived from plaintext. Carry
+  it into a disclosure only if everything it cites is disclosed.
+- Consistency proofs relate two seals only when the earlier one is a
+  prefix of the later with identical salts; today that holds for
+  disclosures of the same seal, and for re-seals under a fixed seed.
+
+The earlier "redact by editing and re-signing" workflow is gone. A
+re-signed bundle is a different record with a different timestamp; a
+disclosure is the same record, partially shown.
 
 ---
 

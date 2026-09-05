@@ -13,6 +13,9 @@ func (r *VerifyResult) Print() {
 	fmt.Println()
 	fmt.Printf("  Bundle: %s\n", r.Bundle)
 	fmt.Printf("  Mode:   %s\n", r.Mode)
+	if r.Disclosure {
+		fmt.Printf("  Kind:   disclosure (%d of %d sealed events disclosed)\n", r.DisclosedEvents, r.LeafCount)
+	}
 	fmt.Println()
 
 	if r.Mode == "dev-unsigned" {
@@ -47,6 +50,15 @@ func (r *VerifyResult) Print() {
 			fmt.Println("  - No trusted timestamp authority attested to its existence")
 			fmt.Println("  - Use mode=signed to produce an evidentiary bundle")
 		} else {
+			if r.Disclosure {
+				fmt.Println("  ═══ RESULT: PASS (disclosure) ═══")
+				fmt.Println()
+				fmt.Println("  Every disclosed event is a byte-identical member of the sealed set,")
+				fmt.Println("  proven against the Merkle root the signature and timestamp cover.")
+				fmt.Println("  Withheld events reveal only their count and positions.")
+				fmt.Println()
+				return
+			}
 			fmt.Println("  ═══ RESULT: PASS ═══")
 			fmt.Println()
 			fmt.Println("  This bundle is cryptographically intact:")

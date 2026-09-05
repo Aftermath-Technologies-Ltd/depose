@@ -47,6 +47,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `disclosable` list overrides) are sealed as
   `{ "$commitment": sha256(jcs([salt, path, value])) }` with the openings in
   `commitments.json`. The verifier's `commitments` check opens every one.
+- **`depose disclose` and verifier disclosure mode.** A disclosure
+  bundle carries the original manifest, signature, and timestamp, the
+  chosen events byte for byte, an RFC 6962 audit path for every sealed
+  position, and commitment openings for the chosen fields only.
+  `depose-verify verify` detects it and proves membership, byte
+  fidelity, and openings with no access to the original;
+  `depose-verify consistency` checks that a later disclosure extends an
+  earlier one. Negative tests: modified disclosed event, forged audit
+  path, wrong salt, root the signature does not cover, dropped
+  position, unpinned carried file.
 - **Conformance vectors** for the hash chain and the files map / manifest
   signing form (`tests/conformance/`), consumed by both the TypeScript and
   Go suites.

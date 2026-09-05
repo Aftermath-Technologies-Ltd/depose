@@ -29,7 +29,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  --signer-identity <regex>           (Future) Sigstore signer identity binding.\n")
 		fmt.Fprintf(os.Stderr, "\n")
 		fmt.Fprintf(os.Stderr, "Commands:\n")
-		fmt.Fprintf(os.Stderr, "  verify        Validate a .depo bundle.\n")
+		fmt.Fprintf(os.Stderr, "  verify        Validate a .depo bundle, or a disclosure bundle (auto-detected).\n")
+		fmt.Fprintf(os.Stderr, "  consistency   Check that a later disclosure extends an earlier one from the same seal.\n")
 		fmt.Fprintf(os.Stderr, "  version       Print the verifier version.\n")
 		os.Exit(1)
 	}
@@ -82,11 +83,34 @@ func main() {
 			fmt.Fprintf(os.Stderr, "ERROR: invalid path %q: %v\n", bundlePath, err)
 			os.Exit(1)
 		}
-		result := cmd.VerifyBundle(absPath, cmd.VerifyOpts{
+		opts := cmd.VerifyOpts{
 			ExpectedKeyFingerprint: expectedFingerprint,
 			SignerIdentityRegex:    signerIdentity,
 			RevocationListPath:     revocationList,
-		})
+		}
+		var result *cmd.VerifyResult
+		if cmd.IsDisclosure(absPath) {
+			result = cmd.VerifyDisclosure(absPath, opts)
+		} else {
+			result = cmd.VerifyBundle(absPath, opts)
+		}
+		result.Print()
+		if !result.Pass {
+			os.Exit(1)
+		}
+
+	case "consistency":
+		if len(os.Args) != 4 {
+			fmt.Fprintf(os.Stderr, "Usage: depose-verify consistency <earlier-disclosure> <later-disclosure>\n")
+			os.Exit(1)
+		}
+		earlier, err1 := filepath.Abs(os.Args[2])
+		later, err2 := filepath.Abs(os.Args[3])
+		if err1 != nil || err2 != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: invalid path\n")
+			os.Exit(1)
+		}
+		result := cmd.VerifyConsistency(earlier, later)
 		result.Print()
 		if !result.Pass {
 			os.Exit(1)
@@ -97,7 +121,7 @@ func main() {
 
 	default:
 		fmt.Fprintf(os.Stderr, "ERROR: unknown command %q\n", os.Args[1])
-		fmt.Fprintf(os.Stderr, "Commands: verify, version\n")
+		fmt.Fprintf(os.Stderr, "Commands: verify, consistency, version\n")
 		os.Exit(1)
 	}
 }

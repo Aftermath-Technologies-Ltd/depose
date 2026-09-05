@@ -28,6 +28,10 @@ type checkContext struct {
 	opts        VerifyOpts
 	// replay is set by checkChain for the checks that build on it.
 	replay *chain.ReplayResult
+	// disclosure is set in disclosure mode.
+	disclosure *disclosureDoc
+	// disclosed is set by checkDisclosureInclusion for the commitment check.
+	disclosed *disclosedEvents
 }
 
 // checkStep pairs a check with whether its failure ends the run.
@@ -74,8 +78,14 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 	}
 	result.Mode = m.Producer.Mode
 	ctx := &checkContext{bundlePath: bundlePath, manifest: m, rawManifest: raw, opts: opt}
+	runChecks(ctx, result, checkOrder)
+	return result
+}
 
-	for _, step := range checkOrder {
+// runChecks executes the steps in order, recording every result and
+// stopping after a step whose failure makes the rest meaningless.
+func runChecks(ctx *checkContext, result *VerifyResult, order []checkStep) {
+	for _, step := range order {
 		results := step.run(ctx)
 		result.Checks = append(result.Checks, results...)
 		failed := false
@@ -92,11 +102,10 @@ func VerifyBundle(bundlePath string, opts ...VerifyOpts) *VerifyResult {
 					Status: StatusSkipped,
 					Detail: fmt.Sprintf("not run: %s failed, so nothing the manifest pins can be trusted", results[len(results)-1].Name),
 				})
-				return result
+				return
 			}
 		}
 	}
-	return result
 }
 
 // checkManifestParse reads and parses manifest.json. It returns the

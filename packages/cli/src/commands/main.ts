@@ -28,6 +28,7 @@ import {
 } from './key.js';
 import { VERIFIER_DOWNLOAD_URL } from '@depose/bundle';
 import { handleReconstruct } from './reconstruct.js';
+import { handleDisclose, type DiscloseCommandArgs } from './disclose.js';
 import { handleInstall, handleUninstall } from './install-uninstall-handlers.js';
 import { optsToArgs } from './cli-args.js';
 import { CLI_VERSION } from '../version.js';
@@ -139,6 +140,18 @@ export async function main(argv: string[]): Promise<void> {
         await handlePackage(args as unknown as PackageCommandArgs);
       })
   );
+
+  program
+    .command('disclose <bundle>')
+    .description('Produce a verifiable partial disclosure of a sealed bundle')
+    .option('--events <spec>', 'Event ids, zero-based indices, or ranges (3-7), comma-separated; or "all"', 'all')
+    .option('--fields <spec>', 'JSON pointers to disclose (/toolInput,/output), or "all" or "none"', 'none')
+    .option('--out <dir>', 'Output directory (default: <bundle>-disclosure)')
+    .option('--include <path...>', 'Sealed files to carry verbatim (default: rules/destructive.yaml)')
+    .option('--consistent-with <dir>', 'Earlier disclosure to prove consistency with')
+    .action(async function (this: Command, bundle: string) {
+      await handleDisclose(bundle, optsToArgs(this.opts()) as unknown as DiscloseCommandArgs);
+    });
 
   program
     .command('verify [bundle]')

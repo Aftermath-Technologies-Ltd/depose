@@ -518,6 +518,86 @@ A `gap` event is the system's accounting of what it could not observe.
 - **No LLM in the signed path.** Narrative and commentary are templated
   from signed events.
 
+<a id="disclosure-bundles"></a>
+### 7.4 Disclosure bundles
+
+`depose disclose <bundle> --events <ids or ranges> --fields <json paths> --out <dir>`
+produces a **disclosure bundle**: proof that a chosen subset of the
+sealed events, with a chosen subset of their committed fields, belongs to
+the sealed record, verifiable with no access to the original. Nothing is
+re-signed.
+
+```
+<out>/
+  manifest.json                          the original, byte for byte
+  attestations/signatures.json           the original
+  attestations/rfc3161-timestamps/*.tsr  the original
+  disclosure.json                        the proof document (below)
+  events.jsonl                           the disclosed events, byte-identical lines, ascending index
+  commitments.json                       openings for the disclosed fields of the disclosed events only
+  rules/destructive.yaml                 any carried original file, pinned by manifest.files
+```
+
+`disclosure.json`:
+
+```ts
+{
+  schemaVersion: 1,
+  bundleId: string,                 // must equal manifest.bundleId
+  merkleRoot: string,               // must equal manifest.merkleRoot
+  leafCount: number,                // must equal manifest.counts.events
+  producedAt: string,
+  producer: { tool: "depose", version: string },
+  disclosed: [ { index, eventId, auditPath: string[] } ],   // ascending index
+  withheld:  [ { index, chainHash, auditPath: string[] } ], // every other index
+  fields: { disclosed: string[] | "all", withheld: string[] },
+  includedFiles: string[],
+  consistency: { earlierLeafCount, earlierRoot, proof: string[] } | null
+}
+```
+
+`disclosed` and `withheld` together cover every index `0..leafCount-1`
+exactly once. A withheld position carries its chain hash (a SHA-256, from
+which its leaf derives) so the disclosed events' own chain links can be
+recomputed; it reveals nothing about the event beyond position.
+
+The verifier detects `disclosure.json` and runs, in order:
+manifest-parse, schema-version, mode-declaration, mode-contract, the
+optional identity pins, signature-verify (stop on failure), then:
+
+1. **disclosure-parse**: schema 1; `bundleId`, `merkleRoot`, and
+   `leafCount` equal the signed manifest's; the indices partition
+   `0..leafCount-1`. A disclosure claiming a root the signature does not
+   cover fails here.
+2. **disclosure-inclusion**: `events.jsonl` has exactly the disclosed
+   events in order; each payload re-hashes to its `payloadHash`; each
+   `chainHash` recomputes from its metadata and the preceding position's
+   chain hash; each leaf `SHA-256(0x00 || chainHash)` reaches
+   `merkleRoot` through its audit path; each withheld chain hash's leaf
+   reaches the root through its own path. A modified disclosed event, a
+   forged path, or an altered withheld hash fails here.
+3. **disclosure-commitments**: every opening in `commitments.json` names
+   a disclosed event and reproduces the sealed commitment. Placeholders
+   without an opening are withheld by design.
+4. **timestamp-verify**, **timestamp-backdating**: as for a full bundle,
+   against the original manifest.
+5. **disclosure-files**: every file other than the four the disclosure
+   writes and the attestation files is pinned by `manifest.files` and
+   matches it. **attestation-files** as for a full bundle.
+
+`depose-verify consistency <earlier> <later>` verifies both disclosures,
+then **tree-consistency** (equal roots when the leaf counts match; an RFC
+6962 consistency proof carried in `later/disclosure.json` when the later
+tree is larger) and **disclosed-overlap** (events both disclose are
+byte-identical). `depose disclose --consistent-with <earlier>` computes
+the proof and refuses when the earlier root is not a prefix of the
+current tree.
+
+What a disclosure reveals about withheld events: their count, their
+positions, and their chain hashes. Nothing else is recoverable without
+guessing the full metadata and payload hash of an event, which for any
+event with a committed field means guessing 32 random bytes.
+
 <a id="destructive-ruleset"></a>
 ## 8. Destructive ruleset
 

@@ -32,7 +32,7 @@ func TestReplayDetectsPayloadTamper(t *testing.T) {
 
 	// Compute the legitimate payloadHash so the original line would
 	// pass payload-hash verification.
-	legitimateHash, err := recomputePayloadHash([]byte(originalPayload))
+	legitimateHash, err := RecomputePayloadHash([]byte(originalPayload))
 	if err != nil {
 		t.Fatalf("recompute legitimate payloadHash: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestReplayAcceptsLegitimatePayload(t *testing.T) {
 	dir := t.TempDir()
 
 	payload := `{"command":"echo ok"}`
-	h, err := recomputePayloadHash([]byte(payload))
+	h, err := RecomputePayloadHash([]byte(payload))
 	if err != nil {
 		t.Fatalf("recompute: %v", err)
 	}
@@ -97,11 +97,11 @@ func TestReplayAcceptsLegitimatePayload(t *testing.T) {
 func TestRecomputePayloadHashIsDeterministic(t *testing.T) {
 	a := `{"a":1,"b":"x","z":[1,2,3]}`
 	b := `{"z":[1,2,3],"a":1,"b":"x"}`
-	ha, err := recomputePayloadHash([]byte(a))
+	ha, err := RecomputePayloadHash([]byte(a))
 	if err != nil {
 		t.Fatal(err)
 	}
-	hb, err := recomputePayloadHash([]byte(b))
+	hb, err := RecomputePayloadHash([]byte(b))
 	if err != nil {
 		t.Fatal(err)
 	}

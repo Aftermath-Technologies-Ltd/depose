@@ -113,3 +113,27 @@ Leaving it out of the default disclosable list would make committing
 Prompt and assistant text are not, because the task's default names tool
 inputs, tool outputs, file contents, and environment values; the ruleset
 knob is documented for producers whose prompts are sensitive.
+
+## D13. Withheld events disclose their chain hash, not just their leaf hash
+
+A disclosed event's chain link is `SHA-256(prev || payloadHash || meta)`.
+Verifying that link is what binds the disclosed bytes to the leaf; a
+leaf hash alone would let an attacker keep a valid leaf while rewriting
+the event under it. So a withheld position carries its chain hash and
+the verifier recomputes every disclosed event's link from its
+predecessor. The chain hash is a SHA-256 over metadata and a payload
+hash; it reveals nothing beyond position unless the whole event can be
+guessed, and for any event with a committed field that means guessing a
+32-byte salt.
+
+## D14. Consistency proofs are implemented and wired, with an honest scope note
+
+RFC 6962 consistency proofs, `--consistent-with`, and
+`depose-verify consistency` are complete and pinned by vectors. Two
+seals share a prefix only when their chain hashes do, which requires the
+same commitment salts for the shared events. Nothing today reuses salts
+across seals except the deterministic fixed-seed mode, so in practice
+consistency holds between disclosures of one seal (trivially, equal
+roots) and the larger-tree path is exercised by tests and vectors. A
+future `depose record --extend <bundle>` that reuses openings would make
+it hold across incremental seals; that is noted rather than built.
