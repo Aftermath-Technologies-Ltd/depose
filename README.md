@@ -230,8 +230,9 @@ depose anchor incident-01JABC...
 
 The anchor commits to exactly the bytes the signature covered and is
 written to `attestations/anchor.json` with a countersignature by the
-sealing key. `manifest.json` does not change, so the original seal
-verifies exactly as it did. Pass `--require-anchor` to `depose record` if
+sealing key. The only thing it changes in `manifest.json` is the
+`anchorStatus` label, which sits outside the signed form, so the original
+seal verifies against the same bytes it always did. Pass `--require-anchor` to `depose record` if
 your policy is that an undated bundle is not worth having.
 
 ## Exporting to IETF formats

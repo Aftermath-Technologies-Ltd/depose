@@ -687,8 +687,11 @@ with the anchor added on landing is strictly better than nothing at all.
 exactly the bytes the signature covered, `serializeManifestForSigning`,
 so the anchor dates the original seal and not a later edit of it.
 
-**manifest.json does not change.** Not one byte. The anchor is written to
-`attestations/anchor.json`:
+**The anchor changes nothing the signature covers.** `depose anchor`
+rewrites exactly one field of manifest.json, `anchorStatus`, from
+`pending` to `anchored`; that field sits outside the signing form, so the
+original signature verifies against the same bytes it always did. The
+anchor itself is written to `attestations/anchor.json`:
 
 ```json
 {

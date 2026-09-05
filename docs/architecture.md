@@ -158,12 +158,16 @@ Integrity is the cryptography layer. It makes the bundle tamper-evident:
   rootHash     = chainHash[N-1]
   ```
 
-- **Signing**: Ed25519 (local keypair). No keyless path (not yet
-  implemented, opt-in, keyless via OIDC). The signature covers `manifest.json`,
-  which contains `rootHash`.
+- **Signing**: Ed25519 with a local keypair, and nothing else. Keyless
+  signing through an OIDC identity provider was scaffolded and removed
+  rather than left in place (`docs/decisions.md` D22). The signature
+  covers `manifest.json`, which contains `rootHash`.
 
 - **RFC 3161 timestamps**: The bundle is submitted to a Time Stamp Authority
-  (FreeTSA primary, DigiCert fallback) at packaging time. The `.tsr` tokens
+  at packaging time. The default authorities are FreeTSA and DigiCert,
+  tried in a per-run random order with a retried backoff (D21), and the
+  ruleset's `tsa` key replaces that list. When none answers, the bundle
+  is sealed pending an anchor rather than not produced (D19). The `.tsr` tokens
   prove that the bundle existed at a specific time, as certified by a trusted
   third party.
 

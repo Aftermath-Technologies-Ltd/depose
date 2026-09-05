@@ -224,12 +224,18 @@ evidence of when this happened").
 
 ## D20. The anchor never touches the seal
 
-`depose anchor` leaves manifest.json byte-identical. Adding the token to
+`depose anchor` changes nothing the signature covers. Adding the token to
 `manifest.timestamps` would have worked, because the signing form strips
-that field, but it would mean the file a recipient checked yesterday is
-not the file they check today, and a format whose whole claim is
+that field, but it would mean the evidence a recipient checked yesterday
+is not the evidence they check today, and a format whose whole claim is
 tamper-evidence should not have a supported way to rewrite the sealed
 document.
+
+The one field the command does rewrite in manifest.json is
+`anchorStatus`, from `pending` to `anchored`. That is a label outside the
+signing form, and leaving it stale would mean a bundle that says pending
+while carrying an anchor. `anchorBundle` itself touches no file the
+bundle already had.
 
 The anchor goes in `attestations/anchor.json` with its own
 countersignature. The countersignature is not decoration: a timestamp
