@@ -56,6 +56,10 @@ export {
   writeCaptureRecord,
   writeEffectRecord,
   readCaptureRecords,
+  readCommandRecords,
+  recordKind,
+  type StoredCaptureRecord,
+  type CaptureRecordKind,
 } from './capture-record.js';
 
 // Environment allowlist

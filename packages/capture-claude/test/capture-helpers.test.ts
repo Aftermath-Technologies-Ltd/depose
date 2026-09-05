@@ -13,7 +13,7 @@ import {
 import {
   getCaptureDir,
   writeCaptureRecord,
-  readCaptureRecords,
+  readCommandRecords,
 } from '../src/capture-record.js';
 import {
   filterEnv,
@@ -180,7 +180,7 @@ describe('capture-record', () => {
     expect(parsed.source).toBe('claude-pretooluse');
   });
 
-  it('readCaptureRecords returns sorted records', () => {
+  it('readCommandRecords returns sorted records', () => {
     // Write two records
     writeCaptureRecord('01HKAAAA00000000000000001', {
       argv: ['cmd1'],
@@ -209,7 +209,7 @@ describe('capture-record', () => {
       captureSchemaVersion: 1,
     });
 
-    const records = readCaptureRecords();
+    const records = readCommandRecords();
     expect(records).toHaveLength(2);
     expect(records[0].ulid).toBe('01HKAAAA00000000000000001');
     expect(records[1].ulid).toBe('01HKAAAA00000000000000002');

@@ -12,7 +12,7 @@ import {
   type HookInput,
 } from '../src/hook-entry.js';
 import {
-  readCaptureRecords,
+  readCommandRecords,
 } from '../src/capture-record.js';
 import {
 } from '../src/env-allowlist.js';
@@ -63,7 +63,7 @@ describe('hook-entry', () => {
     expect(existsSync(result.capturePath)).toBe(true);
 
     // Read back the capture record
-    const records = readCaptureRecords();
+    const records = readCommandRecords();
     const targetRecord = records.find((r) => r.ulid === result.ulid);
     expect(targetRecord).toBeDefined();
     expect(targetRecord!.payload.argv).toEqual([
@@ -84,7 +84,7 @@ describe('hook-entry', () => {
     });
     const after = Date.now();
 
-    const record = readCaptureRecords().find((r) => r.ulid === result.ulid)!;
+    const record = readCommandRecords().find((r) => r.ulid === result.ulid)!;
     expect(record.payload.capturedAtSource).toBe('recorded');
 
     const capturedMs = Date.parse(record.payload.capturedAt);
@@ -100,7 +100,7 @@ describe('hook-entry', () => {
       session_id: 'session-scoping-abc',
     });
 
-    const record = readCaptureRecords().find((r) => r.ulid === result.ulid)!;
+    const record = readCommandRecords().find((r) => r.ulid === result.ulid)!;
     expect(record.payload.sessionId).toBe('session-scoping-abc');
   });
 
@@ -112,7 +112,7 @@ describe('hook-entry', () => {
       session_id: '',
     });
 
-    const record = readCaptureRecords().find((r) => r.ulid === result.ulid)!;
+    const record = readCommandRecords().find((r) => r.ulid === result.ulid)!;
     expect(record.payload.sessionId).toBeNull();
   });
 
@@ -131,7 +131,7 @@ describe('hook-entry', () => {
     const result = await handlePreToolUse(input);
     expect(result.ulid).toBeTruthy();
 
-    const records = readCaptureRecords();
+    const records = readCommandRecords();
     const targetRecord = records.find((r) => r.ulid === result.ulid);
     expect(targetRecord).toBeDefined();
     expect(targetRecord!.payload.argv).toEqual(['edit', '/tmp/project/main.ts']);
@@ -151,7 +151,7 @@ describe('hook-entry', () => {
     const result = await handlePreToolUse(input);
     expect(result.ulid).toBeTruthy();
 
-    const records = readCaptureRecords();
+    const records = readCommandRecords();
     const targetRecord = records.find((r) => r.ulid === result.ulid);
     expect(targetRecord).toBeDefined();
     expect(targetRecord!.payload.argv[0]).toBe('write');
@@ -171,7 +171,7 @@ describe('hook-entry', () => {
     };
 
     const result = await handlePreToolUse(input);
-    const records = readCaptureRecords();
+    const records = readCommandRecords();
     const targetRecord = records.find((r) => r.ulid === result.ulid);
 
     expect(targetRecord).toBeDefined();
@@ -198,7 +198,7 @@ describe('hook-entry', () => {
     };
 
     const result = await handlePreToolUse(input);
-    const records = readCaptureRecords();
+    const records = readCommandRecords();
     const targetRecord = records.find((r) => r.ulid === result.ulid);
 
     // Parent process tree is best-effort; just verify it's an array
