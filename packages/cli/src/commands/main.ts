@@ -100,7 +100,10 @@ export async function main(argv: string[]): Promise<void> {
       .option('--output <dir>', 'Output directory')
       .option('--output-dir <dir>', 'Alias for --output')
       .option('--session-id <id>', 'Session ID (ULID)')
-      .option('--agent-id <id>', 'Agent ID', 'claude-code')
+      // No commander default. The handler picks it from the source flag
+      // (--from-codex means codex), and a default here would shadow that
+      // and tag every Codex bundle as claude-code.
+      .option('--agent-id <id>', 'Agent ID (default: from the source flag)')
       .option('--capture-dir <path>', 'Capture directory')
       .option(
         '--include-unscoped-captures',

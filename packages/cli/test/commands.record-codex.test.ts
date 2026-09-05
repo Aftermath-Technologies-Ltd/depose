@@ -5,13 +5,14 @@
 // manifest and the destructive command found by the same ruleset the
 // Claude path uses.
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadDestructiveRules, parseEventLine, type Event } from '@depose/core';
 import { writeBundle, type Manifest } from '@depose/bundle';
 import { loadAndMergeEvents } from '../src/pipeline.js';
+import { main } from '../src/commands/main.js';
 import { DEFAULT_RULES_PATH } from '../src/rules-default.js';
 
 const fixtures = join(__dirname, '../../core/test/fixtures/codex');
@@ -116,5 +117,59 @@ describe('depose record --from-codex', () => {
       captureDir: join(workDir, 'captures'),
     });
     expect(merged.sourceFormat).toBeNull();
+  });
+});
+
+// The tests above drive the pipeline directly, which covers the mapping
+// and skips the four lines that read the flag. Those four lines carried a
+// real defect: commander's `--agent-id` default of "claude-code" shadowed
+// the codex-derived one, so every Codex bundle was sealed claiming it came
+// from Claude Code. Nothing above would have noticed.
+describe('the --from-codex flag itself', () => {
+  const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+    throw new Error(`process.exit(${code ?? 0})`);
+  }) as never);
+  const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  afterEach(() => {
+    exit.mockClear();
+    log.mockClear();
+  });
+
+  async function record(flag: string, fixture: string): Promise<Manifest> {
+    const out = join(workDir, 'cli-out');
+    await main(['package', flag, fixture, '--output', out, '--skip-timestamp']);
+    const dir = readdirSync(out).find((d) => d.startsWith('incident-'));
+    expect(dir, 'no bundle was written').toBeDefined();
+    return JSON.parse(readFileSync(join(out, dir!, 'manifest.json'), 'utf-8')) as Manifest;
+  }
+
+  it('seals a Codex rollout as codex, not as claude-code', async () => {
+    const manifest = await record('--from-codex', join(fixtures, 'codex-rollout-v2.jsonl'));
+    expect(manifest.session.agentId).toBe('codex');
+    expect(manifest.session.sourceFormat).toBe('codex-rollout-v2');
+  });
+
+  it('still seals a Claude session as claude-code, with no sourceFormat', async () => {
+    const manifest = await record('--from-claude', join(fixtures, '../terraform-destroy.jsonl'));
+    expect(manifest.session.agentId).toBe('claude-code');
+    expect(manifest.session.sourceFormat).toBeUndefined();
+  });
+
+  it('honours an explicit --agent-id over the source flag', async () => {
+    const out = join(workDir, 'cli-out-explicit');
+    await main([
+      'package',
+      '--from-codex',
+      join(fixtures, 'codex-rollout-v2.jsonl'),
+      '--agent-id',
+      'shell',
+      '--output',
+      out,
+      '--skip-timestamp',
+    ]);
+    const dir = readdirSync(out).find((d) => d.startsWith('incident-'))!;
+    const manifest = JSON.parse(readFileSync(join(out, dir, 'manifest.json'), 'utf-8')) as Manifest;
+    expect(manifest.session.agentId).toBe('shell');
   });
 });

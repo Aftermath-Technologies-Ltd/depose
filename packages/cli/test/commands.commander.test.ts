@@ -15,6 +15,9 @@ import { join as pathJoin } from 'node:path';
 const fixturesDir = pathJoin(__dirname, '../../core/test/fixtures');
 const sessionFixture = pathJoin(fixturesDir, 'terraform-destroy.jsonl');
 const testOutputDir = pathJoin(__dirname, 'test-output-commander');
+// Where a command with no --output-dir would write. Nothing in the suite
+// should ever create it.
+const defaultOutputDir = pathJoin(__dirname, '../../..', 'depose-output');
 
 function cleanup(): void {
   try {
@@ -89,22 +92,35 @@ describe('commander argument parsing', () => {
     const originalExit = process.exit;
     console.log = vi.fn();
     console.error = vi.fn();
+    // The mock throws rather than returning. The real process.exit never
+    // returns, so a mock that does lets the command run on past a fatal
+    // error into a state production can never reach: this test used to
+    // reconstruct a whole bundle into the default output directory after
+    // commander had already rejected the flag.
     process.exit = vi.fn((code?: number | string | null) => {
       exitCode = typeof code === 'number' ? code : Number(code) || 0;
-      return undefined as never;
+      throw new Error(`process.exit(${exitCode})`);
     }) as unknown as typeof process.exit;
 
-    await main([
-      'reconstruct',
-      '--from-claude',
-      sessionFixture,
-      '--totally-bogus-flag',
-    ]);
-
-    console.log = originalLog;
-    console.error = originalError;
-    process.exit = originalExit;
+    try {
+      await main([
+        'reconstruct',
+        '--from-claude',
+        sessionFixture,
+        '--totally-bogus-flag',
+      ]);
+    } catch (err) {
+      expect(String(err)).toContain('process.exit');
+    } finally {
+      console.log = originalLog;
+      console.error = originalError;
+      process.exit = originalExit;
+    }
 
     expect(exitCode).not.toBe(0);
+    // Nothing was produced. A command that exits non-zero must not also
+    // leave a bundle behind, and the default output directory is where
+    // one would land.
+    expect(existsSync(defaultOutputDir)).toBe(false);
   });
 });

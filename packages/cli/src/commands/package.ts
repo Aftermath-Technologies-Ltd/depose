@@ -208,7 +208,9 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       rootHash: manifest.rootHash ? manifest.rootHash.slice(0, 16) + '...' : '(empty)',
       signatures: manifest.signatures.length,
       timestamps: manifest.timestamps.length,
-      anchorStatus: manifest.anchorStatus ?? 'anchored',
+      // Absent on a dev-unsigned bundle, which is not anchored and not
+      // pending either: there is no seal for an anchor to date.
+      anchorStatus: manifest.anchorStatus ?? 'n/a',
     }, null, 2)}`);
     if (manifest.anchorStatus === 'pending') {
       console.log('');
