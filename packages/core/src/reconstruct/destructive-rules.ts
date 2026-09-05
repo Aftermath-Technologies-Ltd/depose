@@ -93,6 +93,28 @@ export interface Ruleset {
   rules: DestructiveRule[];
   /** `<eventType>.<payloadField>` entries; DEFAULT_DISCLOSABLE when the file has none. */
   disclosable: string[];
+  /**
+   * Timestamp authorities to anchor against, in the order given. Empty
+   * when the ruleset names none, in which case the producer's built-in
+   * list applies. Configuring a TSA here puts the choice of who witnesses
+   * the seal into the same signed file as the rules, where a recipient
+   * can see it. See docs/bundle-format.md#destructive-ruleset.
+   */
+  tsa: RulesetTsa[];
+}
+
+/** One producer-configured timestamp authority. */
+export interface RulesetTsa {
+  /** Name recorded in manifest.timestamps[].tsa. */
+  name: string;
+  /** Full URL of the RFC 3161 endpoint. */
+  url: string;
+  /**
+   * Expected SHA-256 (lowercase hex) of the TSA signing certificate, when
+   * the producer pins one. Recorded so a recipient can see which authority
+   * was expected, not only which one answered.
+   */
+  signerFingerprint?: string;
 }
 
 // ── Ruleset loading ──────────────────────────────────────────────────
@@ -105,11 +127,12 @@ export interface Ruleset {
  * @throws Error when `disclosable` is present but not a list of strings.
  */
 export function parseRulesetYaml(yaml: string): Ruleset {
-  const parsed = parseYaml(yaml) as { disclosable?: unknown } | null;
+  const parsed = parseYaml(yaml) as { disclosable?: unknown; tsa?: unknown } | null;
   const rules = parseDestructiveRulesYaml(yaml);
+  const tsa = parseTsaList(parsed?.tsa);
   const raw = parsed?.disclosable;
   if (raw === undefined || raw === null) {
-    return { rules, disclosable: [...DEFAULT_DISCLOSABLE] };
+    return { rules, disclosable: [...DEFAULT_DISCLOSABLE], tsa };
   }
   if (!Array.isArray(raw) || raw.some((x) => typeof x !== 'string')) {
     throw new Error(
@@ -117,7 +140,35 @@ export function parseRulesetYaml(yaml: string): Ruleset {
       'remove the key to use the defaults'
     );
   }
-  return { rules, disclosable: raw as string[] };
+  return { rules, disclosable: raw as string[], tsa };
+}
+
+/**
+ * Parse the ruleset's `tsa` list.
+ *
+ * @param raw - The parsed YAML value, or undefined when the key is absent.
+ * @returns The configured authorities, in order; empty when unset.
+ * @throws Error naming the offending entry when the shape is wrong.
+ */
+export function parseTsaList(raw: unknown): RulesetTsa[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    throw new Error('ruleset "tsa" must be a list of {name, url} entries; remove the key to use the built-in authorities');
+  }
+  return raw.map((entry, index) => {
+    const item = entry as { name?: unknown; url?: unknown; signerFingerprint?: unknown };
+    if (typeof item?.name !== 'string' || typeof item.url !== 'string') {
+      throw new Error(`ruleset tsa[${index}] needs a string "name" and a string "url"`);
+    }
+    if (!/^https?:\/\//.test(item.url)) {
+      throw new Error(`ruleset tsa[${index}] url "${item.url}" must be http or https`);
+    }
+    const tsa: RulesetTsa = { name: item.name, url: item.url };
+    if (typeof item.signerFingerprint === 'string') {
+      tsa.signerFingerprint = item.signerFingerprint.toLowerCase();
+    }
+    return tsa;
+  });
 }
 
 
@@ -151,7 +202,7 @@ export function loadRuleset(filePath: string): Ruleset {
   try {
     content = readFileSync(filePath, 'utf-8');
   } catch {
-    return { rules: [], disclosable: [...DEFAULT_DISCLOSABLE] };
+    return { rules: [], disclosable: [...DEFAULT_DISCLOSABLE], tsa: [] };
   }
   return parseRulesetYaml(content);
 }

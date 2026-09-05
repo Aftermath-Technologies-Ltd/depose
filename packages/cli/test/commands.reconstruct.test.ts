@@ -69,10 +69,10 @@ describe('depose reconstruct', () => {
   beforeEach(cleanup);
   afterEach(cleanup);
 
-  it('produces a bundle from terraform-destroy.jsonl', () => {
+  it('produces a bundle from terraform-destroy.jsonl', async () => {
     const capture = captureOutput();
 
-    main([
+    await main([
       'reconstruct',
       '--from-claude',
       pathJoin(fixturesDir, 'terraform-destroy.jsonl'),
@@ -109,10 +109,10 @@ describe('depose reconstruct', () => {
     capture.restore();
   });
 
-  it('produces a bundle from session-with-gaps.jsonl (with gaps)', () => {
+  it('produces a bundle from session-with-gaps.jsonl (with gaps)', async () => {
     const capture = captureOutput();
 
-    main([
+    await main([
       'reconstruct',
       '--from-claude',
       pathJoin(fixturesDir, 'session-with-gaps.jsonl'),

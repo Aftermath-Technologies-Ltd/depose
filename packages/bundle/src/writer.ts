@@ -9,7 +9,9 @@
 //      verify.txt.
 //   3. Walk the tree and build the files map (files-map.ts).
 //   4. Put the map in the manifest, sign the manifest, request the
-//      RFC 3161 timestamp over the signed form.
+//      RFC 3161 timestamp over the signed form. A timestamp that cannot
+//      be obtained leaves the bundle sealed pending an anchor rather
+//      than unproduced; see anchor.ts.
 //   5. Write manifest.json and the attestations last.
 //
 // Steps 3 to 5 are why a recipient cannot swap raw/ or truncate the
@@ -21,22 +23,16 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Event, DestructiveRule } from '@depose/core';
+import type { BundleWriterOptions, BundleOutput } from './writer-options.js';
 import { buildTimeline, sha256Bytes, DEFAULT_DISCLOSABLE, COMMITMENT_ALGORITHM, type CommitmentsFile } from '@depose/core';
-import {
-  buildManifest,
-  serializeManifest,
-  serializeManifestForSigning,
-  type BundleMode,
-  type Manifest,
-  type SignatureBlock,
-  type Rfc3161Token,
-} from './manifest.js';
+import { serializeManifest } from './manifest-io.js';
+import { buildManifest } from './manifest.js';
 import { buildFilesMap } from './files-map.js';
 import { buildVerifyTxt, wrapHtmlBanner, DEV_UNSIGNED_BANNER } from './verify-txt.js';
 import { copyRawSources, copyCaptureRecords } from './writer-sources.js';
+import { attestManifest } from './writer-attest.js';
 import { sealEvents } from './writer-seal.js';
-import { signManifest as signManifestEd25519, fingerprintPublicKeyPem, type Ed25519KeyPair } from '@depose/chain';
-import { requestTimestamps, type Rfc3161Token as ChainRfc3161Token } from '@depose/chain';
+import { fingerprintPublicKeyPem } from '@depose/chain';
 import { renderMarkdown, renderHtml } from '@depose/narrative';
 
 // ── Bundle layout constants ──────────────────────────────────────────
@@ -53,91 +49,6 @@ const NARRATIVE_MD = 'narrative.md';
 const NARRATIVE_HTML = 'narrative.html';
 const VERIFY_TXT = 'verify.txt';
 
-// ── Writer options ───────────────────────────────────────────────────
-
-export interface BundleWriterOptions {
-  /** Session ID (ULID), used as bundle directory name */
-  sessionId: string;
-  /** Agent ID (e.g., 'claude-code') */
-  agentId: string;
-  /** Bundle version (semver) */
-  version: string;
-  /** Production timestamp (ISO 8601 UTC) */
-  producedAt: string;
-  /** Session start timestamp (ISO 8601 UTC) */
-  sessionStartedAt: string;
-  /** Session end timestamp (ISO 8601 UTC) */
-  sessionEndedAt: string;
-  /** Destructive ruleset (for counting destructive ops) */
-  rules: DestructiveRule[];
-  /** Original ruleset bytes, written verbatim into the bundle and
-   *  hashed into manifest.rulesetHash. The verifier re-reads the
-   *  embedded file and re-hashes it to enforce ruleset integrity. */
-  rulesetBytes: Buffer;
-  /** Output directory (where the .depo directory is written) */
-  outputDir: string;
-  /**
-   * Bundle production mode (see BundleMode docstring).
-   *
-   * `signed`, production. Requires keyPair. Builds chain, signs,
-   *   requests RFC 3161 timestamps. The bundle is named
-   *   `incident-<id>` and is the only mode acceptable as evidence.
-   * `dev-unsigned`, pipeline testing. signatures/timestamps are
-   *   empty. The bundle is named `incident-unsigned-<id>` and
-   *   verify.txt + narrative carry a "NOT EVIDENCE" banner. The
-   *   chain is built only if keyPair is provided (this preserves
-   *   roundtrip tests without an active TSA dependency).
-   */
-  mode: BundleMode;
-  /** Ed25519 key pair. Required for `signed`. Optional for
-   *  `dev-unsigned` (used only to build the chain; the signature
-   *  itself is not emitted). */
-  keyPair?: Ed25519KeyPair;
-  /** Test-only hatch: pre-baked RFC 3161 tokens to embed instead of
-   *  calling a real TSA. Used by signed-mode tests that cannot reach
-   *  a live TSA. Never set by CLI commands. */
-  injectedTimestamps?: ChainRfc3161Token[];
-  /** Path to the original JSONL source file. When provided, the
-   *  file is copied into raw/claude-code/<filename>.jsonl in the
-   *  bundle, along with any shell-history.txt or git-reflog.txt
-   *  sibling. */
-  sourceJsonlPath?: string;
-  /**
-   * Capture-store accounting, recorded in the signed manifest so a
-   * recipient can see that capture data existed and how much of it was
-   * deliberately left out as unattributable to this session.
-   */
-  capturesAttributed?: number;
-  capturesExcluded?: number;
-  /**
-   * Capture store the attributed records came from. When set, the records
-   * that actually entered this bundle are copied into raw/captures/.
-   */
-  captureSourceDir?: string;
-  /**
-   * Replace disclosable payload fields with salted commitments before
-   * sealing, keeping the openings in commitments.json. On by default;
-   * this is what makes `depose disclose` possible. See
-   * docs/bundle-format.md#field-commitments.
-   */
-  commitFields?: boolean;
-  /** Ruleset `disclosable` entries. Defaults to DEFAULT_DISCLOSABLE. */
-  disclosable?: string[];
-}
-
-// ── Bundle output ────────────────────────────────────────────────────
-
-export interface BundleOutput {
-  /** Path to the written .depo directory */
-  depopPath: string;
-  /** The manifest that was written */
-  manifest: Manifest;
-  /** Events written to events.jsonl: committed, with chainHash populated */
-  events: Event[];
-  /** Warnings (non-fatal issues during bundle creation) */
-  warnings: string[];
-}
-
 // ── Main writer ──────────────────────────────────────────────────────
 
 /**
@@ -145,7 +56,9 @@ export interface BundleOutput {
  *
  * Modes:
  *   - `signed`: builds chain, signs, timestamps. Requires keyPair.
- *     Fails closed if a TSA cannot be reached (no silent downgrade).
+ *     When no TSA answers the bundle is sealed with
+ *     `anchorStatus: "pending"` and a warning; pass `requireAnchor` to
+ *     fail closed instead.
  *   - `dev-unsigned`: signatures/timestamps stay empty. Chain is
  *     still built when keyPair is provided. Bundle dir is renamed
  *     to `incident-unsigned-<id>` and verify.txt + narrative carry
@@ -156,7 +69,8 @@ export interface BundleOutput {
  * @param rules - The destructive ruleset in effect.
  * @param options - Identity, mode, key, and source paths.
  * @returns The bundle path, manifest, chained events, and warnings.
- * @throws Error when signed mode has no key or no TSA can be reached.
+ * @throws Error when signed mode has no key, or when `requireAnchor` is
+ *   set and no TSA can be reached.
  */
 export async function writeBundle(
   events: Event[],
@@ -165,6 +79,8 @@ export async function writeBundle(
 ): Promise<BundleOutput> {
   const { sessionId, agentId, version, producedAt, sessionStartedAt, sessionEndedAt } = options;
   const { rulesetBytes, outputDir, mode, keyPair, injectedTimestamps, sourceJsonlPath } = options;
+  const tsaEndpoints = options.tsaEndpoints;
+  const requireAnchor = options.requireAnchor === true;
 
   if (mode === 'signed' && !keyPair) {
     throw new Error(
@@ -277,37 +193,15 @@ export async function writeBundle(
   manifest.files = buildFilesMap(bundleDir);
 
   // ── Step 4: sign, then timestamp the signed form ───────────────────
-  const signatures: SignatureBlock[] = [];
-  const timestamps: Rfc3161Token[] = [];
-  if (mode === 'signed') {
-    const sigResult = signManifestEd25519(serializeManifestForSigning(manifest), keyPair!);
-    signatures.push({
-      scheme: 'ed25519',
-      signature: sigResult.signatureBase64,
-      publicKey: sigResult.publicKeyPem,
-      signedFields: 'manifest.json',
-    });
-    manifest.signatures = signatures;
-
-    try {
-      const tsTokens = injectedTimestamps && injectedTimestamps.length > 0
-        ? injectedTimestamps
-        : await requestTimestamps(serializeManifestForSigning(manifest));
-      for (const token of tsTokens) {
-        timestamps.push({ tsa: token.tsa, timestamp: token.timestamp, tokenBase64: token.tokenBase64 });
-      }
-      manifest.timestamps = timestamps;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `Failed to obtain RFC 3161 timestamp, cannot produce signed bundle.\n${msg}\n` +
-        `Use mode="dev-unsigned" if you need an unsigned bundle for pipeline testing.`,
-        { cause: err }
-      );
-    }
-  } else {
-    warnings.push('Bundle is dev-unsigned. signatures=[], timestamps=[]. NOT EVIDENCE.');
-  }
+  const { signatures, timestamps } = await attestManifest(manifest, {
+    mode,
+    keyPair,
+    injectedTimestamps,
+    tsaEndpoints,
+    requireAnchor,
+    bundleDir,
+    warnings,
+  });
 
   // ── Step 5: manifest and attestations last ─────────────────────────
   writeFileSync(join(bundleDir, MANIFEST_PATH), serializeManifest(manifest), 'utf-8');
@@ -327,3 +221,5 @@ export async function writeBundle(
     warnings,
   };
 }
+
+export type { BundleWriterOptions, BundleOutput } from './writer-options.js';

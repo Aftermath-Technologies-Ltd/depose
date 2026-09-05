@@ -11,7 +11,8 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { buildFilesMap } from '../src/files-map.js';
-import { serializeManifestForSigning, type Manifest } from '../src/manifest.js';
+import { serializeManifestForSigning } from '../src/manifest-io.js';
+import type { Manifest } from '../src/manifest.js';
 
 interface ManifestVector {
   name: string;

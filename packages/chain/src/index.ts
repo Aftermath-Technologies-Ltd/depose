@@ -77,6 +77,7 @@ export {
 // (apps/verify/timestamp/rfc3161.go).
 export {
   requestTimestamps,
+  tryTimestamps,
   buildTimeStampReq,
   validateTsr,
   TsrValidationError,
@@ -84,6 +85,7 @@ export {
   type TsaEndpoint,
   type Rfc3161Token,
   type TimestampOptions,
+  type TimestampAttempt,
   type TimeStampReqResult,
   type TsrValidationResult,
 } from './timestamp-rfc3161.js';

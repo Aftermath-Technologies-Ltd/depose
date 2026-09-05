@@ -111,7 +111,7 @@ func TestGoldenBundlePassesEveryCheck(t *testing.T) {
 			t.Errorf("check %s: status %s, want PASS (%s)", c.Name, c.Status, c.Detail)
 		}
 	}
-	want := []string{"manifest-parse", "schema-version", "mode-declaration", "mode-contract", "signature-verify", "payload-hash", "chain-replay", "intent-effect", "file-continuity", "merkle-root", "commitments", "timestamp-verify", "timestamp-backdating", "artifact-events-jsonl", "ruleset-integrity", "files-map", "attestation-files", "bundle-completeness"}
+	want := []string{"manifest-parse", "schema-version", "mode-declaration", "mode-contract", "signature-verify", "payload-hash", "chain-replay", "intent-effect", "file-continuity", "merkle-root", "commitments", "timestamp-verify", "timestamp-backdating", "anchor-status", "artifact-events-jsonl", "ruleset-integrity", "files-map", "attestation-files", "bundle-completeness"}
 	if len(res.Checks) != len(want) {
 		t.Fatalf("got %d checks, want %d", len(res.Checks), len(want))
 	}

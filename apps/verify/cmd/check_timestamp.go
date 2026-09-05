@@ -20,22 +20,45 @@ func checkTimestamps(ctx *checkContext) []CheckResult {
 	if m.Producer.Mode == "dev-unsigned" {
 		return one(CheckResult{Name: "timestamp-verify", Status: StatusSkipped, Detail: "dev-unsigned bundles carry no timestamp"})
 	}
-	if len(m.Timestamps) == 0 {
-		return one(CheckResult{Name: "timestamp-verify", Status: StatusFail, Detail: "No RFC 3161 timestamps found"})
-	}
-
 	// The TSA was asked to timestamp SHA-256(canonical JSON of the
-	// unsigned manifest), the same bytes the signature covers.
+	// unsigned manifest), the same bytes the signature covers. A token
+	// obtained later by `depose anchor` commits to those same bytes, so
+	// both kinds verify the same way.
 	unsigned, err := manifest.StripSignatureFields(ctx.rawManifest)
 	if err != nil {
 		return one(CheckResult{Name: "timestamp-verify", Status: StatusFail, Detail: fmt.Sprintf("cannot derive unsigned manifest: %v", err)})
 	}
 	sum := sha256.Sum256(unsigned)
-	tokens := manifestTokens(m)
+	tokens := append(manifestTokens(m), anchorTokens(ctx)...)
+	if len(tokens) == 0 {
+		if m.AnchorStatus != "" {
+			return one(CheckResult{
+				Name:   "timestamp-verify",
+				Status: StatusSkipped,
+				Detail: fmt.Sprintf("bundle is sealed with anchorStatus=%q and carries no token yet; see anchor-status", m.AnchorStatus),
+			})
+		}
+		return one(CheckResult{Name: "timestamp-verify", Status: StatusFail, Detail: "No RFC 3161 timestamps found"})
+	}
 
 	results := []CheckResult{verifyTokensResult(tokens, hex.EncodeToString(sum[:]))}
 	results = append(results, backdatingResult(m.ProducedAt, tokens))
 	return results
+}
+
+// anchorTokens are the tokens a later `depose anchor` added, read from
+// attestations/anchor.json. They are verified alongside the manifest's
+// own; whether the anchor is the producer's act is anchor-status's job.
+func anchorTokens(ctx *checkContext) []timestamp.Token {
+	doc, _, err := loadAnchor(ctx.bundlePath)
+	if err != nil || doc == nil {
+		return nil
+	}
+	tokens := make([]timestamp.Token, 0, len(doc.Timestamps))
+	for _, t := range doc.Timestamps {
+		tokens = append(tokens, timestamp.Token{TSA: t.Tsa, Timestamp: t.Timestamp, TokenBase64: t.TokenBase64})
+	}
+	return tokens
 }
 
 func manifestTokens(m *manifest.Manifest) []timestamp.Token {

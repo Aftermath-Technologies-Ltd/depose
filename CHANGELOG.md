@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Sealed pending anchor, and `depose anchor <bundle>`.** A bundle whose
+  timestamp authorities all fail is now signed and written with
+  `anchorStatus: "pending"` instead of not produced at all;
+  `--require-anchor` restores fail-closed. `depose anchor` obtains the
+  RFC 3161 token later over exactly the bytes the signature covered, and
+  leaves manifest.json byte-identical: the anchor goes in
+  `attestations/anchor.json` with an Ed25519 countersignature by the
+  sealing key, because a timestamp over a public manifest is something
+  anyone can obtain. The verifier's new `anchor-status` check reports
+  seal time and anchor time separately, WARNs on an unanchored bundle
+  rather than failing it, and FAILs when an anchor belongs to a different
+  seal, was edited after countersigning, or was countersigned by another
+  key. TSA order is now shuffled per run and each endpoint is retried
+  with an exponential backoff, and the ruleset's new `tsa` key names the
+  authorities (URL plus an expected signer fingerprint) so the choice of
+  witness travels with the rules. See
+  `docs/bundle-format.md#anchoring`.
+
 - **`depose export --format aat|asqav-receipt|scitt-statement`.** Three
   IETF interchange views of a sealed bundle:
   draft-sharif-agent-audit-trail-00 as JSON Lines with its own recomputed

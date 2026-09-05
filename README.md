@@ -90,7 +90,7 @@ Hand a regulator part of the record without re-signing or exposing the rest:
 
 The disclosure carries the original signature and timestamp, the chosen events byte for byte, RFC 6962 audit paths against the sealed Merkle root for every position, and commitment openings for the chosen fields only. Withheld events reveal their count and positions, nothing else.
 
-Full command surface (`depose --help`): `record`, `package`, `disclose`, `export`, `reconstruct`, `verify`, `explain`, `install --claude|--shell`, `uninstall --claude|--shell`, `key {fingerprint,rotate,revoke,catalog}`.
+Full command surface (`depose --help`): `record`, `package`, `disclose`, `export`, `anchor`, `reconstruct`, `verify`, `explain`, `install --claude|--shell`, `uninstall --claude|--shell`, `key {fingerprint,rotate,revoke,catalog}`.
 
 ## How it works
 
@@ -151,6 +151,23 @@ sudo depose-collect-execve --session <id> --pid <agent pid>
 It attaches to the `sched:sched_process_exec` tracepoint and records every exec in the agent's process tree, so a command invoked by absolute path, through `subprocess.run(..., shell=False)`, or by a static binary shows up as its own event with a `kernel_execve_without_hook` gap instead of being absent. It needs `CAP_BPF`; without it the collector records why it could not run and exits 0. macOS is hook-only, and says so rather than shipping a stub.
 
 Coverage matrix and threat-vs-coverage tradeoffs: [docs/capture-coverage.md](docs/capture-coverage.md). Install details: [docs/hook-installation.md](docs/hook-installation.md), [docs/shim-installation.md](docs/shim-installation.md).
+
+## Sealing without a network
+
+`depose record` signs immediately and asks a timestamp authority to date
+the seal. When no authority answers, the bundle is still produced: it is
+signed, marked `anchorStatus: "pending"`, and the verifier reports it as
+unanchored rather than invalid. Add the anchor when the network is back:
+
+```bash
+depose anchor incident-01JABC...
+```
+
+The anchor commits to exactly the bytes the signature covered and is
+written to `attestations/anchor.json` with a countersignature by the
+sealing key. `manifest.json` does not change, so the original seal
+verifies exactly as it did. Pass `--require-anchor` to `depose record` if
+your policy is that an undated bundle is not worth having.
 
 ## Exporting to IETF formats
 

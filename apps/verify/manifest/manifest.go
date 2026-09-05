@@ -39,6 +39,12 @@ type Manifest struct {
 	Rekor       []RekorEntry         `json:"rekor,omitempty"`
 	Counts      Counts               `json:"counts"`
 	RulesetHash string               `json:"rulesetHash"`
+	// AnchorStatus is "anchored" or "pending". Outside the signed form,
+	// like Signatures and Timestamps, because it is written after the
+	// signature is made and changes again when a pending bundle is
+	// anchored later. It is a label; the anchor check derives the real
+	// state from Timestamps and attestations/anchor.json.
+	AnchorStatus string `json:"anchorStatus,omitempty"`
 }
 
 type ProducerInfo struct {
@@ -191,8 +197,11 @@ func VerifySignature(m *Manifest, rawManifestBytes []byte) error {
 	return nil
 }
 
-// StripSignatureFields removes the signatures and timestamps fields from
-// the manifest JSON to produce the "unsigned form" for signature verification.
+// StripSignatureFields removes the signatures, timestamps, and
+// anchorStatus fields from the manifest JSON to produce the "unsigned
+// form" for signature verification. All three are written after the
+// signature is made, and anchorStatus changes again when a pending
+// bundle is anchored later.
 // Exported so cmd/verify.go can reuse it for timestamp verification.
 //
 // The output is re-canonicalized through the JCS writer so the bytes
@@ -208,5 +217,6 @@ func StripSignatureFields(manifestJSON []byte) ([]byte, error) {
 	}
 	m["signatures"] = []interface{}{}
 	m["timestamps"] = []interface{}{}
+	delete(m, "anchorStatus")
 	return canonical.Marshal(m)
 }

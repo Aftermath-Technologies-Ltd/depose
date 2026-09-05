@@ -10,7 +10,6 @@
 //
 // See docs/bundle-format.md#manifest-schema for the normative schema.
 
-import { canonicalJson, sha256String } from '@depose/core';
 import type { Event } from '@depose/core';
 import { buildDestructiveOpsIndex, type DestructiveRule } from '@depose/core';
 import { platform, arch, release } from 'node:os';
@@ -126,6 +125,24 @@ export interface Manifest {
   files: FilesMap;
   signatures: SignatureBlock[];
   timestamps: Rfc3161Token[];
+  /**
+   * Whether the seal is anchored to a timestamp authority.
+   *
+   *   anchored  at least one RFC 3161 token covers this manifest
+   *   pending   no TSA could be reached at seal time; the bundle is
+   *             signed and undated, and `depose anchor` can add the
+   *             token later
+   *
+   * Outside the signed form, alongside `signatures` and `timestamps`,
+   * for the same reason: its value is only known after the manifest has
+   * been signed, and `depose anchor` updates it without invalidating the
+   * seal. It is a label, not evidence. The verifier derives the real
+   * state from `timestamps` and from attestations/anchor.json, both of
+   * which authenticate themselves, and reports a manifest whose label
+   * disagrees with them.
+   * See docs/bundle-format.md#anchoring.
+   */
+  anchorStatus?: 'anchored' | 'pending';
   rekor?: RekorEntry[];
   counts: {
     events: number;
@@ -250,43 +267,4 @@ export function buildManifest(
     },
     rulesetHash: options.rulesetHash,
   };
-}
-
-/**
- * Serialize a manifest to canonical (deterministic) JSON string.
- */
-export function serializeManifest(manifest: Manifest): string {
-  return canonicalJson(manifest);
-}
-
-/**
- * Serialize a manifest for signing, excludes signatures and timestamps
- * to avoid the self-referential signature problem.
- *
- * The signature is computed over SHA-256(canonical JSON of the manifest
- * with signatures=[] and timestamps=[]). When verifying, the verifier
- * must reconstruct the same unsigned manifest to compute the expected hash.
- */
-export function serializeManifestForSigning(manifest: Manifest): string {
-  const unsigned: Manifest = {
-    ...manifest,
-    signatures: [],
-    timestamps: [],
-  };
-  return canonicalJson(unsigned);
-}
-
-/**
- * Compute the SHA-256 hash of a manifest's unsigned form (for signing/verifying).
- */
-export function hashManifestForSigning(manifest: Manifest): string {
-  return sha256String(serializeManifestForSigning(manifest));
-}
-
-/**
- * Compute the SHA-256 hash of a manifest (for signing).
- * @deprecated Use hashManifestForSigning for signature verification
- */
-export function hashManifest(manifest: Manifest): string {
-  return sha256String(serializeManifest(manifest));
 }

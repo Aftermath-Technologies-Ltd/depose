@@ -21,7 +21,7 @@ import {
   normalizeClaudeCodeJsonl,
   loadDestructiveRules,
 } from '@depose/core';
-import { writeBundle } from '../src/index.js';
+import { writeBundle, serializeManifestForSigning } from '../src/index.js';
 import { generateEd25519KeyPair, verifyHashChain, verifyManifestSignature } from '@depose/chain';
 
 const rulesPath = pathJoin(__dirname, '../../cli/rules/destructive.default.yaml');
@@ -124,13 +124,11 @@ describe('Phase 2 acceptance: signed bundle pipeline', () => {
       expect(evt.chainHash.length).toBe(64);
     }
 
-    // Verify signature against manifest (unsigned form, signatures/timestamps stripped)
-    // The signature was computed over the manifest before signatures were added
+    // Verify the signature against the manifest as it is on disk, rebuilt
+    // into its signing form: signatures, timestamps, and anchorStatus are
+    // all written after the signature is made and are stripped from it.
     const manifestJson = readFileSync(pathJoin(depopPath, 'manifest.json'), 'utf-8');
-    const manifestForSigning = JSON.parse(manifestJson);
-    manifestForSigning.signatures = [];
-    manifestForSigning.timestamps = [];
-    const manifestForSigningJson = JSON.stringify(manifestForSigning);
+    const manifestForSigningJson = serializeManifestForSigning(JSON.parse(manifestJson));
     const sigBlock = manifest.signatures[0]!;
     const valid = verifyManifestSignature(
       manifestForSigningJson,

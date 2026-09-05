@@ -224,13 +224,20 @@ The `depose-verify` binary checks, in order:
    to the (salt, path, value) recorded in `commitments.json`, and every
    placeholder has an opening (see
    [field commitments](#field-commitments)).
-7. **timestamp-verify**, **timestamp-backdating**: each RFC 3161 token
+7. **timestamp-verify**, **timestamp-backdating**: each RFC 3161 token,
+   from the manifest and from `attestations/anchor.json` alike,
    is strictly well-formed DER (definite lengths, minimal length
    encoding, no trailing bytes), parses, uses SHA-256, commits to SHA-256
    of the unsigned manifest, and carries a valid TSA signature chaining
    to the embedded FreeTSA root or the system pool; `manifest.producedAt`
    is not after any token's time (1 s tolerance for whole-second TSAs).
-   SKIPPED in dev-unsigned mode.
+   SKIPPED in dev-unsigned mode, and on a bundle sealed pending an anchor
+   that has no token yet.
+7a. **anchor-status**: reports the seal time and the anchor time
+   separately (see [anchoring](#anchoring)). WARN when the bundle was
+   sealed and never anchored; FAIL when an anchor is present but does not
+   belong to this seal, was edited after countersigning, or was
+   countersigned by a key other than the sealing one.
 8. **artifact-events-jsonl**: SHA-256 of the literal `events.jsonl`
    bytes equals `manifest.eventsJsonlSha256`.
 9. **ruleset-integrity**: SHA-256 of `rules/destructive.yaml` equals
@@ -621,6 +628,65 @@ start there; see `docs/capture-coverage.md`.
 - **No LLM in the signed path.** Narrative and commentary are templated
   from signed events.
 
+<a id="anchoring"></a>
+### 7.5 Anchoring
+
+A signature says who produced a bundle. An RFC 3161 timestamp says when,
+independently of the producer's own clock. The two are obtained at
+different moments, and the second one needs the network.
+
+The writer no longer refuses to produce a bundle when no timestamp
+authority answers. It signs, writes the bundle with
+`manifest.anchorStatus: "pending"`, and warns. Pass `--require-anchor`
+to fail closed instead. The alternative, which is what the writer used to
+do, cost the producer the evidence entirely: a signature made on a plane
+with the anchor added on landing is strictly better than nothing at all.
+
+`depose anchor <bundle>` obtains the token afterwards. It commits to
+exactly the bytes the signature covered, `serializeManifestForSigning`,
+so the anchor dates the original seal and not a later edit of it.
+
+**manifest.json does not change.** Not one byte. The anchor is written to
+`attestations/anchor.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "bundleId": "01JABC...",
+  "anchoredAt": "2025-05-18T18:00:05.000Z",
+  "manifestSha256": "<sha256 of the manifest signing form>",
+  "timestamps": [
+    { "tsa": "FreeTSA", "timestamp": "...", "tokenBase64": "...",
+      "file": "attestations/rfc3161-timestamps/anchor-0.tsr" }
+  ],
+  "countersignature": {
+    "scheme": "ed25519",
+    "signature": "...",
+    "publicKey": "-----BEGIN PUBLIC KEY-----...",
+    "signedFields": "attestations/anchor.json"
+  }
+}
+```
+
+The countersignature is Ed25519 over the JCS canonicalization of the
+document with `countersignature` removed. It has to exist because anyone
+can obtain a timestamp over a public manifest; only the producer can say
+the anchor is theirs. The verifier requires the countersigning key to be
+the key that signed the manifest.
+
+`attestations/anchor.json` is excluded from the files map, alongside
+`manifest.json` and `attestations/signatures.json`, because it is written
+after the map is built. Its own token files are bound by the `file` and
+`tokenBase64` entries inside it, which `attestation-files` checks the same
+way it checks the manifest's tokens.
+
+`manifest.anchorStatus` is a label, not evidence. It sits outside the
+signing form with `signatures` and `timestamps`, for the same reason: its
+value is not known until after the manifest is signed, and `depose
+anchor` updates it. A recipient should read `anchor-status` from the
+verifier, which derives the state from the tokens and the anchor
+document, both of which authenticate themselves.
+
 <a id="disclosure-bundles"></a>
 ### 7.4 Disclosure bundles
 
@@ -723,6 +789,31 @@ disclosable:
   - tool_call_intent.toolInput
   - prompt.text
 ```
+
+The optional `tsa` key names the timestamp authorities a seal is anchored
+to, in place of the built-in list (FreeTSA, DigiCert). The choice of who
+witnesses a seal is part of the evidence policy, so it lives in the same
+file as the rules, where a recipient can see it:
+
+```yaml
+tsa:
+  - name: internal
+    url: https://tsa.corp.example/tsr
+    signerFingerprint: 3bc0ed6ca464f312...
+  - name: FreeTSA
+    url: https://freetsa.org/tsr
+```
+
+`url` must be http or https. `signerFingerprint` records the SHA-256 the
+producer expects of the TSA signing certificate; DEPOSE carries it
+through so the expectation is visible, and certificate-chain verification
+itself is the verifier's `timestamp-verify` check.
+
+The order given is the order tried, after a per-run shuffle: without one,
+the first authority in the list witnesses nearly every bundle a producer
+ever makes, which concentrates both the load and the trust. Each
+authority is retried with an exponential backoff before the next is
+tried, so a momentary rate limit does not cost a seal its anchor.
 
 Matcher criteria (all defined criteria must match):
 

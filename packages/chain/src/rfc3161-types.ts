@@ -14,6 +14,13 @@ export interface TsaEndpoint {
   url: string;
   /** Content-Type for the request (default: application/timestamp-query) */
   contentType: string;
+  /**
+   * Expected SHA-256 (lowercase hex) of the TSA signing certificate, when
+   * the producer pinned one in the ruleset. Carried through so the value
+   * a producer configured is visible; certificate-chain verification
+   * itself lives in the Go verifier.
+   */
+  signerFingerprint?: string;
 }
 
 export interface Rfc3161Token {
@@ -38,6 +45,27 @@ export interface TimestampOptions {
    * multi-anchor archival workflows.
    */
   requireAll?: boolean;
+  /**
+   * Attempts per endpoint before moving on. Default 3. A TSA that is
+   * briefly rate limited is the common failure, and one attempt turns it
+   * into a bundle that cannot be sealed.
+   */
+  attempts?: number;
+  /**
+   * Delay before the second attempt, doubling each time. Default 500 ms.
+   */
+  backoffMs?: number;
+  /**
+   * Try the endpoints in the order given rather than a random one.
+   * Default false: a fixed order means the first authority in the list
+   * witnesses nearly every bundle a producer ever makes, which
+   * concentrates both the load and the trust.
+   */
+  preserveOrder?: boolean;
+  /** Injectable randomness, so a test can pin the shuffle. */
+  random?: () => number;
+  /** Injectable sleep, so a test can exercise backoff without waiting. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /** Return type for {@link buildTimeStampReq}: DER bytes plus the nonce. */

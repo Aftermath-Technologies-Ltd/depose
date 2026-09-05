@@ -29,7 +29,7 @@ import (
 // packages/bundle/src/files-map.ts.
 func filesMapExcluded(rel string) bool {
 	switch rel {
-	case "manifest.json", "attestations/signatures.json":
+	case "manifest.json", "attestations/signatures.json", anchorPath:
 		return true
 	}
 	return strings.HasPrefix(rel, "attestations/rfc3161-timestamps/")
@@ -199,6 +199,26 @@ func checkAttestationFiles(bundlePath string, m *manifest.Manifest) CheckResult 
 			onDiskTsr[e.Name()] = true
 		}
 	}
+	if doc, _, err := loadAnchor(bundlePath); err == nil && doc != nil {
+		for i, tok := range doc.Timestamps {
+			name := filepath.Base(tok.File)
+			want, err := base64.StdEncoding.DecodeString(tok.TokenBase64)
+			if err != nil {
+				problems = append(problems, fmt.Sprintf("anchor.timestamps[%d].tokenBase64 is not base64", i))
+				continue
+			}
+			got, err := os.ReadFile(filepath.Join(tsrDir, name))
+			if err != nil {
+				problems = append(problems, fmt.Sprintf("attestations/rfc3161-timestamps/%s is missing (named by the anchor)", name))
+				continue
+			}
+			delete(onDiskTsr, name)
+			if !bytes.Equal(got, want) {
+				problems = append(problems, fmt.Sprintf("attestations/rfc3161-timestamps/%s does not match anchor.timestamps[%d]", name, i))
+			}
+		}
+	}
+
 	for i, tok := range m.Timestamps {
 		name := fmt.Sprintf("%d.tsr", i)
 		want, err := base64.StdEncoding.DecodeString(tok.TokenBase64)
@@ -222,7 +242,7 @@ func checkAttestationFiles(bundlePath string, m *manifest.Manifest) CheckResult 
 	}
 	sort.Strings(extra)
 	for _, name := range extra {
-		problems = append(problems, fmt.Sprintf("attestations/rfc3161-timestamps/%s is not in the manifest (added after sealing)", name))
+		problems = append(problems, fmt.Sprintf("attestations/rfc3161-timestamps/%s is named by neither the manifest nor the anchor (added after sealing)", name))
 	}
 
 	if len(problems) > 0 {

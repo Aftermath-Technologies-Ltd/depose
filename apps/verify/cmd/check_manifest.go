@@ -49,11 +49,30 @@ func checkModeContract(ctx *checkContext) []CheckResult {
 		}
 		return one(CheckResult{Name: "mode-contract", Status: StatusPass, Detail: "dev-unsigned: signatures=[], timestamps=[] (as required)"})
 	default:
-		if len(m.Signatures) == 0 || len(m.Timestamps) == 0 {
+		if len(m.Signatures) == 0 {
 			return one(CheckResult{
 				Name:   "mode-contract",
 				Status: StatusFail,
-				Detail: fmt.Sprintf("signed requires at least one signature and at least one timestamp; got %d signature(s) and %d timestamp(s)", len(m.Signatures), len(m.Timestamps)),
+				Detail: "signed requires at least one signature; got none",
+			})
+		}
+		if len(m.Timestamps) == 0 {
+			// A bundle sealed while no TSA could be reached is signed and
+			// undated. anchor-status reports whether it was dated later,
+			// and reports the undated case as a downgrade. Failing here
+			// instead would leave a producer with no bundle at all, which
+			// is what the old behaviour cost.
+			if m.AnchorStatus == "" {
+				return one(CheckResult{
+					Name:   "mode-contract",
+					Status: StatusFail,
+					Detail: "signed requires at least one timestamp, or anchorStatus naming the bundle as sealed pending an anchor; got neither",
+				})
+			}
+			return one(CheckResult{
+				Name:   "mode-contract",
+				Status: StatusPass,
+				Detail: fmt.Sprintf("signed, anchorStatus=%q: signature present, timestamp deferred to the anchor", m.AnchorStatus),
 			})
 		}
 		return one(CheckResult{Name: "mode-contract", Status: StatusPass, Detail: "signed: signatures and timestamps both present"})

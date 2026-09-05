@@ -206,3 +206,53 @@ so, and `docs/capture-coverage.md` records the status as "not supported,
 hook only". A stub that loads and records nothing would let a macOS
 bundle look kernel-witnessed when it is not, which is worse than the
 missing feature.
+
+## D19. A bundle is sealed even when no timestamp authority answers
+
+The writer used to throw when every TSA failed, so a laptop with no
+network produced no bundle at all. That is the worst outcome available: a
+signature made now binds the content whether or not anyone has dated it
+yet, and the anchor, when it arrives, still commits to the same manifest
+bytes.
+
+`depose record` now seals with `anchorStatus: "pending"` and warns, and
+`--require-anchor` restores the old fail-closed behaviour for producers
+whose policy needs it. The verifier reports an unanchored bundle as WARN,
+not FAIL: nothing about it is invalid, it is simply weaker evidence, and
+the report says exactly how ("the producer's own clock is the only
+evidence of when this happened").
+
+## D20. The anchor never touches the seal
+
+`depose anchor` leaves manifest.json byte-identical. Adding the token to
+`manifest.timestamps` would have worked, because the signing form strips
+that field, but it would mean the file a recipient checked yesterday is
+not the file they check today, and a format whose whole claim is
+tamper-evidence should not have a supported way to rewrite the sealed
+document.
+
+The anchor goes in `attestations/anchor.json` with its own
+countersignature. The countersignature is not decoration: a timestamp
+over a public manifest is something anyone can obtain, so without it a
+third party could bolt a token onto someone else's bundle and have it
+read as the producer's act. The verifier requires the countersigning key
+to be the key that signed the manifest.
+
+`anchorStatus` in the manifest is the one thing `depose anchor` rewrites,
+and it is a label rather than evidence: it sits outside the signing form
+next to `signatures` and `timestamps`, and the verifier derives the real
+state from the tokens and the anchor document, which authenticate
+themselves.
+
+## D21. TSA order is randomized per run
+
+A fixed endpoint list means the first authority witnesses nearly every
+bundle a producer ever makes. That concentrates the request load on one
+free service and the trust in one operator, and it means a single
+authority's outage stops every seal until the fallback path is exercised
+(which, being unexercised, is where the bugs live).
+
+Each run shuffles the list and retries each endpoint with an exponential
+backoff before moving on. `preserveOrder` exists for the case where a
+producer's policy genuinely ranks its authorities, and the ruleset's
+`tsa` list is where that ranking is written down.

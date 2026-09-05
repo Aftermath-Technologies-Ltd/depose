@@ -30,6 +30,7 @@ import { VERIFIER_DOWNLOAD_URL } from '@depose/bundle';
 import { handleReconstruct } from './reconstruct.js';
 import { handleDisclose, type DiscloseCommandArgs } from './disclose.js';
 import { handleExport, EXPORT_FORMATS, type ExportCommandArgs } from './export.js';
+import { handleAnchor, type AnchorCommandArgs } from './anchor.js';
 import { handleInstall, handleUninstall } from './install-uninstall-handlers.js';
 import { optsToArgs } from './cli-args.js';
 import { CLI_VERSION } from '../version.js';
@@ -119,6 +120,7 @@ export async function main(argv: string[]): Promise<void> {
       .command('package')
       .description('Produce a fully signed .depo bundle (default mode: signed)')
       .option('--skip-timestamp', 'Downgrade to dev-unsigned (no TSA, no signature)')
+      .option('--require-anchor', 'Fail rather than seal when no timestamp authority answers')
       .option('--key-dir <path>', 'Ed25519 key directory')
       .option('--fixed-seed <ms>', 'Pin ULID generation to a deterministic seed (for reproducibility tests only)')
       .option('--produced-at <iso>', 'Override producedAt timestamp (ISO 8601, for reproducibility tests)')
@@ -152,6 +154,16 @@ export async function main(argv: string[]): Promise<void> {
     .option('--consistent-with <dir>', 'Earlier disclosure to prove consistency with')
     .action(async function (this: Command, bundle: string) {
       await handleDisclose(bundle, optsToArgs(this.opts()) as unknown as DiscloseCommandArgs);
+    });
+
+  program
+    .command('anchor <bundle>')
+    .description('Obtain the RFC 3161 timestamp for a bundle sealed pending an anchor')
+    .option('--key-dir <dir>', 'Signing key directory (must hold the key that sealed the bundle)')
+    .option('--rules <path>', 'Ruleset whose tsa list names the authorities to try')
+    .option('--force', 'Add an anchor even when the bundle already has one')
+    .action(async function (this: Command, bundle: string) {
+      await handleAnchor(bundle, optsToArgs(this.opts()) as unknown as AnchorCommandArgs);
     });
 
   program

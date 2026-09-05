@@ -17,27 +17,21 @@
 // discarded and the next TSA is tried, no bundle ever ships an unvalidated
 // token.
 //
-// Request encoding lives in rfc3161-request.ts and response parsing in
-// rfc3161-asn1.ts; this file is the validate-and-fetch flow that uses them.
+// Request encoding lives in rfc3161-request.ts, response parsing in
+// rfc3161-asn1.ts, and response validation in rfc3161-validate.ts; this
+// file is the fetch flow that uses them: which authority to ask, in what
+// order, and how many times.
 
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
 import { request as httpRequest } from 'node:http';
-import { buildTimeStampReq, SHA256_OID_DER } from './rfc3161-request.js';
-import {
-  findTstInfoBytes,
-  parseTstInfoFields,
-  trimLeadingZeroBytes,
-} from './rfc3161-asn1.js';
-import { DEFAULT_TSA_ENDPOINTS, TsrValidationError } from './rfc3161-types.js';
-import type {
-  TsaEndpoint,
-  Rfc3161Token,
-  TimestampOptions,
-  TsrValidationResult,
-} from './rfc3161-types.js';
+import { buildTimeStampReq } from './rfc3161-request.js';
+import { DEFAULT_TSA_ENDPOINTS } from './rfc3161-types.js';
+import { validateTsr } from './rfc3161-validate.js';
+import type { TsaEndpoint, Rfc3161Token, TimestampOptions } from './rfc3161-types.js';
 
 export { DEFAULT_TSA_ENDPOINTS, TsrValidationError } from './rfc3161-types.js';
+export { validateTsr } from './rfc3161-validate.js';
 export { buildTimeStampReq } from './rfc3161-request.js';
 export type {
   TsaEndpoint,
@@ -46,79 +40,6 @@ export type {
   TimeStampReqResult,
   TsrValidationResult,
 } from './rfc3161-types.js';
-
-// ── Validate TSR ─────────────────────────────────────────────────────
-
-/**
- * Validate a TSR (TimeStampResp or bare TimeStampToken) by:
- *   1. Parsing the DER structure to find TSTInfo
- *   2. Extracting genTime, nonce, and messageImprint
- *   3. Verifying nonce matches the request nonce (if echoed)
- *   4. Verifying messageImprint uses SHA-256
- *   5. Verifying messageImprint hashedMessage matches the expected hash
- *
- * Throws {@link TsrValidationError} on any failure.  Callers should
- * discard the token and try the next TSA.
- */
-export function validateTsr(
-  tsrDer: Buffer,
-  expectedNonce: Buffer,
-  expectedHashHex: string
-): TsrValidationResult {
-  // 1. Navigate to TSTInfo bytes
-  const tstInfoBytes = findTstInfoBytes(tsrDer);
-
-  // 2. Parse TSTInfo fields
-  const { genTime, nonce, messageImprint } = parseTstInfoFields(tstInfoBytes);
-
-  // 3. Verify nonce (if the TSA echoed one).
-  //
-  // The nonce is logically an unsigned big-endian integer. The request
-  // encodes it as a DER INTEGER, prepending 0x00 when the high bit of
-  // the first byte is set (so the value is unambiguously positive).
-  // Real-world TSAs are inconsistent about strict-DER re-encoding:
-  // FreeTSA in particular has been observed to echo back the nonce
-  // *without* the sign-padding byte, so an 8-byte request nonce starting
-  // with 0xfe comes back as 7 bytes. parseTstInfoFields() already strips
-  // a leading 0x00 sign-pad on the response side; we apply the same
-  // normalization to the request-side bytes before comparing so the
-  // two are compared as integer values, not as raw buffers. This is
-  // safe because the nonce's only job is replay protection, and equal
-  // integer values give equal replay-protection guarantees regardless
-  // of which encoding the TSA chose to send back.
-  if (nonce !== null) {
-    const normalizedExpected = trimLeadingZeroBytes(expectedNonce);
-    const normalizedActual = trimLeadingZeroBytes(nonce);
-    if (
-      normalizedActual.length !== normalizedExpected.length ||
-      !timingSafeEqual(normalizedActual, normalizedExpected)
-    ) {
-      throw new TsrValidationError(
-        `Nonce mismatch: TSR nonce ${nonce.toString('hex')} != request nonce ${expectedNonce.toString('hex')}`,
-      );
-    }
-  }
-
-  // 4. Verify messageImprint algorithm is SHA-256
-  if (!messageImprint.algorithmOidDer.equals(SHA256_OID_DER)) {
-    throw new TsrValidationError(
-      `MessageImprint algorithm is not SHA-256 (got DER: ${messageImprint.algorithmOidDer.toString('hex')})`
-    );
-  }
-
-  // 5. Verify messageImprint hashedMessage matches the expected hash
-  const expectedHash = Buffer.from(expectedHashHex, 'hex');
-  if (
-    messageImprint.hashedMessage.length !== expectedHash.length ||
-    !timingSafeEqual(messageImprint.hashedMessage, expectedHash)
-  ) {
-    throw new TsrValidationError(
-      `MessageImprint hash mismatch: TSR has ${messageImprint.hashedMessage.toString('hex')}, expected ${expectedHashHex}`
-    );
-  }
-
-  return { timestamp: genTime, nonce, messageImprint };
-}
 
 // ── TSA HTTP request ──────────────────────────────────────────────────
 
@@ -198,52 +119,101 @@ export async function requestTimestamps(
   dataToTimestamp: string,
   options?: TimestampOptions
 ): Promise<Rfc3161Token[]> {
-  const endpoints = options?.tsaEndpoints ?? DEFAULT_TSA_ENDPOINTS;
-  const timeoutMs = options?.timeoutMs ?? 15000;
-  const requireAll = options?.requireAll === true;
-  const tokens: Rfc3161Token[] = [];
-  const errors: string[] = [];
-
-  // Compute SHA-256 of the data
-  const hashHex = createHash('sha256').update(dataToTimestamp, 'utf-8').digest('hex');
-
-  // Build the RFC 3161 request (includes a CSPRNG nonce for response binding)
-  const { der: queryDer, nonce } = buildTimeStampReq(hashHex);
-
-  for (const endpoint of endpoints) {
-    try {
-      const tsrDer = await sendTsaRequest(endpoint, queryDer, timeoutMs);
-
-      // Validate the TSR: parse TSTInfo, verify nonce and messageImprint.
-      // If validation fails, the error propagates to the catch block below,
-      // and we try the next TSA. We never ship an unvalidated token.
-      const result = validateTsr(tsrDer, nonce, hashHex);
-
-      tokens.push({
-        tsa: endpoint.name,
-        timestamp: result.timestamp,
-        tokenBase64: tsrDer.toString('base64'),
-      });
-
-      // Stop after first success unless multi-anchor was requested.
-      if (!requireAll) {
-        break;
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`${endpoint.name}: ${msg}`);
-    }
-  }
-
+  const { tokens, errors } = await tryTimestamps(dataToTimestamp, options);
   if (tokens.length === 0) {
     throw new Error(
       `All RFC 3161 TSA endpoints failed. Cannot produce bundle without timestamp.\n` +
-      `Errors:\n  ${errors.join('\n  ')}\n` +
-      `A bundle without a timestamp defeats the purpose of evidence integrity.`
+        `Errors:\n  ${errors.join('\n  ')}\n` +
+        `A bundle without a timestamp defeats the purpose of evidence integrity.`
     );
   }
-
   return tokens;
+}
+
+/** What one timestamping attempt produced, successes and failures alike. */
+export interface TimestampAttempt {
+  tokens: Rfc3161Token[];
+  /** One line per endpoint that failed, naming the endpoint and the reason. */
+  errors: string[];
+}
+
+/**
+ * Request timestamps and report what happened, without throwing.
+ *
+ * This is the form the writer uses: a bundle whose TSA calls all failed
+ * is sealed pending an anchor rather than not sealed at all, and the
+ * caller needs the error list to record why.
+ *
+ * Endpoints are tried in a random order unless `preserveOrder` is set,
+ * and each is retried with exponential backoff before the next is tried.
+ *
+ * @param dataToTimestamp - Canonical JSON of the manifest, or any bytes.
+ * @param options - Endpoints, timeout, attempts, backoff, and injectables.
+ * @returns The tokens obtained and the errors from every endpoint that failed.
+ */
+export async function tryTimestamps(
+  dataToTimestamp: string,
+  options?: TimestampOptions
+): Promise<TimestampAttempt> {
+  const configured = options?.tsaEndpoints ?? DEFAULT_TSA_ENDPOINTS;
+  const endpoints = options?.preserveOrder === true
+    ? configured
+    : shuffleEndpoints(configured, options?.random ?? Math.random);
+  const timeoutMs = options?.timeoutMs ?? 15000;
+  const requireAll = options?.requireAll === true;
+  const attempts = Math.max(1, options?.attempts ?? 3);
+  const backoffMs = options?.backoffMs ?? 500;
+  const sleep = options?.sleep ?? defaultSleep;
+  const tokens: Rfc3161Token[] = [];
+  const errors: string[] = [];
+
+  const hashHex = createHash('sha256').update(dataToTimestamp, 'utf-8').digest('hex');
+  const { der: queryDer, nonce } = buildTimeStampReq(hashHex);
+
+  for (const endpoint of endpoints) {
+    let lastError = '';
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (attempt > 0) {
+        await sleep(backoffMs * 2 ** (attempt - 1));
+      }
+      try {
+        const tsrDer = await sendTsaRequest(endpoint, queryDer, timeoutMs);
+        // Validate the TSR: parse TSTInfo, verify nonce and messageImprint.
+        // An unvalidated token is never shipped.
+        const result = validateTsr(tsrDer, nonce, hashHex);
+        tokens.push({
+          tsa: endpoint.name,
+          timestamp: result.timestamp,
+          tokenBase64: tsrDer.toString('base64'),
+        });
+        lastError = '';
+        break;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+      }
+    }
+    if (lastError !== '') {
+      errors.push(`${endpoint.name} (${attempts} attempt(s)): ${lastError}`);
+      continue;
+    }
+    if (!requireAll) break;
+  }
+
+  return { tokens, errors };
+}
+
+/** Fisher-Yates over a copy; the caller's list is never reordered. */
+function shuffleEndpoints(endpoints: TsaEndpoint[], random: () => number): TsaEndpoint[] {
+  const out = [...endpoints];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // F-04: The old `extractTimestampFromTsr` (heuristic byte-scan for 0x18)

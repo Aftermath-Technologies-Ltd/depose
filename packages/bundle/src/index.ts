@@ -6,16 +6,19 @@
 export {
   MANIFEST_SCHEMA_VERSION,
   buildManifest,
-  serializeManifest,
-  serializeManifestForSigning,
-  hashManifest,
-  hashManifestForSigning,
   type BundleMode,
   type Manifest,
   type SignatureBlock,
   type Rfc3161Token,
   type RekorEntry,
 } from './manifest.js';
+
+export {
+  serializeManifest,
+  serializeManifestForSigning,
+  hashManifest,
+  hashManifestForSigning,
+} from './manifest-io.js';
 
 export {
   writeBundle,
@@ -46,6 +49,21 @@ export {
 } from './layout.js';
 
 export { VERIFIER_DOWNLOAD_URL, GITHUB_REPO_SLUG, DEPOSE_RELEASE_TAG } from './constants.js';
+
+export {
+  anchorBundle,
+  countersign,
+  verifyAnchorCountersignature,
+  ANCHOR_PATH,
+  ANCHOR_TIMESTAMP_DIR,
+  ANCHOR_SCHEMA_VERSION,
+  type AnchorClaim,
+  type AnchorDocument,
+  type AnchorToken,
+  type AnchorOptions,
+  type AnchorResult,
+  type AnchorCountersignature,
+} from './anchor.js';
 
 export {
   buildDisclosure,

@@ -26,6 +26,7 @@ import { loadOrGenerateKeyPair, fingerprintPublicKeyPem } from '@depose/chain';
 import { DEFAULT_RULES_PATH } from '../rules-default.js';
 import { loadAndMergeEvents } from '../pipeline.js';
 import { captureStoreWarning } from './captures.js';
+import { tsaEndpointsFromRuleset } from './anchor.js';
 import { CLI_VERSION } from '../version.js';
 
 // ── CLI args interface ─────────────────────────────────────────────
@@ -39,6 +40,7 @@ export interface PackageCommandArgs {
   'session-id'?: string;
   'agent-id'?: string;
   'skip-timestamp'?: boolean;
+  'require-anchor'?: boolean;
   'key-dir'?: string;
   /** Pin ULID generation to a deterministic seed (for reproducibility tests). */
   'fixed-seed'?: string;
@@ -180,6 +182,8 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       capturesAttributed: captureRecordCount,
       capturesExcluded,
       captureSourceDir: (args['capture-dir'] as string | undefined) ?? DEFAULT_CAPTURE_DIR,
+      tsaEndpoints: tsaEndpointsFromRuleset(ruleset.tsa),
+      requireAnchor: args['require-anchor'] === true,
     });
 
     for (const w of [...pipelineWarnings, ...bundleWarnings]) {
@@ -197,7 +201,13 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       rootHash: manifest.rootHash ? manifest.rootHash.slice(0, 16) + '...' : '(empty)',
       signatures: manifest.signatures.length,
       timestamps: manifest.timestamps.length,
+      anchorStatus: manifest.anchorStatus ?? 'anchored',
     }, null, 2)}`);
+    if (manifest.anchorStatus === 'pending') {
+      console.log('');
+      console.log('This bundle is SEALED PENDING ANCHOR: signed, but nothing dates it yet.');
+      console.log(`Run "depose anchor ${depopPath}" once the network is back.`);
+    }
     console.log('');
     console.log('To verify: ./depose-verify verify ' + depopPath);
   } catch (err) {

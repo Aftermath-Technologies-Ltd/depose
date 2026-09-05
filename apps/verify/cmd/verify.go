@@ -56,6 +56,7 @@ var checkOrder = []checkStep{
 	{checkMerkleRoot, false},
 	{checkCommitments, false},
 	{checkTimestamps, false},
+	{checkAnchorStatus, false},
 	{checkEventsJsonl, false},
 	{checkRuleset, false},
 	{checkFilesMapStep, false},
