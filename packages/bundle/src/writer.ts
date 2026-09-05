@@ -96,7 +96,11 @@ export async function writeBundle(
   // Sorted once by id; the seal, the file bytes, and the manifest
   // counts all read from this one ordering. Counts and the narrative
   // come from the plaintext events; the seal covers the committed form.
-  const sortedEvents = [...events].sort((a, b) => a.id.localeCompare(b.id));
+  // Byte order, not locale order. The Go verifier checks the file is in
+  // ascending id order with a plain byte comparison, and localeCompare
+  // can disagree with that under some locales, which would produce a
+  // bundle that fails verification on the producer's own machine.
+  const sortedEvents = [...events].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const seal = sealEvents(sortedEvents, {
     keyPair,
     commitFields: options.commitFields ?? true,

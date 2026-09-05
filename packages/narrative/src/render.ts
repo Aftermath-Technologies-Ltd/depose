@@ -4,15 +4,17 @@
 // Walks the timeline and emits prose with [#evt-<ulid>] anchors
 // that link to events.jsonl rows.
 //
-// Template-driven, deterministic, every claim cites an event ID.
-// No LLM in the signed path.
+// Deterministic, every claim cites an event ID. No LLM in the signed
+// path, and no template engine: the two renderers are functions over the
+// view model this file builds (render-markdown.ts, render-html.ts).
 //
 // The narrative is EXCLUDED from rootHash. It is derived from
 // signed events. Modifying it does not affect bundle validity.
 
-import Handlebars from 'handlebars';
-import { MD_TEMPLATE, HTML_TEMPLATE } from './templates.js';
+import { renderMarkdownDocument } from './render-markdown.js';
+import { renderHtmlDocument } from './render-html.js';
 import { summarizeEvent } from './summarize.js';
+import type { NarrativeData } from './narrative-data.js';
 import type { Event, GapPayload } from '@depose/core';
 import type { ReconstructionTimeline } from '@depose/core';
 
@@ -85,35 +87,6 @@ export interface RenderOptions {
    * coverage gaps are handled.
    */
   capturesExcluded?: number;
-}
-
-// ── Template data shape ────────────────────────────────────────────
-
-interface NarrativeData {
-  bundleId: string;
-  producedAt: string;
-  agentId: string;
-  sessionId: string;
-  sessionStartedAt: string;
-  sessionEndedAt: string;
-  totalCount: number;
-  destructiveCount: number;
-  gapCount: number;
-  capturesAttributed: number;
-  capturesExcluded: number;
-  sections: Array<{ header: string; events: Array<{ type: string; wallTs: string; id: string; summary: string; detail: string }> }>;
-  destructiveOps: Array<{ severity: string; wallTs: string; command: string; position: string; ruleId: string; eventId: string }>;
-  gaps: Array<{ reason: string; wallTs: string; detail: string; id: string }>;
-  /**
-   * Intents with no recorded outcome. Kept out of the gap list and given
-   * their own section because "the agent ran something and we lost what
-   * happened" is the finding a reader most needs to see first.
-   */
-  lostOutcomes: Array<{ wallTs: string; detail: string; id: string }>;
-  lostOutcomeCount: number;
-  /** Kernel-witnessed execves in the agent's process tree that no hook saw. */
-  unwitnessedExecves: Array<{ wallTs: string; detail: string; id: string }>;
-  unwitnessedExecveCount: number;
 }
 
 // ── Build template data from timeline ──────────────────────────────
@@ -200,8 +173,6 @@ export function buildNarrativeData(
 
 // ── Main renderers ──────────────────────────────────────────────────
 
-// Compile templates once (deterministic: no side-effect helpers)
-const mdTemplate = Handlebars.compile(MD_TEMPLATE, { noEscape: true });
 
 /**
  * Render the narrative as Markdown.
@@ -211,8 +182,7 @@ export function renderMarkdown(
   timeline: ReconstructionTimeline,
   options: RenderOptions
 ): string {
-  const data = buildNarrativeData(timeline, options);
-  return mdTemplate(data);
+  return renderMarkdownDocument(buildNarrativeData(timeline, options));
 }
 
 /**
@@ -223,8 +193,7 @@ export function renderHtml(
   timeline: ReconstructionTimeline,
   options: RenderOptions
 ): string {
-  // HTML template is inline for deterministic rendering
-  const htmlTemplate = Handlebars.compile(HTML_TEMPLATE);
-  const data = buildNarrativeData(timeline, options);
-  return htmlTemplate(data);
+  return renderHtmlDocument(buildNarrativeData(timeline, options));
 }
+
+export type { NarrativeData } from './narrative-data.js';

@@ -12,12 +12,17 @@
 // preSha256: null with sizeBytes populated.
 
 import { createHash } from 'node:crypto';
-import { existsSync, statSync, readFileSync } from 'node:fs';
+import { existsSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 
 // ── Constants ──────────────────────────────────────────────────────
 
 /** Maximum file size to hash (100 MB). Above this, preSha256 is null. */
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
+
+/** Read size per chunk when hashing. 1 MB is one page-cache readahead
+ *  window on Linux and keeps the hook's resident set flat regardless of
+ *  file size. */
+const HASH_CHUNK_BYTES = 1024 * 1024;
 
 /** Tool names that are always considered destructive (modify files). */
 const DESTRUCTIVE_TOOL_NAMES = new Set(['Edit', 'Write', 'MultiEdit']);
@@ -89,13 +94,35 @@ export function shouldHashForTool(
  */
 export function hashFile(path: string): string | null {
   if (!existsSync(path)) return null;
+  let fd: number | null = null;
   try {
     const stat = statSync(path);
     if (stat.size > MAX_FILE_SIZE_BYTES) return null;
-    const content = readFileSync(path);
-    return createHash('sha256').update(content).digest('hex');
+    // Streamed in fixed-size chunks rather than read whole. The hook runs
+    // in the agent's critical path, and a readFileSync of a 100 MB file
+    // holds 100 MB resident and stalls the tool call for as long as the
+    // read takes; a chunked read holds one buffer and starts hashing on
+    // the first block. Synchronous by necessity: the hook must finish
+    // before it returns, so there is no event loop to yield to.
+    fd = openSync(path, 'r');
+    const hash = createHash('sha256');
+    const buffer = Buffer.allocUnsafe(HASH_CHUNK_BYTES);
+    for (;;) {
+      const read = readSync(fd, buffer, 0, buffer.length, null);
+      if (read === 0) break;
+      hash.update(buffer.subarray(0, read));
+    }
+    return hash.digest('hex');
   } catch {
     return null;
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch {
+        // The descriptor is going away with the process either way.
+      }
+    }
   }
 }
 

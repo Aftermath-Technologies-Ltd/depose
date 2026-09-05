@@ -14,6 +14,7 @@
 
 import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
+import { pcreToJsRegex } from './pcre-regex.js';
 
 // ── Ruleset types ────────────────────────────────────────────────────
 
@@ -42,6 +43,19 @@ export interface RuleMatcher {
   anyArgvRegex?: string;
   /** Regex to match against stdin content (for gh api graphql cases) */
   stdinRegex?: string;
+  /**
+   * The two regexes above, compiled once when the ruleset is parsed.
+   *
+   * Matching runs the whole ruleset against every simple command of
+   * every event, so recompiling a pattern per token turned a 40-rule
+   * ruleset over a 5,000-event session into hundreds of thousands of
+   * RegExp constructions. A pattern JavaScript cannot compile is null
+   * here and the criterion does not fire, which is what it did before.
+   */
+  compiled?: {
+    anyArgv: RegExp | null;
+    stdin: RegExp | null;
+  };
 }
 
 /**
@@ -249,14 +263,20 @@ function parseSingleRule(rule: Record<string, unknown>): DestructiveRule | null 
       ? severity
       : 'medium';
 
+  const anyArgvRegex = matcher.anyArgvRegex as string | undefined;
+  const stdinRegex = matcher.stdinRegex as string | undefined;
   return {
     id,
     severity: parsedSeverity,
     matcher: {
       argvHead: (matcher.argvHead as string[] | undefined)?.map(String),
       argvContainsAny: (matcher.argvContainsAny as string[] | undefined)?.map(String),
-      anyArgvRegex: matcher.anyArgvRegex as string | undefined,
-      stdinRegex: matcher.stdinRegex as string | undefined,
+      anyArgvRegex,
+      stdinRegex,
+      compiled: {
+        anyArgv: anyArgvRegex ? pcreToJsRegex(anyArgvRegex) : null,
+        stdin: stdinRegex ? pcreToJsRegex(stdinRegex) : null,
+      },
     },
   };
 }

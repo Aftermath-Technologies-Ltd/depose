@@ -22,4 +22,6 @@ export {
 } from './rule-902.js';
 
 export { summarizeEvent } from './summarize.js';
-export { MD_TEMPLATE, HTML_TEMPLATE } from './templates.js';
+export { renderMarkdownDocument } from './render-markdown.js';
+export { renderHtmlDocument, escapeHtml } from './render-html.js';
+export type { NarrativeData } from './narrative-data.js';

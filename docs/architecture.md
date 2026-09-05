@@ -192,7 +192,7 @@ produces a byte-identical archive across rebuilds.
 The narrative layer renders human-readable output without any LLM in the trust
 path:
 
-- **render.ts**, holds the Handlebars templates inline and walks the timeline,
+- **render.ts**, builds the view model and walks the timeline,
   emitting prose where every claim cites an event ID anchor
   (`[#evt-<ulid>]`), linking to `events.jsonl`. No side-effect helpers, fully
   deterministic.

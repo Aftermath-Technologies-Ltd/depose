@@ -162,6 +162,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Handlebars.** The two narrative templates are now functions over the
+  view model (`render-markdown.ts`, `render-html.ts`). `yaml` is the only
+  runtime dependency DEPOSE has, and the packaged CLI inlines
+  `commander` at build time, so an installed `depose` pulls in nothing.
+  HTML escaping is now explicit rather than a template-engine default
+  that differed between the two renderers.
+
 - **Sigstore and Rekor scaffolding.** `sign-sigstore.ts`, `rekor.ts`,
   `rekor.go`, the `rekor-verify` check, the `--signer-identity` flag, the
   manifest's `rekor` field, and `SignatureBlock.scheme:
@@ -178,6 +185,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directory for every entry; it is now null, like the timestamp on an
   undated entry. A bare `#<epoch>` HISTTIMEFORMAT line is now read as the
   timestamp of the command below it instead of as a command of its own.
+
+### Performance
+
+- **The pre hook is 2.7x faster.** It walked the process chain with one
+  `ps` per generation, up to ten spawned processes per tool call, which
+  was the whole difference between the two halves. It now reads
+  `/proc/<pid>/stat` on Linux and takes one `ps -Ao` snapshot elsewhere,
+  and resolves the TTY by reading `/dev/fd/0` instead of spawning `tty`.
+  Measured over 30 full invocations each on an Intel Core Ultra 7 155H:
+  `depose-hook pretooluse` 180 ms median / 195 ms p95 before, 67 ms / 74
+  ms after; `posttooluse` 60 ms / 66 ms before, 62 ms / 67 ms after. Both
+  halves are now dominated by Node startup rather than by DEPOSE. The
+  in-process handlers are 0.28 ms and 0.04 ms median.
+- **File hashing streams.** `hashFile` read up to 100 MB into memory
+  before hashing; it now reads 1 MB at a time. Hashing a 64 MB file:
+  55.3 ms and 265 MB resident before, 38.3 ms and 70 MB after.
+- **Destructive rule regexes compile once**, at ruleset parse time,
+  instead of once per argv token per rule. Over a 10,000-event session
+  against the 12-rule default ruleset: 27 ms before, 23 ms after. The win
+  scales with how many rules use regexes; the default ruleset has two.
+- **events.jsonl is built as UTF-8 chunks** rather than one joined
+  string, which held the line array, a UTF-16 copy at twice the byte
+  size, and the encoded buffer at once.
+- **Events sort by byte order, not `localeCompare`.** The Go verifier
+  checks ascending id order with a byte comparison, so a locale that
+  ordered ULIDs differently would have produced a bundle that failed
+  verification on the producer's own machine.
 
 ### Changed
 

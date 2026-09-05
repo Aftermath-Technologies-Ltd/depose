@@ -13,6 +13,7 @@
 // simple command is matched independently. A rule fires if any simple
 // command matches; the match records which one and where it sat.
 
+import { pcreToJsRegex } from './pcre-regex.js';
 import type {
   Event,
   ShellCommandPrePayload,
@@ -22,33 +23,6 @@ import type { DestructiveRule, RuleMatch } from './destructive-rules.js';
 import { expandArgv, expandCommandString, type SimpleCommand } from './shell-expand.js';
 
 // ── PCRE-to-JS regex conversion ──────────────────────────────────────
-
-/**
- * Convert a PCRE-style regex string to a JavaScript RegExp.
- *
- * Leading inline flags such as (?i), (?m), (?s) are lifted into the
- * corresponding JavaScript flags. Returns null for a pattern JavaScript
- * cannot compile.
- */
-function pcreToJsRegex(pattern: string): RegExp | null {
-  try {
-    let flags = '';
-    let cleaned = pattern;
-    const leadingFlags = /^\(\?([ims]+)\)/;
-    const match = cleaned.match(leadingFlags);
-    if (match && match[1]) {
-      for (const ch of match[1]) {
-        if (ch === 'i' || ch === 'm' || ch === 's') {
-          flags += ch;
-        }
-      }
-      cleaned = cleaned.replace(leadingFlags, '');
-    }
-    return new RegExp(cleaned, flags);
-  } catch {
-    return null;
-  }
-}
 
 // ── Rule matching ────────────────────────────────────────────────────
 
@@ -135,7 +109,7 @@ function matchRuleAgainstCommand(
   }
 
   if (anyArgvRegex && anyArgvRegex.length > 0) {
-    const regex = pcreToJsRegex(anyArgvRegex);
+    const regex = rule.matcher.compiled?.anyArgv ?? pcreToJsRegex(anyArgvRegex);
     if (!regex) return null;
     const found = argv.some((arg) => regex.test(arg));
     if (!found) return null;
@@ -146,7 +120,7 @@ function matchRuleAgainstCommand(
   if (stdinRegex && stdinRegex.length > 0) {
     // stdin content is not captured in shell_command_pre payloads, so the
     // best available proxy is the simple command's full text.
-    const regex = pcreToJsRegex(stdinRegex);
+    const regex = rule.matcher.compiled?.stdin ?? pcreToJsRegex(stdinRegex);
     if (!regex) return null;
     if (!regex.test(argv.join(' '))) return null;
     fields.push('stdinRegex');

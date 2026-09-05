@@ -55,10 +55,16 @@ export function sealEvents(sortedEvents: Event[], options: SealOptions): SealRes
     merkle = merkleRoot(sealedEvents.map((e) => leafHash(Buffer.from(e.chainHash!, 'hex')))).toString('hex');
   }
 
-  const eventsJsonlBytes = Buffer.from(
-    sealedEvents.map((e) => serializeEvent(e)).join('\n') + '\n',
-    'utf-8'
-  );
+  // Built as UTF-8 chunks rather than one joined string. A session with
+  // large tool outputs runs to tens of megabytes, and the joined form
+  // held the array of lines, a UTF-16 string twice its byte size, and
+  // the encoded buffer all at once. This holds the chunks and the
+  // result.
+  const chunks: Buffer[] = [];
+  for (const event of sealedEvents) {
+    chunks.push(Buffer.from(serializeEvent(event) + '\n', 'utf-8'));
+  }
+  const eventsJsonlBytes = Buffer.concat(chunks);
   return {
     sealedEvents,
     rootHash,

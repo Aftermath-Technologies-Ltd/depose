@@ -107,7 +107,16 @@ CAPTURE  →  NORMALIZATION  →  RECONSTRUCTION  →  INTEGRITY  →  BUNDLE  �
 | **Reconstruction** | Sort, merge across sources, deduplicate, flag gaps, build a causal timeline. | `packages/core/reconstruct` |
 | **Integrity** | IRONROOT hash chain, Ed25519 signing, RFC 3161 timestamping. | `packages/chain` |
 | **Bundle** | Deterministic directory layout (tar packing is future work). | `packages/bundle` |
-| **Narrative** | Handlebars-templated prose with `[#evt-<ulid>]` citations. Excluded from root hash. | `packages/narrative` |
+| **Narrative** | Deterministic prose with `[#evt-<ulid>]` citations, rendered by a function rather than a template engine. Excluded from root hash. | `packages/narrative` |
+
+DEPOSE has one runtime dependency: `yaml`, for reading the destructive
+ruleset. Everything else, canonical JSON, the hash chain, the Merkle
+tree, DER parsing, CBOR, COSE, did:key, and both narrative renderers, is
+implemented in the repository. That is not minimalism for its own sake:
+every one of those sits on the trust boundary, and a reader auditing what
+a bundle proves should be able to read the code that proves it. The
+packaged CLI inlines `commander` at build time, so an installed `depose`
+pulls in nothing at all.
 
 Design rationale and threat model in [docs/architecture.md](docs/architecture.md) and [docs/threat-model.md](docs/threat-model.md).
 
@@ -207,7 +216,7 @@ packages/
 ├── core/             event schema, normalizers, reconstruction, ruleset matcher
 ├── chain/            hash chain, Ed25519 signing, RFC 3161, key catalog
 ├── bundle/           bundle directory writer + manifest schema
-├── narrative/        Handlebars-based deterministic narrative renderer
+├── narrative/        deterministic narrative renderer (no template engine)
 ├── capture-claude/   Claude Code PreToolUse and PostToolUse hooks
 └── cli/              `depose` + `depose-hook` commands (+ bundled rules)
 apps/
