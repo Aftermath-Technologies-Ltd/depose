@@ -68,12 +68,16 @@ export type {
 
 /**
  * Agent source identifiers.
- * claude-code and codex are first-party sources.
- * cursor is a planned third-party source (schema-ready).
+ * claude-code and codex are the sources with normalizers.
  * shell is from shell history or shell shim capture.
  * unknown is a fallback when the source cannot be determined.
+ *
+ * The list holds sources DEPOSE can actually read. It used to carry
+ * `cursor` as "schema-ready", which is a claim about a normalizer that
+ * does not exist: on the wire agentId is a string, so a producer can
+ * write anything, and listing a name here reads as support for it.
  */
-export type AgentId = 'claude-code' | 'codex' | 'cursor' | 'shell' | 'unknown';
+export type AgentId = 'claude-code' | 'codex' | 'shell' | 'unknown';
 
 /**
  * Source of a shell command pre-capture event.

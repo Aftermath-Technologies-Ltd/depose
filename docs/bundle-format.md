@@ -404,7 +404,7 @@ Each line is a canonical-JSON serialized `Event` object. Fields:
 | `wallTs`         | string (ISO 8601 UTC)    | Wall-clock timestamp                         |
 | `monoNs`         | string (decimal integer) | Monotonic nanoseconds since session start. A decimal string on the wire (`"9007199254740993"`), a 64-bit integer in memory; JSON numbers lose precision past 2^53. Schema 2 wrote a number; the verifier accepts that form only for schema 2 bundles. |
 | `sessionId`      | string                   | Session identifier                           |
-| `agentId`        | string enum              | `claude-code`, `codex`, `cursor`, `shell`, `unknown` |
+| `agentId`        | string                   | Producing agent. Defined values: `claude-code`, `codex`, `shell`, `unknown`. Not closed: the verifier does not reject other values, it carries them through. |
 | `parentEventId`  | string \| null           | Causal parent in the event graph             |
 | `type`           | string enum              | Event type (below)                           |
 | `payload`        | object (discriminated)   | Type-specific data                           |
