@@ -14,7 +14,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { TsrValidationError } from './rfc3161-types.js';
 import type { TsrValidationResult } from './rfc3161-types.js';
 import { SHA256_OID_DER } from './rfc3161-request.js';
-import { findTstInfoBytes, parseTstInfoFields, trimLeadingZeroBytes } from './rfc3161-asn1.js';
+import { findTstInfoBytes } from './rfc3161-asn1.js';
+import { parseTstInfoFields, trimLeadingZeroBytes } from './rfc3161-tstinfo.js';
 
 /**
  * Validate a TSR (TimeStampResp or bare TimeStampToken) by:

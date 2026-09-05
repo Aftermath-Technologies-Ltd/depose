@@ -10,7 +10,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { findTstInfoBytes, parseTstInfoFields } from '../src/rfc3161-asn1.js';
+import { findTstInfoBytes } from '../src/rfc3161-asn1.js';
+import { parseTstInfoFields } from '../src/rfc3161-tstinfo.js';
 import { parseDerElement, getChildren } from '../src/asn1-der.js';
 import { validateTsr } from '../src/timestamp-rfc3161.js';
 import { TsrValidationError } from '../src/rfc3161-types.js';

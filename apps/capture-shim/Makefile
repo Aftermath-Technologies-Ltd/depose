@@ -10,7 +10,7 @@ LDFLAGS = -s -w
 # Target platforms
 PLATFORMS = darwin-arm64 darwin-amd64 linux-arm64 linux-amd64
 
-# Default shim binary list (BUILD_PLAN.md §6, Phase 3)
+# Default shim binary list (docs/shim-installation.md)
 SHIM_NAMES = terraform aws gh kubectl psql gcloud railway rm
 
 .PHONY: all clean build-local build-cross install-shims

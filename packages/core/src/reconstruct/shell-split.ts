@@ -15,6 +15,9 @@
 //
 // See docs/bundle-format.md#destructive-rule-matching for the contract.
 
+import { findClose } from './shell-scan.js';
+import { readRedirection, consumeHeredocBodies } from './shell-redirect.js';
+
 // ── Types ─────────────────────────────────────────────────────────────
 
 /** Where a simple command sat in the compound command it came from. */
@@ -29,7 +32,7 @@ export interface RawSimpleCommand {
 const LIST_OPERATORS = ['&&', '||', '|&', ';;', '|', ';', '&'] as const;
 const REDIRECT_OPERATORS = ['&>>', '<<<', '<<-', '>>', '<<', '>&', '<&', '&>', '>|', '>', '<'] as const;
 
-interface ParseState {
+export interface ParseState {
   src: string;
   pos: number;
   out: RawSimpleCommand[];
@@ -157,7 +160,7 @@ function matchOperator(src: string, pos: number, ops: readonly string[]): string
 
 // ── Words ─────────────────────────────────────────────────────────────
 
-function flushWord(state: ParseState): void {
+export function flushWord(state: ParseState): void {
   if (!state.hasWord) return;
   const word = state.word;
   state.word = '';
@@ -245,64 +248,6 @@ function skipToLineEnd(state: ParseState): void {
 
 // ── Nesting ───────────────────────────────────────────────────────────
 
-/**
- * Find the index of the closing delimiter for a construct opened at
- * `start`, skipping quoted regions and nested openers of the same kind.
- * Returns src.length when unbalanced so the caller consumes the rest.
- */
-function findClose(src: string, start: number, open: string, close: string): number {
-  let depth = 1;
-  let i = start;
-  while (i < src.length) {
-    const ch = src[i]!;
-    if (ch === '\\') {
-      i += 2;
-      continue;
-    }
-    if (ch === "'") {
-      const end = src.indexOf("'", i + 1);
-      i = end === -1 ? src.length : end + 1;
-      continue;
-    }
-    if (ch === '"') {
-      i = skipDoubleQuoted(src, i + 1);
-      continue;
-    }
-    if (open !== close && src.startsWith(open, i)) {
-      depth++;
-      i += open.length;
-      continue;
-    }
-    if (open !== close && ch === '(' && open === '$(') {
-      depth++;
-      i++;
-      continue;
-    }
-    if (src.startsWith(close, i)) {
-      depth--;
-      if (depth === 0) return i;
-      i += close.length;
-      continue;
-    }
-    i++;
-  }
-  return src.length;
-}
-
-function skipDoubleQuoted(src: string, from: number): number {
-  let i = from;
-  while (i < src.length) {
-    const ch = src[i]!;
-    if (ch === '\\') {
-      i += 2;
-      continue;
-    }
-    if (ch === '"') return i + 1;
-    i++;
-  }
-  return src.length;
-}
-
 function readSubstitution(state: ParseState, open: string, close: string): void {
   const { src } = state;
   const innerStart = state.pos + open.length;
@@ -324,65 +269,4 @@ function readSubshell(state: ParseState): void {
   const inner = src.slice(innerStart, closeAt);
   state.out.push(...splitShellCommand(inner, 'subshell'));
   state.pos = Math.min(closeAt + 1, src.length);
-}
-
-// ── Redirections and heredocs ─────────────────────────────────────────
-
-function readRedirection(state: ParseState, op: string): void {
-  // A file-descriptor prefix (`2>`) is part of the redirection, not an argument.
-  if (state.hasWord && /^\d+$/.test(state.word)) {
-    state.word = '';
-    state.hasWord = false;
-  } else {
-    flushWord(state);
-  }
-  state.pos += op.length;
-  if (op === '<<' || op === '<<-') {
-    const delimiter = readHeredocDelimiter(state);
-    if (delimiter !== null) {
-      state.pendingHeredocs.push({ delimiter, stripTabs: op === '<<-' });
-    }
-    return;
-  }
-  state.redirectTargetPending = true;
-}
-
-function readHeredocDelimiter(state: ParseState): string | null {
-  const { src } = state;
-  while (state.pos < src.length && (src[state.pos] === ' ' || src[state.pos] === '\t')) state.pos++;
-  let delimiter = '';
-  while (state.pos < src.length) {
-    const ch = src[state.pos]!;
-    if (ch === "'" || ch === '"') {
-      const end = src.indexOf(ch, state.pos + 1);
-      const stop = end === -1 ? src.length : end;
-      delimiter += src.slice(state.pos + 1, stop);
-      state.pos = end === -1 ? src.length : end + 1;
-      continue;
-    }
-    if (ch === '\\' && state.pos + 1 < src.length) {
-      delimiter += src[state.pos + 1];
-      state.pos += 2;
-      continue;
-    }
-    if (/[\s;&|<>()]/.test(ch)) break;
-    delimiter += ch;
-    state.pos++;
-  }
-  return delimiter.length > 0 ? delimiter : null;
-}
-
-function consumeHeredocBodies(state: ParseState): void {
-  const { src } = state;
-  while (state.pendingHeredocs.length > 0) {
-    const { delimiter, stripTabs } = state.pendingHeredocs.shift()!;
-    while (state.pos < src.length) {
-      const lineEnd = src.indexOf('\n', state.pos);
-      const stop = lineEnd === -1 ? src.length : lineEnd;
-      let line = src.slice(state.pos, stop);
-      if (stripTabs) line = line.replace(/^\t+/, '');
-      state.pos = lineEnd === -1 ? src.length : lineEnd + 1;
-      if (line === delimiter) break;
-    }
-  }
 }
