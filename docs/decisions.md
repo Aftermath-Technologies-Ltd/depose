@@ -294,3 +294,25 @@ have to sign rather than one a reader has to reconstruct.
 When a rollout parses and yields no conversation turn at all, the
 normalizer says so in a warning that names the detected format, because
 that is the shape a third format drift will take.
+
+## D24. argvHead matches past a tool's global options
+
+`terraform -chdir=infra/prod destroy -auto-approve` did not match a rule
+written as `["terraform", "destroy"]`, because argvHead is a strict
+prefix and the subcommand was not at position one. The same hole covered
+`git -C /repo push --force` and `kubectl -n staging delete ns prod`. It
+surfaced while building examples/kiro-cost-explorer, whose whole point is
+that command.
+
+The fix matches argvHead against argv as written and against argv with
+the leading run of options removed, and fires on either. Both attempts
+are kept because stripping alone would break the rules whose head names
+the command's own flags: `["rm", "-rf"]` has to keep matching
+`rm -rf /data`.
+
+Only the leading run is stripped, and only up to the first non-option
+token. Everything after the subcommand belongs to the subcommand, and a
+rule that names those arguments means them. Options that take a
+separated value (`-C /repo`) are listed explicitly rather than inferred:
+guessing wrong eats the subcommand, and `git -c push` read as an option
+and its value would stop the `push` rule firing.

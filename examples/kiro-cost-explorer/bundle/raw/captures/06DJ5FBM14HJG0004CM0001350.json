@@ -1,0 +1,17 @@
+{
+  "kind": "effect",
+  "toolName": "Bash",
+  "cwd": "/tmp/depose-kiro-workspace",
+  "exitCode": 1,
+  "durationMs": 1000,
+  "intentEventId": "06DJ5FBM10FM00003X00000Z80",
+  "intentEventIdSource": "recorded",
+  "inputHash": "17330cdc0d43890fd98c735ece3cd112624b0fe4646f262bba3dd5c38402ca1d",
+  "files": [],
+  "source": "claude-posttooluse",
+  "captureSchemaVersion": 3,
+  "capturedAt": "2025-12-15T16:00:10.000Z",
+  "capturedAtSource": "recorded",
+  "monoNs": "10000000",
+  "sessionId": "kiro-cost-explorer-cn-northwest-1"
+}

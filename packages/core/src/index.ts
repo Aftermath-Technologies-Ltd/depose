@@ -160,6 +160,7 @@ export {
   type RulesetTsa,
   matchDestructiveRules,
   buildDestructiveOpsIndex,
+  withoutGlobalOptions,
   simpleCommandsForEvent,
   splitShellCommand,
   expandArgv,

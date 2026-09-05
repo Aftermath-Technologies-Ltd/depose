@@ -26,6 +26,7 @@ jobs:
         example:
           - pocketos-reconstruction
           - datatalks-reconstruction
+          - kiro-cost-explorer
 
     steps:
       - uses: actions/checkout@v4
@@ -181,6 +182,16 @@ jobs:
           open(p, "w").write(data)
           ' "$C/events.jsonl"
           assert_fail "chainHash-hex" "$C"
+
+      - name: Verify the checked-in bundle and disclosure
+        # The README walkthrough tells a reader to verify these two
+        # directories with nothing but the binary. If a wire change ever
+        # invalidates them, that walkthrough is a lie until they are
+        # regenerated, so CI checks them as shipped.
+        if: matrix.example == 'kiro-cost-explorer'
+        run: |
+          ./apps/verify/build/depose-verify verify examples/kiro-cost-explorer/bundle
+          ./apps/verify/build/depose-verify verify examples/kiro-cost-explorer/disclosure
 
       - name: Upload bundle artifact
         if: always()

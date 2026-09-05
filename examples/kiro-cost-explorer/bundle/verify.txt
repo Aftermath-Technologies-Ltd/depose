@@ -1,0 +1,49 @@
+DEPOSE Evidence Bundle Verification Instructions
+═══════════════════════════════════════════════════
+
+Bundle ID: 06G74CDCFDYCZWRYMRENN0YNER
+Produced: 2026-09-05T15:30:53.190Z
+Session: 06G74CDCFDYCZWRYMRENN0YNER
+Agent: claude-code
+
+This bundle contains a chronological record of an AI coding agent session.
+The record is cryptographically signed and timestamped to prove it has not
+been altered since creation.
+
+To verify this bundle:
+
+  1. Download the depose-verify binary, SHA256SUMS, SHA256SUMS.sig,
+     and SHA256SUMS.pem from:
+     https://github.com/Aftermath-Technologies-Ltd/depose/releases/latest
+
+  2. (Recommended) Verify the binary was built by the official
+     GitHub Actions release workflow and not tampered with in
+     transit. With cosign (https://docs.sigstore.dev/system_config/installation/):
+
+     cosign verify-blob \
+       --certificate SHA256SUMS.pem \
+       --signature SHA256SUMS.sig \
+       --certificate-identity-regexp '^https://github.com/Aftermath-Technologies-Ltd/depose/' \
+       --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+       SHA256SUMS
+
+     Then check that your downloaded binary's SHA-256 matches the
+     corresponding line in SHA256SUMS.
+
+  3. Run:
+     ./depose-verify verify <path-to-this-folder>
+
+  4. A PASS result means:
+     - Every event in this bundle matches its recorded hash chain
+     - The manifest signature is valid
+     - A trusted timestamp authority confirmed this bundle existed at 2026-09-05T15:30:53.190Z
+     - Every file in this folder matches the signed files map: nothing
+       has been added, removed, or modified since creation
+
+  5. A FAIL result means the bundle may have been altered.
+
+This bundle contains 42 events,
+4 destructive operations,
+and 12 coverage gaps.
+
+For questions, contact the bundle producer.

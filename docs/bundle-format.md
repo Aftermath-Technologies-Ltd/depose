@@ -859,7 +859,7 @@ Matcher criteria (all defined criteria must match):
 
 | Criterion | Semantics |
 |---|---|
-| `argvHead` | Case-insensitive exact match of the leading argv tokens. |
+| `argvHead` | Case-insensitive match of the leading argv tokens, against argv as written and against argv with the program's leading global options removed. `["terraform", "destroy"]` fires on `terraform -chdir=infra/prod destroy`; `["rm", "-rf"]` still fires on `rm -rf /data`. See `docs/decisions.md` D24. |
 | `argvContainsAny` | Some argv token contains one of the strings (case-sensitive). |
 | `anyArgvRegex` | Some argv token matches the regex (PCRE-style leading `(?i)` etc. honoured). |
 | `stdinRegex` | The simple command's full text matches the regex (stdin itself is not captured). |

@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`docs/compliance-mapping.md`.** One table per regime mapping bundle
+  fields and verifier checks to the EU AI Act (Articles 12, 19, 26(5),
+  26(6), 73, with Annex III obligations applicable since 2 August 2026),
+  DORA Article 17, SEC Rule 17a-4 including the 2022 audit-trail
+  alternative, and the HIPAA Security Rule. Each row says which artifact
+  answers the obligation, and the rows that say "No" are there so nobody
+  assumes otherwise.
+- **`examples/kiro-cost-explorer/`.** A synthetic reconstruction of the
+  December 2025 AWS Kiro incident's shape: an agent edits the approval
+  record that required a second approver, destroys a production
+  environment with inherited operator credentials, fails to rebuild it,
+  and leaves one tool call with a pre-execution record and no outcome.
+  Captured through the real PreToolUse and PostToolUse hooks, sealed,
+  signed, timestamped, and disclosed. The bundle and the disclosure are
+  checked in and CI verifies them as shipped.
+- **README opening rewritten** around the incident, the claim, and the
+  verify command, with a clean-machine walkthrough that needs one binary
+  and no DEPOSE install.
+
+### Fixed
+
+- **Destructive rules fire through a tool's global options.** Building
+  the Kiro example surfaced it: the incident's own command was
+  `terraform -chdir=infra/prod destroy -auto-approve`, and a rule written
+  as `["terraform", "destroy"]` did not match, because the subcommand was
+  not at position one. argvHead now matches against argv as written and
+  against argv with the leading option run removed, so
+  `terraform -chdir=X destroy`, `git -C /repo push --force`, and
+  `kubectl -n staging delete` all fire while `rm -rf /data` still matches
+  on its own flags.
+
 - **Codex CLI normalizer.** `depose record --from-codex <path>` reads an
   OpenAI Codex rollout log. Both grammars in the wild are supported and
   the normalizer records which one it read in

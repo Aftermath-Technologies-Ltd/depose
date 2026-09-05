@@ -24,6 +24,79 @@ import { expandArgv, expandCommandString, type SimpleCommand } from './shell-exp
 
 // ── PCRE-to-JS regex conversion ──────────────────────────────────────
 
+/**
+ * Whether argv starts with the given tokens, case-insensitively.
+ *
+ * @param argv - The simple command's tokens.
+ * @param head - The rule's argvHead.
+ * @returns True when every head token matches the token at its position.
+ */
+function matchesHead(argv: string[], head: string[]): boolean {
+  if (argv.length < head.length) return false;
+  return head.every((term, i) => argv[i]?.toLowerCase() === term.toLowerCase());
+}
+
+/**
+ * argv with the program's global options removed.
+ *
+ * Many tools take options before the subcommand: `terraform -chdir=X
+ * destroy`, `git -C /repo push --force`, `docker --context prod system
+ * prune`. A rule written as ["terraform", "destroy"] means the destroy
+ * subcommand, not that exact token sequence, so the options between the
+ * program and its first non-option argument are dropped before the
+ * second matching attempt.
+ *
+ * Only the leading run is removed, and only up to the first non-option
+ * token: everything after the subcommand is the subcommand's own
+ * arguments and a rule that names them means them.
+ *
+ * @param argv - The simple command's tokens.
+ * @returns argv with the leading option run removed, or argv unchanged.
+ */
+export function withoutGlobalOptions(argv: string[]): string[] {
+  if (argv.length < 2) return argv;
+  let i = 1;
+  while (i < argv.length && argv[i]!.startsWith('-')) {
+    const option = argv[i]!;
+    i++;
+    // A separated value (`-C /repo`) belongs to the option before it.
+    // An attached one (`-chdir=X`, `--context=prod`) does not.
+    if (!option.includes('=') && i < argv.length && !argv[i]!.startsWith('-') && SEPARATED_VALUE_OPTIONS.has(option)) {
+      i++;
+    }
+  }
+  return i === 1 ? argv : [argv[0]!, ...argv.slice(i)];
+}
+
+/**
+ * Global options that take their value as the next token. Kept as a list
+ * rather than guessed, because guessing wrong eats the subcommand: with
+ * `git -c push` treated as an option and a value, the `push` rule would
+ * stop firing.
+ */
+const SEPARATED_VALUE_OPTIONS = new Set([
+  '-C',
+  '-c',
+  // Go-style single-dash long options. terraform documents -chdir=DIR,
+  // but Go's flag parsing accepts the separated form too, and a detector
+  // that misses the form a tool tolerates is a detector with a hole.
+  '-chdir',
+  '-namespace',
+  '-profile',
+  '--config',
+  '--context',
+  '--chdir',
+  '--cwd',
+  '--directory',
+  '--namespace',
+  '-n',
+  '--profile',
+  '--region',
+  '--kubeconfig',
+  '--host',
+  '-H',
+]);
+
 // ── Rule matching ────────────────────────────────────────────────────
 
 /**
@@ -96,9 +169,15 @@ function matchRuleAgainstCommand(
   let matchedArgv = argv;
 
   if (argvHead && argvHead.length > 0) {
-    const head = argv.slice(0, argvHead.length);
-    const matches = argvHead.every((term, i) => head[i]?.toLowerCase() === term.toLowerCase());
-    if (!matches) return null;
+    // Matched against argv as written and against argv with the global
+    // options that sit between the program and its subcommand removed.
+    // `terraform -chdir=infra/prod destroy` is the same act as
+    // `terraform destroy` and used to slip past a ["terraform",
+    // "destroy"] head; `rm -rf /x` still matches on the as-written form,
+    // which is why both are tried rather than only the stripped one.
+    if (!matchesHead(argv, argvHead) && !matchesHead(withoutGlobalOptions(argv), argvHead)) {
+      return null;
+    }
     fields.push('argvHead');
   }
 

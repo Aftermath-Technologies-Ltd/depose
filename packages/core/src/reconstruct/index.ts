@@ -27,6 +27,7 @@ export {
 export {
   matchDestructiveRules,
   buildDestructiveOpsIndex,
+  withoutGlobalOptions,
   simpleCommandsForEvent,
 } from './destructive-match.js';
 

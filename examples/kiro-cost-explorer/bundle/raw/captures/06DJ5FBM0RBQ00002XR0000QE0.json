@@ -1,0 +1,43 @@
+{
+  "argv": [
+    "bash",
+    "-c",
+    "terraform -chdir=infra/prod destroy -auto-approve"
+  ],
+  "cwd": "/tmp/depose-kiro-workspace",
+  "envHash": "63246fced35ae14a1be2c53081fb35a43eb09126a3ea28d6ea1b0d962d78fd91",
+  "envSubset": {
+    "AWS_PROFILE": "cost-explorer-operator",
+    "AWS_REGION": "cn-northwest-1"
+  },
+  "ttyId": "/dev/pts/2",
+  "user": "eng-oncall",
+  "hostname": "ce-build-04.cn-northwest-1",
+  "parentProcessTree": [
+    {
+      "pid": 8814,
+      "ppid": 8801,
+      "exe": "node",
+      "argv0": "node"
+    },
+    {
+      "pid": 8801,
+      "ppid": 8790,
+      "exe": "kiro",
+      "argv0": "kiro"
+    },
+    {
+      "pid": 8790,
+      "ppid": 1,
+      "exe": "zsh",
+      "argv0": "-zsh"
+    }
+  ],
+  "fileArgs": [],
+  "source": "claude-pretooluse",
+  "captureSchemaVersion": 3,
+  "inputHash": "4d77109b7ab6d53fbf794ef0a036bcf1d643d63981479ff54d2ba7b0ff36f6b1",
+  "capturedAt": "2025-12-15T16:00:07.000Z",
+  "capturedAtSource": "recorded",
+  "sessionId": "kiro-cost-explorer-cn-northwest-1"
+}

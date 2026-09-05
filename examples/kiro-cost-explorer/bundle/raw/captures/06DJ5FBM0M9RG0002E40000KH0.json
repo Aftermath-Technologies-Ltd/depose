@@ -1,0 +1,25 @@
+{
+  "kind": "effect",
+  "toolName": "Edit",
+  "cwd": "/tmp/depose-kiro-workspace",
+  "exitCode": null,
+  "durationMs": 1000,
+  "intentEventId": "06DJ5FBM0G7T00001YG0000FM0",
+  "intentEventIdSource": "recorded",
+  "inputHash": "dbfef476657f43b240a10464f95f8b7d595111a38f1d43186b33a42c7119425f",
+  "files": [
+    {
+      "path": "/tmp/depose-kiro-workspace/infra/prod/approvals.json",
+      "preSha256": "5b072ff33edbfcb07e657357eb8621e868ffaf48886f9e4b0ea94ea491196759",
+      "postSha256": "231cd3c9fd9604406402a0bb68eca6dd1263b6d018accd5605b303528197afcd",
+      "sizeBytes": 127,
+      "change": "modified"
+    }
+  ],
+  "source": "claude-posttooluse",
+  "captureSchemaVersion": 3,
+  "capturedAt": "2025-12-15T16:00:06.000Z",
+  "capturedAtSource": "recorded",
+  "monoNs": "6000000",
+  "sessionId": "kiro-cost-explorer-cn-northwest-1"
+}

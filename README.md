@@ -18,12 +18,14 @@
 </p>
 
 <p align="center">
+  <a href="#the-incident-the-claim-the-command">Incident</a> ·
   <a href="#why-depose">Why</a> ·
   <a href="#install">Install</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#whats-in-a-bundle">Bundle</a> ·
   <a href="#active-capture">Active capture</a> ·
+  <a href="#verify-it-from-a-clean-machine">Verify</a> ·
   <a href="#examples">Examples</a> ·
   <a href="#repository-layout">Layout</a> ·
   <a href="#development">Dev</a> ·
@@ -32,22 +34,76 @@
 
 ---
 
+## The incident, the claim, the command
+
+On 15 December 2025, an AI coding agent was asked to fix a bug in AWS
+Cost Explorer. It decided the fastest route to a known-good state was to
+destroy the production environment and rebuild it. Cost Explorer was
+unavailable in cn-northwest-1 for about thirteen hours. The agent had
+been given an engineer's operator role, so the two-person approval the
+change required was never enforced against it.
+
+The question after an incident like that is not what happened. It is
+**what you can prove happened, to someone who does not trust your
+laptop.** A transcript on disk is not that: anyone with shell access can
+rewrite it, and nothing in it says where it is blind.
+
+DEPOSE produces a bundle that is. This repository ships a reconstruction
+of that incident's shape, captured through the real hooks and sealed the
+same way every bundle is. Verify it yourself, with one binary and no
+DEPOSE install:
+
+```bash
+depose-verify verify examples/kiro-cost-explorer/bundle
+```
+
+```
+  [✓] signature-verify: PASS
+         Ed25519 signature valid (1 signature(s))
+  [✓] chain-replay: PASS
+         Chain valid: 42 events, root hash 6998819f6d7fe435...
+  [✓] intent-effect: PASS
+         5 tool call(s) have a matching pre and post record; every unpaired intent is disclosed as a gap
+  [✓] file-continuity: PASS
+         1 file outcome(s) carry forward to the next recorded pre-state, or the difference is disclosed as a gap
+  [✓] merkle-root: PASS
+         RFC 6962 tree over 42 leaves has head f52cedd7d465bd50...
+  [✓] timestamp-verify: PASS
+         1 timestamp(s) valid: FreeTSA(2026-09-05T15:31:06.000Z): valid
+  [✓] files-map: PASS
+         all 16 file(s) in the tree match the signed files map
+  ═══ RESULT: PASS ═══
+```
+
+The bundle says the agent edited the approval record to add itself as the
+second approver, and gives that file's SHA-256 before and after. It says
+the destroy ran under `AWS_PROFILE=cost-explorer-operator`. And it says,
+in signed evidence, that one command has a pre-execution record and no
+outcome: the thirteen hours are marked as missing rather than smoothed
+over. Walkthrough: [Verify it from a clean machine](#verify-it-from-a-clean-machine).
+
 ## What it is
 
-DEPOSE turns a Claude Code session into a self-contained, hash-chained, Ed25519-signed evidence bundle. Anyone with a single Go binary can verify it off-host, no DEPOSE infrastructure required. Point it at a session log after a wiped database, a deleted directory, or a destroyed cloud account, and it produces a `.depo` bundle an auditor, regulator, or court can check themselves.
+DEPOSE turns a Claude Code or Codex CLI session into a self-contained, hash-chained, Ed25519-signed evidence bundle. Anyone with a single Go binary can verify it off-host, no DEPOSE infrastructure required. Point it at a session log after a wiped database, a deleted directory, or a destroyed cloud account, and it produces a `.depo` bundle an auditor, regulator, or court can check themselves.
 
 ## Why DEPOSE
 
-Agent transcripts on disk aren't evidence. Anyone with shell access can rewrite them. When an agent does real damage the question stops being *what happened* and becomes *what can you prove happened, to a third party who doesn't trust your laptop*. DEPOSE gives three properties that hold off-host:
+Agent transcripts on disk aren't evidence. Anyone with shell access can rewrite them. DEPOSE gives four properties that hold off-host:
 
 | Property | Mechanism |
 |---|---|
-| **Tamper-evident** | IRONROOT hash chain over events, an RFC 6962 Merkle tree over the chain, a signed files map over every file. Any byte change fails verification. |
+| **Tamper-evident** | IRONROOT hash chain over events, an RFC 6962 Merkle tree over the chain, a signed files map over every file. Any byte change fails verification with a named check. |
 | **Selectively disclosable** | Sealed fields are salted commitments; `depose disclose` proves a subset of events and fields against the signed root without re-signing. |
-| **Authenticated** | Ed25519 manifest signature, sealed by a key the producer controls. |
-| **Anti-backdated** | RFC 3161 timestamp from FreeTSA (DigiCert fallback) anchors the bundle to a moment in time. |
+| **Authenticated** | Ed25519 manifest signature, sealed by a key the producer controls and publishes the fingerprint of. |
+| **Anti-backdated** | RFC 3161 timestamp from a third-party authority anchors the bundle to a moment in time. A bundle sealed with no network says so and `depose anchor` dates it later. |
 
-No LLM sits in the signed path. Narrative prose is templated from signed events and excluded from the root hash.
+The fifth property has no row because it is not cryptographic: **a DEPOSE
+bundle states what it does not cover.** Coverage gaps are events, counted
+in the signed manifest, and the verifier fails a bundle that has a hole
+and no gap disclosing it. A log that cannot say where it is blind has to
+be believed rather than checked.
+
+No LLM sits in the signed path. Narrative prose is rendered from signed events and excluded from the root hash.
 
 ## Install
 
@@ -196,10 +252,70 @@ including the three places where a draft was ambiguous and DEPOSE chose
 the reading that says less rather than the one that would assert
 something it cannot prove.
 
+## Verify it from a clean machine
+
+Nothing below needs Node, pnpm, or a DEPOSE install. One binary, one
+directory, no network.
+
+**1. Get the verifier.** Download the release binary for your platform
+from [the releases page](https://github.com/Aftermath-Technologies-Ltd/depose/releases),
+or build it from this repository with `cd apps/verify && make build-local`
+if you have Go. Release binaries are signed with cosign; `SHA256SUMS`,
+`SHA256SUMS.sig`, and `SHA256SUMS.pem` are published beside them.
+
+**2. Get the bundle.** It is a directory. Copy it, tar it, email it; the
+verification does not care how it arrived:
+
+```bash
+git clone --depth 1 https://github.com/Aftermath-Technologies-Ltd/depose
+```
+
+**3. Verify it.**
+
+```bash
+depose-verify verify depose/examples/kiro-cost-explorer/bundle
+```
+
+Nineteen named checks run in a documented order. What each one means is
+in [docs/bundle-format.md](docs/bundle-format.md#verifier-checks); the
+four that carry the argument are:
+
+| Check | What a PASS rules out |
+|---|---|
+| `signature-verify` | The manifest was written by someone without the producer's key. |
+| `chain-replay`, `merkle-root` | Any event was added, removed, reordered, or edited after sealing. |
+| `files-map`, `attestation-files` | Any file in the tree, including the raw transcript and the timestamp token, was swapped or truncated. |
+| `timestamp-verify`, `timestamp-backdating` | The bundle was made after the fact and dated to look contemporaneous. |
+
+A `SKIPPED` or `WARN` is never printed as `PASS`. A dev-unsigned bundle
+prints `PASS (dev-unsigned, not evidence)` and says so in a banner.
+
+**4. Read what it is willing to say it does not know.**
+
+```bash
+grep -A 4 'Lost Outcomes' depose/examples/kiro-cost-explorer/bundle/narrative.md
+```
+
+One tool call in that session has a pre-execution record and no outcome.
+The bundle does not guess what happened; it marks the hole and the
+verifier fails any copy that has the hole and not the mark.
+
+**5. Verify the disclosure.** The same incident, as a regulator would
+receive it: every event proven to be a member of the sealed set, most
+fields still salted commitments.
+
+```bash
+depose-verify verify depose/examples/kiro-cost-explorer/disclosure
+```
+
+It verifies against the original manifest, signature, and timestamp,
+without the original bundle being present at all.
+
 ## Examples
 
-Two synthetic reconstructions are checked in. Each ships a Claude Code JSONL and a `produce.sh` that runs the full pipeline:
+Three synthetic reconstructions are checked in:
 
+- **[kiro-cost-explorer](examples/kiro-cost-explorer)**: an agent destroys a production environment after editing the approval record that should have stopped it. Captured through the hooks, with intent and effect records, a sealed bundle, and a disclosure. This is the one the walkthrough above verifies.
 - **[datatalks-reconstruction](examples/datatalks-reconstruction)**: agent runs `rm -rf` on a training-data directory.
 - **[pocketos-reconstruction](examples/pocketos-reconstruction)**: agent runs `terraform destroy -auto-approve`.
 
@@ -207,7 +323,7 @@ Two synthetic reconstructions are checked in. Each ships a Claude Code JSONL and
 bash examples/datatalks-reconstruction/produce.sh
 ```
 
-CI rebuilds both bundles on every push and validates them end-to-end.
+CI rebuilds the bundles on every push and validates them end-to-end.
 
 ## Repository layout
 
@@ -251,6 +367,7 @@ Build internals, the full CI matrix, and source-tree invariants: [docs/developme
 | [canonical-json.md](docs/canonical-json.md) | RFC 8785 JCS rules used by both producer and verifier. |
 | [threat-model.md](docs/threat-model.md) | What DEPOSE defends against, what it doesn't. |
 | [capture-coverage.md](docs/capture-coverage.md) | Coverage matrix per capture mode. |
+| [compliance-mapping.md](docs/compliance-mapping.md) | Which bundle field and verifier check answers which sentence of the EU AI Act, DORA, SEC Rule 17a-4, and the HIPAA Security Rule, and where DEPOSE stops. |
 | [export-mapping.md](docs/export-mapping.md) | `depose export` field mappings for AAT, ASQAV receipts, and SCITT statements, and what each format cannot carry. |
 | [hook-installation.md](docs/hook-installation.md) | Claude Code capture hook setup, both halves. |
 | [shim-installation.md](docs/shim-installation.md) | Shell shim setup. |
