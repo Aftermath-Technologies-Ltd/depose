@@ -392,6 +392,13 @@ The shell shim (installed via `depose install --shell`) has known
 coverage gaps. These are not bugs; they are architectural
 limitations documented here and in `docs/capture-coverage.md`.
 
+Sections 6.1, 6.3, and 6.4 have the same mitigation on Linux and it is
+worth stating once: `depose-collect-execve` (§6.8) witnesses these
+execs in the kernel, so they appear in the bundle as `process_spawn`
+events with a `kernel_execve_without_hook` gap instead of being absent.
+It is optional and needs `CAP_BPF`, so the per-section text below still
+describes what happens without it.
+
 ### 6.1 Absolute path invocation
 
 Invoking a binary by absolute path (e.g., `/usr/bin/terraform
@@ -434,7 +441,8 @@ going through the shell, cannot be intercepted by a PATH shim.
 
 **Mitigation:** No userspace mitigation exists for this case. The
 gap event system will flag it if a `tool_result` appears without a
-corresponding `shell_command_pre` capture.
+corresponding `shell_command_pre` capture. On Linux the eBPF collector
+witnesses the exec itself; see §6.8.
 
 ### 6.5 Hook failures
 
@@ -452,6 +460,36 @@ counted in the signed manifest and surfaced in the narrative.
 cannot know the session id, so its record is unattributed and only
 enters a bundle when the producer opts in with
 `--include-unscoped-captures`.
+
+The PostToolUse hook behaves the same way and its `capture_failed`
+records carry `source: "claude-posttooluse"`, so a bundle says which
+half of the pair was lost.
+
+### 6.5a Outcomes that were never recorded
+
+A tool call whose PreToolUse hook ran and whose PostToolUse hook did
+not is the case this system exists for: the agent was about to act and
+what happened next is not in the bundle. It reaches the timeline as an
+`intent_without_effect` gap and gets its own section at the top of the
+narrative, ahead of the timeline. The verifier fails any bundle that has
+an unclosed hook-captured intent and no gap disclosing it, so the hole
+cannot be edited out of `events.jsonl` and still verify.
+
+What the pair cannot see: a file the command created without naming it
+in the tool input. The effect record covers the paths the call declared,
+because those are the only ones either hook knows about. See
+`docs/bundle-format.md#intent-and-effect`.
+
+### 6.5b Files changed by something outside the session
+
+Between one call's recorded outcome for a path and the next call's
+recorded pre-state for the same path, the bundle claims custody. When
+the two hashes disagree, something changed the file and nothing in the
+bundle witnessed it: another process, another terminal, a person. The
+merge emits an `unwitnessed_file_change` gap naming both events and the
+verifier requires it, which turns "the evidence is silent about this
+window" into a statement the bundle makes rather than one a reader has
+to notice.
 
 ### 6.6 Destructive rules on wrapped commands
 
@@ -479,6 +517,37 @@ the producer should raise the threshold or opt in to full content
 capture for the relevant file paths.
 
 ---
+
+### 6.8 Kernel-witnessed execve
+
+`depose-collect-execve` attaches an eBPF program to the
+`sched:sched_process_exec` tracepoint and records every exec inside the
+agent's process tree, tagged `source: kernel`. It closes §6.1, §6.3, and
+§6.4 for the process tree it watches: the kernel sees an execve whether
+it came through PATH, an absolute path, `subprocess.run` with
+`shell=False`, or `syscall.Exec` from a static binary.
+
+**What it still does not close.** It sees execs, not syscalls: a command
+that opens and truncates a file without spawning a process is invisible
+to it, as is one that runs on another machine over an already-open
+connection. It filters on process ancestry, so a daemon the agent asked
+to do the work, rather than executing it directly, is out of scope. A
+process that exits before `/proc` can be read yields a record with the
+pid, comm, and timestamp but no argv.
+
+**Trust boundary.** The collector runs with `CAP_BPF` and writes into
+the same capture store as the hook, under the producer's control. It
+raises the cost of a silent omission (an attacker now has to defeat both
+the hook and the kernel probe, or stop the collector and leave the
+`capture_failed` record it writes on the way down) but it does not move
+the trust boundary: the producer still assembles the bundle. See §3.
+
+**Availability.** Without `CAP_BPF` the collector writes a
+`capture_failed` record with phase `ebpf-attach` and exits 0. macOS has
+no supported equivalent (Endpoint Security needs an Apple-granted
+entitlement, openbsm is deprecated and off by default), so the collector
+refuses to start there rather than shipping something that loads and
+records nothing.
 
 ## 7. Mode contract: signed vs dev-unsigned
 

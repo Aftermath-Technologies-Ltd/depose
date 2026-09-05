@@ -21,6 +21,9 @@ export type {
   ErrorPayload,
   GapPayload,
   CaptureFailedPayload,
+  ToolCallEffectPayload,
+  FileEffect,
+  ExecveRecordPayload,
 } from './schema.js';
 
 export { isEventType } from './schema.js';

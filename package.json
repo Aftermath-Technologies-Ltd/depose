@@ -18,7 +18,7 @@
     "build:shim": "cd apps/capture-shim && make build-local",
     "build:bundle": "cd packages/cli && npm run build:bundle",
     "test": "vitest run",
-    "test:go": "(cd apps/verify && go test ./...) && (cd apps/capture-shim && go test ./...)",
+    "test:go": "(cd apps/verify && go test ./...) && (cd apps/capture-shim && go test ./...) && (cd apps/collect-execve && go test ./...)",
     "test:all": "vitest run && npm run test:go",
     "test:watch": "vitest",
     "lint": "eslint packages/ tests/ --max-warnings 0",

@@ -1,0 +1,65 @@
+version: 1
+rules:
+  - id: terraform-destroy
+    matcher:
+      argvHead: ["terraform", "destroy"]
+    severity: critical
+
+  - id: terraform-apply-auto-approve
+    matcher:
+      argvHead: ["terraform", "apply"]
+      argvContainsAny: ["-auto-approve", "--auto-approve"]
+    severity: high
+
+  - id: rm-rf
+    matcher:
+      argvHead: ["rm"]
+      argvContainsAny: ["-rf", "-fr", "-Rf", "-fR"]
+    severity: critical
+
+  - id: aws-s3-rb
+    matcher:
+      argvHead: ["aws", "s3", "rb"]
+    severity: critical
+
+  - id: aws-rds-delete
+    matcher:
+      argvHead: ["aws", "rds", "delete-db-instance"]
+    severity: critical
+
+  - id: aws-ec2-terminate
+    matcher:
+      argvHead: ["aws", "ec2", "terminate-instances"]
+    severity: critical
+
+  - id: gcloud-sql-delete
+    matcher:
+      argvHead: ["gcloud", "sql", "instances", "delete"]
+    severity: critical
+
+  - id: kubectl-delete
+    matcher:
+      argvHead: ["kubectl", "delete"]
+    severity: high
+
+  - id: git-push-force
+    matcher:
+      argvHead: ["git", "push"]
+      argvContainsAny: ["--force", "-f", "--force-with-lease"]
+    severity: high
+
+  - id: git-reset-hard
+    matcher:
+      argvHead: ["git", "reset", "--hard"]
+    severity: medium
+
+  - id: sql-drop
+    matcher:
+      anyArgvRegex: "(?i)\\b(DROP\\s+(TABLE|DATABASE|SCHEMA))\\b"
+    severity: critical
+
+  - id: railway-volume-delete
+    matcher:
+      argvHead: ["gh", "api", "graphql"]
+      stdinRegex: "(?i)\\bvolumeDelete\\b"
+    severity: critical

@@ -1,0 +1,25 @@
+{
+  "kind": "effect",
+  "toolName": "Edit",
+  "cwd": "/tmp/depose-golden-intent-effect",
+  "exitCode": null,
+  "durationMs": 1000,
+  "intentEventId": "06BE8118R00000000000000000",
+  "intentEventIdSource": "recorded",
+  "inputHash": "f55879dde0fc83ff7ab49840dad230dbbbe81a9baebd4435a48a21594d31d5cb",
+  "files": [
+    {
+      "path": "/tmp/depose-golden-intent-effect/main.tf",
+      "preSha256": "799cd37d0fe2e5a0c0c9195b04b5872d9a4da6e294ec0bf10794a42d6d30ec7f",
+      "postSha256": "adff7798025c188416ba3ce894e23f3db8efa7e394d74ff2ed1510f51cebd220",
+      "sizeBytes": 36,
+      "change": "modified"
+    }
+  ],
+  "source": "claude-posttooluse",
+  "captureSchemaVersion": 3,
+  "capturedAt": "2025-05-18T15:30:02.000Z",
+  "capturedAtSource": "recorded",
+  "monoNs": "2000000",
+  "sessionId": "sess-intent-effect"
+}

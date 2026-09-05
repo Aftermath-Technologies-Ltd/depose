@@ -4,7 +4,7 @@
 // Acceptance criteria: docs/hook-installation.md and docs/shim-installation.md.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -52,63 +52,94 @@ describe('Phase 3: SHIM_ALLOWLIST', () => {
 // ── install --claude tests ──────────────────────────────────────────
 
 describe('Phase 3: installClaudeHook', () => {
-  let settingsDir: string;
-  let settingsPath: string;
   let capDir: string;
 
   beforeEach(() => {
     setup();
-    settingsDir = join(testDir, 'claude-settings');
-    mkdirSync(settingsDir, { recursive: true });
-    settingsPath = join(settingsDir, 'settings.json');
     capDir = join(testDir, 'captures');
   });
 
   afterEach(teardown);
 
-  it('creates settings.json with PreToolUse hook', () => {
-    writeFileSync(settingsPath, '{}', 'utf-8');
+  /** Read the settings.json the installer actually wrote. */
+  function writtenSettings(result: { settingsPath: string }): {
+    hooks: Record<string, Array<{ matcher: string; hooks: Array<{ type: string; command: string }> }>>;
+  } {
+    return JSON.parse(readFileSync(result.settingsPath, 'utf-8'));
+  }
 
-    const result = installClaudeHook({
-      captureDir: capDir,
-    });
+  it('registers both halves of the tool call, not just the pre half', () => {
+    const projectRoot = join(testDir, 'project');
+    mkdirSync(join(projectRoot, '.claude'), { recursive: true });
+    writeFileSync(join(projectRoot, '.claude', 'settings.json'), '{}', 'utf-8');
 
-    // The function writes to ~/.claude/settings.json by default,
-    // not our test dir. We verify the return value structure.
-    expect(result.settingsPath).toBeTruthy();
+    const result = installClaudeHook({ project: true, projectRoot, captureDir: capDir });
+
+    expect(result.conflicts).toEqual([]);
     expect(result.captureDir).toBe(capDir);
-    // Conflicts may be non-empty if a previous test run installed the hook
-    // (the function targets ~/.claude/settings.json, not our test dir).
-    // We just verify conflicts is an array.
-    expect(Array.isArray(result.conflicts)).toBe(true);
+    const { hooks } = writtenSettings(result);
+    expect(hooks['PreToolUse']![0]!.hooks[0]!.command).toContain('pretooluse');
+    expect(hooks['PostToolUse']![0]!.hooks[0]!.command).toContain('posttooluse');
+    expect(hooks['PreToolUse']![0]!.matcher).toBe('Bash|Edit|Write');
+    expect(hooks['PostToolUse']![0]!.matcher).toBe('Bash|Edit|Write');
   });
 
-  it('detects existing depose hook as conflict', () => {
-    const settingsWithDepose = {
-      hooks: {
-        PreToolUse: [
-          {
-            matcher: 'Bash|Edit|Write',
-            hooks: [{ type: 'command', command: 'depose-hook pretooluse' }],
-          },
-        ],
-      },
-    };
-    writeFileSync(settingsPath, JSON.stringify(settingsWithDepose, null, 2), 'utf-8');
+  it('leaves hooks registered by anything else alone', () => {
+    const projectRoot = join(testDir, 'project-other');
+    mkdirSync(join(projectRoot, '.claude'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, '.claude', 'settings.json'),
+      JSON.stringify({
+        hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'other-tool' }] }] },
+      }),
+      'utf-8'
+    );
 
-    // installClaudeHook always targets ~/.claude/settings.json
-    // Unless we control the settingsPath. We test the backup mechanism.
-    const result = installClaudeHook({
-      captureDir: capDir,
-    });
+    const result = installClaudeHook({ project: true, projectRoot, captureDir: capDir });
 
-    // At minimum, it should not throw
-    expect(result).toBeDefined();
+    const { hooks } = writtenSettings(result);
+    expect(hooks['PreToolUse']).toHaveLength(2);
+    expect(hooks['PreToolUse']![0]!.hooks[0]!.command).toBe('other-tool');
   });
 
-  it('buildHookCommand returns a command with pretooluse subcommand', () => {
-    const cmd = buildHookCommand();
-    expect(cmd).toContain('pretooluse');
+  it('refuses to install twice over an existing depose hook, per event', () => {
+    const projectRoot = join(testDir, 'project-conflict');
+    mkdirSync(join(projectRoot, '.claude'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, '.claude', 'settings.json'),
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [{ matcher: 'Bash|Edit|Write', hooks: [{ type: 'command', command: 'depose-hook pretooluse' }] }],
+        },
+      }),
+      'utf-8'
+    );
+
+    const result = installClaudeHook({ project: true, projectRoot, captureDir: capDir });
+
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]).toContain('PreToolUse');
+    const { hooks } = writtenSettings(result);
+    // The pre half is left as it was; the post half, which was absent, is added.
+    expect(hooks['PreToolUse']).toHaveLength(1);
+    expect(hooks['PostToolUse']![0]!.hooks[0]!.command).toContain('posttooluse');
+  });
+
+  it('backs up the settings file before touching it', () => {
+    const projectRoot = join(testDir, 'project-backup');
+    mkdirSync(join(projectRoot, '.claude'), { recursive: true });
+    writeFileSync(join(projectRoot, '.claude', 'settings.json'), '{"model":"opus"}', 'utf-8');
+
+    const result = installClaudeHook({ project: true, projectRoot, captureDir: capDir });
+
+    expect(result.backupPath).toBeTruthy();
+    expect(readFileSync(result.backupPath!, 'utf-8')).toBe('{"model":"opus"}');
+  });
+
+  it('buildHookCommand names the half it is registering', () => {
+    expect(buildHookCommand()).toContain('pretooluse');
+    expect(buildHookCommand('pre')).toContain('pretooluse');
+    expect(buildHookCommand('post')).toContain('posttooluse');
   });
 });
 

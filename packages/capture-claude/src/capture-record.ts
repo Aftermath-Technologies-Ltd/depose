@@ -8,7 +8,7 @@
 import { writeFileSync, mkdirSync, chmodSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { ShellCommandPrePayload } from '@depose/core';
+import type { ShellCommandPrePayload, ToolCallEffectPayload } from '@depose/core';
 
 /**
  * Default capture directory path.
@@ -46,6 +46,24 @@ export function writeCaptureRecord(
   const path = join(dir, `${ulid}.json`);
   const json = JSON.stringify(payload, null, 2);
   writeFileSync(path, json, 'utf-8');
+  chmodSync(path, 0o600);
+  return path;
+}
+
+/**
+ * Write an effect record to $DEPOSE_CAPTURE_DIR/<ulid>.json.
+ *
+ * Same store and same permissions as the intent half; the reader tells the
+ * two apart by the record's `kind`.
+ *
+ * @param ulid - ULID for this effect record (used as filename).
+ * @param payload - The ToolCallEffectPayload to write.
+ * @returns The path where the record was written.
+ */
+export function writeEffectRecord(ulid: string, payload: ToolCallEffectPayload): string {
+  const dir = getCaptureDir();
+  const path = join(dir, `${ulid}.json`);
+  writeFileSync(path, JSON.stringify(payload, null, 2), 'utf-8');
   chmodSync(path, 0o600);
   return path;
 }

@@ -55,6 +55,8 @@ export interface PipelineResult {
   gapCount: number;
   /** Number of cross-source links the merger established. */
   linkedCount: number;
+  /** Kernel-witnessed execves in the agent's process tree that no hook saw. */
+  unwitnessedExecveCount: number;
   /** Number of pre-execution capture records merged into the timeline. */
   captureRecordCount: number;
   /** Records present in the capture store before scoping was applied. */
@@ -161,6 +163,7 @@ export function loadAndMergeEvents(opts: PipelineOptions): PipelineResult {
     warnings: mergeWarnings,
     gapCount,
     linkedCount,
+    unwitnessedExecveCount,
   } = mergeEvents(
     {
       claudeCodeEvents: claudeEvents,
@@ -177,6 +180,7 @@ export function loadAndMergeEvents(opts: PipelineOptions): PipelineResult {
     warnings,
     gapCount,
     linkedCount,
+    unwitnessedExecveCount,
     captureRecordCount: captureResult.recordCount,
     captureStoreRecordCount: captureResult.storeRecordCount,
     captureExcluded: captureResult.excluded,

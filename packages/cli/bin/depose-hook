@@ -1,24 +1,26 @@
 #!/usr/bin/env node
 // bin/depose-hook
 //
-// CLI wrapper for the Claude Code PreToolUse hook.
+// CLI wrapper for the Claude Code capture hooks.
 // Invoked by Claude Code via settings.json:
 //   { "type": "command", "command": "depose-hook pretooluse" }
+//   { "type": "command", "command": "depose-hook posttooluse" }
 //
-// Reads JSON from stdin, processes the hook, writes capture record.
+// Reads JSON from stdin, processes the hook, writes the capture record.
 // Always exits 0 (never blocks the tool call).
 
 import { runHookCli } from '@depose/capture-claude';
 
 const subcommand = process.argv[2];
+const half = subcommand === 'pretooluse' ? 'pre' : subcommand === 'posttooluse' ? 'post' : null;
 
-if (subcommand === 'pretooluse') {
-  runHookCli().catch(() => {
+if (half) {
+  runHookCli(half).catch(() => {
     // Never block the tool call
     process.exit(0);
   });
 } else {
   process.stderr.write(`depose-hook: unknown subcommand "${subcommand || ''}"\n`);
-  process.stderr.write('Usage: depose-hook pretooluse\n');
+  process.stderr.write('Usage: depose-hook pretooluse | depose-hook posttooluse\n');
   process.exit(0);
 }

@@ -1,7 +1,10 @@
 // packages/cli/src/commands/install-claude.ts
 //
-// `depose install --claude`: register the PreToolUse hook in Claude Code's
-// settings.json (user-level or project-level) and create the capture dir.
+// `depose install --claude`: register the PreToolUse and PostToolUse hooks
+// in Claude Code's settings.json (user-level or project-level) and create
+// the capture dir. Both halves are registered together: an intent with no
+// effect is a gap in every bundle, so installing only the pre half would
+// make every tool call look like a lost outcome.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -24,14 +27,17 @@ export interface InstallClaudeOptions {
 }
 
 /**
- * Install the PreToolUse hook into Claude Code settings.json.
+ * Install the PreToolUse and PostToolUse hooks into Claude Code settings.json.
  *
  * Steps (docs/hook-installation.md):
  *   1. Read existing settings.json (or create empty)
  *   2. Create backup: .claude/settings.json.depose-backup-<ts>
- *   3. Merge hook config with conflict detection
+ *   3. Merge both hook configs with conflict detection
  *   4. Write updated settings.json
  *   5. Create $DEPOSE_CAPTURE_DIR with 0700 permissions
+ *
+ * @param options - Scope (project or user), project root, capture dir.
+ * @returns The settings path, backup path, capture dir, and any conflicts.
  */
 export function installClaudeHook(
   options: InstallClaudeOptions = {}
@@ -85,34 +91,23 @@ export function installClaudeHook(
     writeFileSync(backupPath, original, 'utf-8');
   }
 
-  // Merge hook config
+  // Merge hook config for both halves
   const conflicts: string[] = [];
-  const hookConfig = buildHookConfig();
-
   if (!settings['hooks']) {
     settings['hooks'] = {};
   }
   const hooks = settings['hooks'] as Record<string, unknown[]>;
-  if (!hooks['PreToolUse']) {
-    hooks['PreToolUse'] = [];
-  }
-
-  // Check for conflicts
-  const existing = hooks['PreToolUse'] as Array<Record<string, unknown>>;
-  for (const entry of existing) {
-    const hooksArr = entry['hooks'] as Array<Record<string, string>> | undefined;
-    if (hooksArr) {
-      for (const h of hooksArr) {
-        if (h['command'] && String(h['command']).includes('depose')) {
-          conflicts.push(`Existing depose hook found: "${h['command']}"`);
-        }
-      }
+  for (const [event, half] of [['PreToolUse', 'pre'], ['PostToolUse', 'post']] as const) {
+    if (!hooks[event]) {
+      hooks[event] = [];
     }
-  }
-
-  // Add the hook entry if no existing depose hook
-  if (conflicts.length === 0) {
-    existing.push(hookConfig);
+    const existing = hooks[event] as Array<Record<string, unknown>>;
+    const found = existingDeposeCommands(existing);
+    if (found.length > 0) {
+      conflicts.push(...found.map((c) => `Existing depose hook found in ${event}: "${c}"`));
+      continue;
+    }
+    existing.push(buildHookConfig(half));
   }
 
   // Write updated settings
@@ -133,17 +128,32 @@ export function installClaudeHook(
 }
 
 /**
- * Build the PreToolUse hook config entry for Claude Code settings.json.
+ * Build one hook config entry for Claude Code settings.json.
  */
-function buildHookConfig(): Record<string, unknown> {
+function buildHookConfig(half: 'pre' | 'post'): Record<string, unknown> {
   return {
     matcher: 'Bash|Edit|Write',
     hooks: [
       {
         type: 'command',
-        command: buildHookCommand(),
+        command: buildHookCommand(half),
       },
     ],
   };
+}
+
+/** depose commands already registered under one hook event. */
+function existingDeposeCommands(entries: Array<Record<string, unknown>>): string[] {
+  const found: string[] = [];
+  for (const entry of entries) {
+    const hooksArr = entry['hooks'] as Array<Record<string, string>> | undefined;
+    if (!hooksArr) continue;
+    for (const h of hooksArr) {
+      if (h['command'] && String(h['command']).includes('depose')) {
+        found.push(String(h['command']));
+      }
+    }
+  }
+  return found;
 }
 

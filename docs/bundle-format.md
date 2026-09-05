@@ -204,7 +204,18 @@ The `depose-verify` binary checks, in order:
    canonicalizes (RFC 8785 JCS) to its `payloadHash`, the file is in
    ascending id order, every `monoNs` is a decimal string (schema 3),
    and the replayed chain ends at `manifest.rootHash`. SKIPPED in
-   dev-unsigned mode when `rootHash` is empty.
+   dev-unsigned mode when `rootHash` is empty; the events are still
+   parsed so the checks below that read the timeline can run.
+6a-i. **intent-effect**: every `tool_call_effect` names a
+   `shell_command_pre` that is in the bundle, no intent is closed by two
+   effects, the unsigned `correlation` agrees with the signed payload,
+   and every unclosed hook-captured intent has an
+   `intent_without_effect` gap. SKIPPED when the bundle carries no
+   effect records (see [intent and effect](#intent-and-effect)).
+6a-ii. **file-continuity**: for every path, the hash an effect recorded
+   as its outcome equals the hash the next intent records as its
+   pre-state, or an `unwitnessed_file_change` gap discloses the
+   difference. SKIPPED when the bundle carries no effect records.
 6a. **merkle-root**: the RFC 6962 tree over the replayed chain hashes
    has head `manifest.merkleRoot` (see [Merkle tree](#merkle-tree)).
    WARN when the manifest has no root (a bundle sealed before the tree
@@ -396,12 +407,20 @@ Each line is a canonical-JSON serialized `Event` object. Fields:
 | `chainHash`      | string (optional)        | Hash chain link; populated by chain pass     |
 
 Event types: `prompt`, `assistant_message`, `tool_call_intent`,
-`tool_call_executed`, `tool_result`, `file_diff`, `shell_command_pre`,
-`shell_command_post`, `env_change`, `process_spawn`, `error`, `gap`,
-`capture_failed`. Payload shapes are in
-`packages/core/src/events/payloads.ts`. `capture_failed` events exist
-only in the capture store; the merger replaces each with a `gap` event
-before anything reaches a bundle.
+`tool_call_executed`, `tool_call_effect`, `tool_result`, `file_diff`,
+`shell_command_pre`, `shell_command_post`, `env_change`, `process_spawn`,
+`error`, `gap`, `capture_failed`. Payload shapes are in
+`packages/core/src/events/payloads.ts` (the conversation side) and
+`packages/core/src/events/payloads-capture.ts` (what the capture layer
+writes). `capture_failed` events exist only in the capture store; the
+merger replaces each with a `gap` event before anything reaches a bundle.
+
+`correlation` holds cross-links the merger computes: they are not in
+`payloadHash` and therefore not in the chain hash. They are still covered
+by the signature, through `manifest.files["events.jsonl"]`. Where a link
+matters as evidence it also lives inside a payload, and the verifier
+requires the two to agree; see
+[intent and effect](#intent-and-effect).
 
 <a id="hash-chain"></a>
 ### 7.1 Hash chain
@@ -501,9 +520,93 @@ A `gap` event is the system's accounting of what it could not observe.
 | `reflog_change_without_command` | A reflog change has no observed command. |
 | `jsonl_line_unparseable` | A session log line could not be parsed. |
 | `unknown_jsonl_line_type` | A session log line has an unrecognized type. |
-| `capture_failed` | The capture hook threw and wrote no record. The gap's `id` is the failure record's ULID; its `detail` names the hook phase, error class, and sanitized message. |
+| `capture_failed` | A collector threw and wrote no record. The gap's `id` is the failure record's ULID; its `detail` names the phase, error class, and sanitized message. |
+| `intent_without_effect` | A hook-captured intent has no post-execution record. The agent was about to act and the outcome is not in the bundle. |
+| `effect_without_intent` | A post-execution record could not be matched to any intent in the bundle. |
+| `unwitnessed_file_change` | A path's hash moved between one call's recorded outcome and the next call's recorded pre-state. Something changed it that the bundle did not witness. |
+| `kernel_execve_without_hook` | The eBPF collector saw an execve in the agent's process tree that no hook or shim recorded. |
+
+The last four are required, not advisory: the verifier's
+`intent-effect` and `file-continuity` checks fail a bundle that has the
+condition and not the gap, so removing a disclosure from `events.jsonl`
+turns a disclosed hole into a failed check.
 
 ---
+
+<a id="intent-and-effect"></a>
+### 7.2a Intent and effect
+
+A tool call is recorded twice, by two hooks:
+
+| Half | Hook | Event | Records |
+|---|---|---|---|
+| intent | `depose-hook pretooluse` | `shell_command_pre` | argv, cwd, env subset, process ancestry, tty, and the SHA-256 of every file the call names, before it runs |
+| effect | `depose-hook posttooluse` | `tool_call_effect` | exit status, duration, and the SHA-256 of those same files afterwards, with each classified `created`, `modified`, `deleted`, or `unchanged` |
+
+`depose install --claude` registers both. Installing only the pre half
+makes every tool call in every bundle look like a lost outcome.
+
+**How the pair is bound.** The effect's payload carries
+`intentEventId`, so the binding is inside `payloadHash` and therefore
+signed. The intent cannot carry the effect's id (the effect does not
+exist yet), so that direction lives in the intent's `correlation` block.
+The verifier treats the payload as authoritative and requires the
+correlation to agree with it.
+
+`intentEventIdSource` says how the id was obtained, the same way
+`capturedAtSource` does for time:
+
+| Value | Meaning |
+|---|---|
+| `recorded` | The post hook read it from the marker the pre hook left in `<captureDir>/pending/`. |
+| `correlated` | The marker was gone; the merge matched on `inputHash` (SHA-256 of the canonical JSON of `{toolName, toolInput}`) inside the correlation window. A weaker claim, and labelled as one. |
+| `none` | No intent was found. The merge emits an `effect_without_intent` gap. |
+
+**What the effect cannot see.** The paths come from the tool input, so a
+file a command created without naming it is not in the effect record.
+The kernel collector covers commands; nothing in DEPOSE watches the
+whole filesystem, and the format does not pretend otherwise.
+
+**File continuity.** Between one call's recorded outcome for a path and
+the next call's recorded pre-state for the same path, the bundle is
+claiming custody. When the two hashes disagree, something changed the
+file that nothing here witnessed, and the merge emits an
+`unwitnessed_file_change` gap naming both events.
+
+<a id="kernel-witnessed-execve"></a>
+### 7.2b Kernel-witnessed execve
+
+`depose-collect-execve` is an optional Linux collector
+(`apps/collect-execve/`) that attaches an eBPF program to the
+`sched:sched_process_exec` tracepoint and records every exec inside the
+agent's process tree. Records enter the same capture store and become
+`process_spawn` events with `payload.source: "kernel"`.
+
+The eBPF program writes 32 bytes per exec (pid, monotonic nanoseconds,
+comm) and reads nothing out of the tracepoint context. Everything else,
+argv, cwd, executable path, and parent chain, is read from `/proc`
+immediately afterwards by the userspace half. That is a deliberate
+trade: the probe is small enough to be audited in one screen and needs
+no C toolchain to build, at the cost of missing argv for a process that
+exits before `/proc` can be read. Such a record is still written, with an
+empty `argv`, because an exec that was witnessed and not characterized is
+itself a finding.
+
+The merge attributes an execve to a hook intent when they share an
+ancestor pid and the execve falls inside the correlation window (a full
+window forward, one second of slack backward for clock skew), recording
+the intent's id in `payload.matchedIntentEventId`. An execve with no such
+intent keeps `matchedIntentEventId: null` and gets a
+`kernel_execve_without_hook` gap. That is the case
+`docs/threat-model.md` §6 lists as invisible to the hook: an absolute
+path around the shim, a `subprocess.run` with `shell=False`, a static
+binary that execs a child of its own.
+
+The collector needs `CAP_BPF` and `CAP_PERFMON` (or root). Without them
+it writes a `capture_failed` record with phase `ebpf-attach` and exits 0,
+so the bundle discloses that kernel witnessing was requested and did not
+happen. macOS has no supported equivalent and the collector refuses to
+start there; see `docs/capture-coverage.md`.
 
 <a id="producer-invariants"></a>
 ### 7.3 Producer invariants

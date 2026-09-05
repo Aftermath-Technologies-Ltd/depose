@@ -1,0 +1,24 @@
+{
+  "kind": "execve",
+  "pid": 9002,
+  "ppid": 9001,
+  "ancestry": [
+    9001,
+    9000
+  ],
+  "comm": "aws",
+  "exe": "/usr/local/bin/aws",
+  "argv": [
+    "/usr/local/bin/aws",
+    "s3",
+    "rb",
+    "s3://pocketos-prod",
+    "--force"
+  ],
+  "cwd": "/tmp/depose-golden-intent-effect",
+  "monoNs": "10000000",
+  "capturedAt": "2025-05-18T15:30:11.000Z",
+  "sessionId": "sess-intent-effect",
+  "source": "kernel",
+  "captureSchemaVersion": 3
+}

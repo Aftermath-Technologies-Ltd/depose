@@ -1,0 +1,17 @@
+{
+  "kind": "effect",
+  "toolName": "Bash",
+  "cwd": "/tmp/depose-golden-intent-effect",
+  "exitCode": 0,
+  "durationMs": 1000,
+  "intentEventId": "06BE8118R83X00000Z800007T0",
+  "intentEventIdSource": "recorded",
+  "inputHash": "8645eb0f493bc8772a2789dde0fe476affc4c59e852b3d7dea11938c30a51fac",
+  "files": [],
+  "source": "claude-posttooluse",
+  "captureSchemaVersion": 3,
+  "capturedAt": "2025-05-18T15:30:04.000Z",
+  "capturedAtSource": "recorded",
+  "monoNs": "4000000",
+  "sessionId": "sess-intent-effect"
+}

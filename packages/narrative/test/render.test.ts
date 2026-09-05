@@ -18,9 +18,9 @@ import {
   renderMarkdown,
   renderHtml,
   buildNarrativeData,
-  summarizeEvent,
   groupEventsIntoSections,
 } from '../src/render.js';
+import { summarizeEvent } from '../src/summarize.js';
 import {
   renderRule902Cert,
   buildCertDataFromManifest,

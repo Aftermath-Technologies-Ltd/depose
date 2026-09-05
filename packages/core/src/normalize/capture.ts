@@ -13,24 +13,26 @@
 //      reading it unfiltered puts every project the user has touched into
 //      an evidence bundle destined for disclosure.
 //
-// Two record kinds live in the store: command records (shell_command_pre)
-// and capture_failed records, which the hook writes when it could not
-// capture. Both are scoped the same way. Scoping lives in capture-scope.ts.
+// Four record kinds live in the store: command records (the intent half of
+// a tool call), effect records (the post-execution half), kernel execve
+// records from the optional eBPF collector, and capture_failed records,
+// which a collector writes when it could not capture at all. All four are
+// scoped the same way. Scoping lives in capture-scope.ts; the per-record
+// mapping lives in capture-events.ts.
 
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { Event, AgentId, CaptureFailedPayload } from '../events/schema.js';
+import type { Event, AgentId } from '../events/schema.js';
 import { generateUlid, isValidUlid } from '../events/ids.js';
-import { sha256 } from '../events/canonical-json.js';
 import {
-  upgradeRecord,
   resolveWindow,
-  classify,
   readCaptureFailed,
+  classify,
   type CaptureExclusionReason,
   type CaptureScope,
 } from './capture-scope.js';
+import { recordToEvent, captureFailedEvent, type RecordContext } from './capture-events.js';
 
 export type { CaptureExclusionReason, CaptureScope } from './capture-scope.js';
 
@@ -65,7 +67,7 @@ export interface CaptureNormalizeOptions {
  * Result of capture record normalization.
  */
 export interface CaptureNormalizeResult {
-  /** Normalized events (shell_command_pre and capture_failed), scoped to the session */
+  /** Normalized events (intent, effect, kernel execve, capture_failed), scoped to the session */
   events: Event[];
   /** Number of capture records that became events */
   recordCount: number;
@@ -139,6 +141,7 @@ export function normalizeCaptureRecords(
   }
 
   const bounds = resolveWindow(scope);
+  const ctx: Omit<RecordContext, 'monoNs'> = { sessionId, agentId, scope, bounds };
 
   for (const file of files) {
     storeRecordCount++;
@@ -167,45 +170,13 @@ export function normalizeCaptureRecords(
       continue;
     }
 
-    const failed = readCaptureFailed(raw);
-    if (failed) {
-      const decision = classify(failed, scope, bounds);
-      if (decision !== 'include') {
-        excluded[decision]++;
-        continue;
-      }
-      events.push(captureFailedEvent(ulid, failed, sessionId, agentId, monoOffset + recordCount));
-      recordCount++;
+    const outcome = recordToEvent(ulid, raw, mtimeMs, { ...ctx, monoNs: monoOffset + recordCount });
+    if (outcome.kind === 'excluded') {
+      excluded[outcome.reason]++;
+      if (outcome.warning) warnings.push(`Capture record ${file}: ${outcome.warning}`);
       continue;
     }
-
-    const payload = upgradeRecord(raw, mtimeMs);
-    if (!payload) {
-      excluded.malformed++;
-      warnings.push(`Capture record ${file}: missing or invalid argv`);
-      continue;
-    }
-
-    const decision = classify(payload, scope, bounds);
-    if (decision !== 'include') {
-      excluded[decision]++;
-      continue;
-    }
-
-    events.push({
-      id: ulid,
-      wallTs: payload.capturedAt,
-      // Tie-breaker only. Real ordering comes from wallTs; this keeps
-      // same-millisecond captures stable, and files are read in ULID order,
-      // which is capture order.
-      monoNs: BigInt(monoOffset + recordCount),
-      sessionId,
-      agentId: payload.source === 'shell-shim' ? 'shell' : agentId,
-      parentEventId: null,
-      type: 'shell_command_pre',
-      payload,
-      payloadHash: sha256(payload),
-    });
+    events.push(outcome.event);
     recordCount++;
   }
 
@@ -236,30 +207,10 @@ export function normalizeCaptureRecords(
         excluded[decision]++;
         continue;
       }
-      events.push(captureFailedEvent(ulid, failed, sessionId, agentId, monoOffset + recordCount));
+      events.push(captureFailedEvent(ulid, failed, { ...ctx, monoNs: monoOffset + recordCount }));
       recordCount++;
     }
   }
 
   return { events, recordCount, storeRecordCount, excluded, warnings };
-}
-
-function captureFailedEvent(
-  id: string,
-  payload: CaptureFailedPayload,
-  sessionId: string,
-  agentId: AgentId,
-  monoNs: number
-): Event {
-  return {
-    id,
-    wallTs: payload.capturedAt,
-    monoNs: BigInt(monoNs),
-    sessionId,
-    agentId,
-    parentEventId: null,
-    type: 'capture_failed',
-    payload,
-    payloadHash: sha256(payload),
-  };
 }

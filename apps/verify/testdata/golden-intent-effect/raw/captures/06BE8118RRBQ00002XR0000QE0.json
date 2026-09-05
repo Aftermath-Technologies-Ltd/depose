@@ -1,0 +1,35 @@
+{
+  "argv": [
+    "edit",
+    "/tmp/depose-golden-intent-effect/main.tf"
+  ],
+  "cwd": "/tmp/depose-golden-intent-effect",
+  "envHash": "4f39f6fc7bc9cea5c7dbecf83a404abe4e264a47ed2e1135ced2267804715d85",
+  "envSubset": {
+    "AWS_REGION": "us-east-1"
+  },
+  "ttyId": "/dev/pts/3",
+  "user": "depose",
+  "hostname": "evidence-host",
+  "parentProcessTree": [
+    {
+      "pid": 4242,
+      "ppid": 4200,
+      "exe": "/usr/bin/node",
+      "argv0": "node"
+    }
+  ],
+  "fileArgs": [
+    {
+      "path": "/tmp/depose-golden-intent-effect/main.tf",
+      "preSha256": "2c789583bf774cbe1ccc569e8ba39afaeca4571efd36a709ff7b963f1c492598",
+      "sizeBytes": 54
+    }
+  ],
+  "source": "claude-pretooluse",
+  "captureSchemaVersion": 3,
+  "inputHash": "97a6a79746e2c544887252fede2d82069e6bffba7465d41de9b8840674758cd7",
+  "capturedAt": "2025-05-18T15:30:07.000Z",
+  "capturedAtSource": "recorded",
+  "sessionId": "sess-intent-effect"
+}

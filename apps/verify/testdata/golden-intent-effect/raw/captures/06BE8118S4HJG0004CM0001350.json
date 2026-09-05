@@ -1,0 +1,22 @@
+{
+  "kind": "execve",
+  "pid": 5100,
+  "ppid": 4242,
+  "ancestry": [
+    4242,
+    4200
+  ],
+  "comm": "terraform",
+  "exe": "/usr/bin/terraform",
+  "argv": [
+    "/usr/bin/terraform",
+    "destroy",
+    "-auto-approve"
+  ],
+  "cwd": "/tmp/depose-golden-intent-effect",
+  "monoNs": "9000000",
+  "capturedAt": "2025-05-18T15:30:10.000Z",
+  "sessionId": "sess-intent-effect",
+  "source": "kernel",
+  "captureSchemaVersion": 3
+}

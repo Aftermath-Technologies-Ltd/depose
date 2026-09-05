@@ -6,7 +6,7 @@
 
 import { mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import { join, basename, dirname } from 'node:path';
-import type { Event, GapPayload, ShellCommandPrePayload } from '@depose/core';
+import type { Event, GapPayload, ProcessSpawnPayload, ShellCommandPrePayload } from '@depose/core';
 
 /**
  * Copy the session JSONL and any sibling shell-history.txt / git-reflog.txt
@@ -40,9 +40,10 @@ export function copyRawSources(rawDir: string, sourceJsonlPath: string): void {
  * directory sweep keeps the session scoping intact: nothing unrelated to
  * the session reaches the bundle.
  *
- * Two event kinds qualify: shell_command_pre events whose capture was
- * recorded (not reconstructed), and gap events with reason capture_failed,
- * whose id is the failure record's ULID.
+ * Four event kinds qualify: shell_command_pre events whose capture was
+ * recorded (not reconstructed), tool_call_effect events, kernel-witnessed
+ * process_spawn events, and gap events with reason capture_failed, whose
+ * id is the failure record's ULID.
  *
  * @param rawDir - Absolute path of the bundle's raw/ directory.
  * @param captureSourceDir - The capture store the events came from.
@@ -85,6 +86,12 @@ export function copyCaptureRecords(
 function isCaptureDerived(event: Event): boolean {
   if (event.type === 'shell_command_pre') {
     return (event.payload as ShellCommandPrePayload).capturedAtSource !== 'reconstructed';
+  }
+  if (event.type === 'tool_call_effect') {
+    return true;
+  }
+  if (event.type === 'process_spawn') {
+    return (event.payload as ProcessSpawnPayload).source === 'kernel';
   }
   if (event.type === 'gap') {
     return (event.payload as GapPayload).reason === 'capture_failed';

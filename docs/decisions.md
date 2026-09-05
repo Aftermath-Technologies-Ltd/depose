@@ -137,3 +137,72 @@ consistency holds between disclosures of one seal (trivially, equal
 roots) and the larger-tree path is exercised by tests and vectors. A
 future `depose record --extend <bundle>` that reuses openings would make
 it hold across incremental seals; that is noted rather than built.
+
+## D15. The signed half of the intent-effect binding is the effect's payload
+
+An effect can name its intent inside its own payload, where the value is
+hashed into `payloadHash` and covered by the chain and the signature. An
+intent cannot name its effect the same way: the effect does not exist
+when the intent is written, and rewriting a sealed event afterwards is
+exactly what the format forbids. So the reverse link lives in the
+event's `correlation` block, which is outside `payloadHash` but still
+covered by the signature through `manifest.files["events.jsonl"]`.
+
+The verifier treats the payload as authoritative and fails when the
+correlation disagrees with it. The alternative, dropping the reverse link
+so there is nothing to disagree with, would have made the timeline harder
+to read for no gain in strength: a bundle where the two disagree has been
+edited, and saying so is better than not noticing.
+
+## D16. Gaps are required, not advisory
+
+`intent_without_effect`, `effect_without_intent`,
+`unwitnessed_file_change`, and `kernel_execve_without_hook` are emitted
+by the producer's own merge, so an honest bundle always has them. The
+verifier therefore requires them: a bundle with an unclosed intent and no
+gap disclosing it fails `intent-effect`, and a file whose hash moved with
+no gap disclosing it fails `file-continuity`.
+
+This is the stricter of the two readings. The looser one, reporting the
+condition as a warning, would let someone delete the gap events and get a
+clean report, which turns the disclosure into decoration. The cost is
+that a producer who writes events.jsonl by hand has to emit the gaps too;
+that cost falls on the producer, which is where it belongs.
+
+`intent_without_effect` is only required for intents whose source is
+`claude-pretooluse`. A reconstructed intent, rebuilt from a session log
+or a shell history, never promised an outcome, and demanding a gap for
+every one of them would bury a real finding under hundreds of empty ones.
+
+## D17. The eBPF probe is assembled in Go, not compiled from C
+
+The standard way to build a cilium/ebpf program is `bpf2go`: write C,
+compile with clang, check in the generated object. That makes the build
+depend on a C toolchain and puts a binary blob in the repository that a
+reader has to take on trust.
+
+The probe here is small enough to avoid both. It makes three helper calls
+and writes a fixed 32-byte record, and it reads nothing out of the
+tracepoint context, so it is about twenty instructions of `cilium/ebpf/asm`
+that anyone auditing the capture path can read in one screen. `go build`
+is the whole toolchain.
+
+The price is that the probe cannot parse the tracepoint's `filename`
+field, so argv, cwd, and the executable path come from `/proc` in
+userspace and are lost when a process exits before they can be read.
+Such a record is still written, with an empty `argv`, because an exec
+that was witnessed and not characterized is a finding rather than
+nothing. See `docs/capture-coverage.md` for what that costs.
+
+## D18. macOS gets no kernel collector at all
+
+Apple's Endpoint Security framework needs an entitlement granted per
+developer account, and the older openbsm audit pipeline is deprecated
+and disabled by default. Neither is something DEPOSE can ship and have
+work on a user's machine.
+
+The collector therefore refuses to start on macOS with an error saying
+so, and `docs/capture-coverage.md` records the status as "not supported,
+hook only". A stub that loads and records nothing would let a macOS
+bundle look kernel-witnessed when it is not, which is worse than the
+missing feature.

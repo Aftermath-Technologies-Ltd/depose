@@ -18,6 +18,14 @@ func checkChain(ctx *checkContext) []CheckResult {
 	m := ctx.manifest
 	if m.RootHash == "" {
 		if m.Producer.Mode == "dev-unsigned" {
+			// The chain is not anchored, but the events still parse, and
+			// the checks that read the timeline rather than the chain
+			// (intent-effect, file-continuity) are worth running on a
+			// development bundle. A parse failure here is not reported
+			// separately: artifact-events-jsonl already covers it.
+			if replay, err := chain.ReplayChain(ctx.bundlePath); err == nil {
+				ctx.replay = replay
+			}
 			return one(CheckResult{Name: "chain-replay", Status: StatusSkipped, Detail: "dev-unsigned bundle carries no chain (rootHash empty)"})
 		}
 		return one(CheckResult{Name: "chain-replay", Status: StatusFail, Detail: "No root hash, signed bundle missing chain"})

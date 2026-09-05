@@ -102,7 +102,7 @@ CAPTURE  →  NORMALIZATION  →  RECONSTRUCTION  →  INTEGRITY  →  BUNDLE  �
 
 | Layer | What it does | Package |
 |---|---|---|
-| **Capture** | Hooks and shims record events at execution time. | `packages/capture-claude`, `apps/capture-shim` |
+| **Capture** | Hooks and shims record events at execution time; an optional eBPF collector records what the kernel saw. | `packages/capture-claude`, `apps/capture-shim`, `apps/collect-execve` |
 | **Normalization** | Claude Code JSONL, shell history (bash/zsh/fish), git reflog into a common event schema. | `packages/core` |
 | **Reconstruction** | Sort, merge across sources, deduplicate, flag gaps, build a causal timeline. | `packages/core/reconstruct` |
 | **Integrity** | IRONROOT hash chain, Ed25519 signing, RFC 3161 timestamping. | `packages/chain` |
@@ -134,11 +134,21 @@ Every file in the tree is pinned by a signed files map in `manifest.json`: chang
 Reconstructing from a JSONL after the fact is the lower-bound mode. For sessions you're running *now*, install hooks that record events at execution time:
 
 ```bash
-depose install --claude   # registers Claude Code PreToolUse hook
+depose install --claude   # registers the Claude Code PreToolUse and PostToolUse hooks
 depose install --shell    # shims terraform, aws, gh, kubectl, psql, gcloud, railway, rm
 ```
 
-Capture records land under `~/.depose/captures/`. Later `depose package` runs merge them with the session JSONL so every covered event has a verified pre-execution intent on record. If the hook itself throws, it writes a `capture_failed` record before exiting 0, and the bundle shows that as a gap event rather than a clean timeline. Destructive rules match every simple command inside a captured shell line, so `sudo rm -rf`, `env X=1 terraform destroy`, and `cd /prod && rm -rf .` all fire.
+Capture records land under `~/.depose/captures/`. Later `depose package` runs merge them with the session JSONL so every covered event has a verified pre-execution intent on record. If a hook throws, it writes a `capture_failed` record before exiting 0, and the bundle shows that as a gap event rather than a clean timeline. Destructive rules match every simple command inside a captured shell line, so `sudo rm -rf`, `env X=1 terraform destroy`, and `cd /prod && rm -rf .` all fire.
+
+`--claude` registers both halves of every tool call. The PreToolUse hook records what the agent was about to run and the SHA-256 of every file the call names; the PostToolUse hook records the exit status and those same hashes afterwards, carrying the intent's event id inside its signed payload. A call with no recorded outcome becomes an `intent_without_effect` gap and gets its own section at the top of the narrative, and the verifier fails any bundle that has the hole without the gap.
+
+On Linux, `depose-collect-execve` adds what the kernel saw:
+
+```bash
+sudo depose-collect-execve --session <id> --pid <agent pid>
+```
+
+It attaches to the `sched:sched_process_exec` tracepoint and records every exec in the agent's process tree, so a command invoked by absolute path, through `subprocess.run(..., shell=False)`, or by a static binary shows up as its own event with a `kernel_execve_without_hook` gap instead of being absent. It needs `CAP_BPF`; without it the collector records why it could not run and exits 0. macOS is hook-only, and says so rather than shipping a stub.
 
 Coverage matrix and threat-vs-coverage tradeoffs: [docs/capture-coverage.md](docs/capture-coverage.md). Install details: [docs/hook-installation.md](docs/hook-installation.md), [docs/shim-installation.md](docs/shim-installation.md).
 
@@ -163,11 +173,12 @@ packages/
 ├── chain/            hash chain, Ed25519 signing, RFC 3161, key catalog
 ├── bundle/           bundle directory writer + manifest schema
 ├── narrative/        Handlebars-based deterministic narrative renderer
-├── capture-claude/   Claude Code PreToolUse hook
+├── capture-claude/   Claude Code PreToolUse and PostToolUse hooks
 └── cli/              `depose` + `depose-hook` commands (+ bundled rules)
 apps/
 ├── verify/           `depose-verify` static Go binary
-└── capture-shim/     `depose-shim` shell shim Go binary
+├── capture-shim/     `depose-shim` shell shim Go binary
+└── collect-execve/   `depose-collect-execve` optional Linux eBPF execve collector
 examples/             synthetic reconstructions, replayed in CI
 scripts/              determinism + install-from-pack E2E
 tests/conformance/    cross-language canonical-JSON vectors
@@ -196,7 +207,7 @@ Build internals, the full CI matrix, and source-tree invariants: [docs/developme
 | [canonical-json.md](docs/canonical-json.md) | RFC 8785 JCS rules used by both producer and verifier. |
 | [threat-model.md](docs/threat-model.md) | What DEPOSE defends against, what it doesn't. |
 | [capture-coverage.md](docs/capture-coverage.md) | Coverage matrix per capture mode. |
-| [hook-installation.md](docs/hook-installation.md) | Claude Code PreToolUse hook setup. |
+| [hook-installation.md](docs/hook-installation.md) | Claude Code capture hook setup, both halves. |
 | [shim-installation.md](docs/shim-installation.md) | Shell shim setup. |
 | [key-management.md](docs/key-management.md) | Signing-key flows, fingerprints, rotation/revocation. |
 | [legal-considerations.md](docs/legal-considerations.md) | Evidentiary use, jurisdictional notes. |

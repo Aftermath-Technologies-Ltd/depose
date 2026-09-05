@@ -78,7 +78,7 @@ describe('hook-entry', () => {
     ]);
     expect(targetRecord!.payload.cwd).toBe('/tmp/project');
     expect(targetRecord!.payload.source).toBe('claude-pretooluse');
-    expect(targetRecord!.payload.captureSchemaVersion).toBe(2);
+    expect(targetRecord!.payload.captureSchemaVersion).toBe(3);
   });
 
   it('records the capture time so the event is not stamped at bundle time', async () => {

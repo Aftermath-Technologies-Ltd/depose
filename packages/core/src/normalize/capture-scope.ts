@@ -4,7 +4,13 @@
 // bundle being built, and how a record read from disk is brought up to
 // the current shape. The reader loop lives in capture.ts.
 
-import type { ShellCommandPrePayload, CaptureFailedPayload } from '../events/schema.js';
+import type {
+  ShellCommandPrePayload,
+  CaptureFailedPayload,
+  ToolCallEffectPayload,
+  ExecveRecordPayload,
+  FileEffect,
+} from '../events/schema.js';
 
 /**
  * Why a capture record was left out of the bundle.
@@ -90,6 +96,9 @@ export function readCaptureFailed(raw: unknown): CaptureFailedPayload | null {
   if (typeof record.phase !== 'string' || typeof record.errorClass !== 'string') return null;
   if (typeof record.message !== 'string' || typeof record.capturedAt !== 'string') return null;
   if (Number.isNaN(Date.parse(record.capturedAt))) return null;
+  const source = record.source === 'claude-posttooluse' || record.source === 'kernel'
+    ? record.source
+    : 'claude-pretooluse';
   return {
     kind: 'capture_failed',
     phase: record.phase,
@@ -99,7 +108,76 @@ export function readCaptureFailed(raw: unknown): CaptureFailedPayload | null {
     capturedAt: record.capturedAt,
     sessionId: typeof record.sessionId === 'string' ? record.sessionId : null,
     toolName: typeof record.toolName === 'string' ? record.toolName : null,
-    source: 'claude-pretooluse',
+    source,
+    captureSchemaVersion: 3,
+  };
+}
+
+/**
+ * Validate an effect record, the post-execution half of a tool call.
+ *
+ * Narrowed at the boundary rather than cast: the store is on disk, so a
+ * record can be any shape at all by the time it is read back.
+ *
+ * @param raw - Parsed JSON from a record file.
+ * @returns The payload, or null when the object is not an effect record.
+ */
+export function readEffectRecord(raw: unknown): ToolCallEffectPayload | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const record = raw as Partial<ToolCallEffectPayload>;
+  if (record.kind !== 'effect') return null;
+  if (typeof record.toolName !== 'string' || typeof record.inputHash !== 'string') return null;
+  if (typeof record.capturedAt !== 'string' || Number.isNaN(Date.parse(record.capturedAt))) return null;
+  return {
+    kind: 'effect',
+    toolName: record.toolName,
+    cwd: typeof record.cwd === 'string' ? record.cwd : '',
+    exitCode: typeof record.exitCode === 'number' ? record.exitCode : null,
+    durationMs: typeof record.durationMs === 'number' ? record.durationMs : null,
+    intentEventId: typeof record.intentEventId === 'string' ? record.intentEventId : null,
+    intentEventIdSource: typeof record.intentEventId === 'string' ? 'recorded' : 'none',
+    inputHash: record.inputHash,
+    files: Array.isArray(record.files) ? record.files.filter(isFileEffect) : [],
+    source: 'claude-posttooluse',
+    captureSchemaVersion: 3,
+    capturedAt: record.capturedAt,
+    capturedAtSource: record.capturedAtSource === 'reconstructed' ? 'reconstructed' : 'recorded',
+    monoNs: typeof record.monoNs === 'string' ? record.monoNs : '0',
+    sessionId: typeof record.sessionId === 'string' ? record.sessionId : null,
+  };
+}
+
+function isFileEffect(value: unknown): value is FileEffect {
+  if (typeof value !== 'object' || value === null) return false;
+  const entry = value as Partial<FileEffect>;
+  return typeof entry.path === 'string' && typeof entry.change === 'string';
+}
+
+/**
+ * Validate a kernel execve record written by the eBPF collector.
+ *
+ * @param raw - Parsed JSON from a record file.
+ * @returns The payload, or null when the object is not an execve record.
+ */
+export function readExecveRecord(raw: unknown): ExecveRecordPayload | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const record = raw as Partial<ExecveRecordPayload>;
+  if (record.kind !== 'execve') return null;
+  if (typeof record.pid !== 'number' || !Array.isArray(record.argv)) return null;
+  if (typeof record.capturedAt !== 'string' || Number.isNaN(Date.parse(record.capturedAt))) return null;
+  return {
+    kind: 'execve',
+    pid: record.pid,
+    ppid: typeof record.ppid === 'number' ? record.ppid : 0,
+    ancestry: Array.isArray(record.ancestry) ? record.ancestry.filter((p) => typeof p === 'number') : [],
+    comm: typeof record.comm === 'string' ? record.comm : '',
+    exe: typeof record.exe === 'string' ? record.exe : '',
+    argv: record.argv.filter((a): a is string => typeof a === 'string'),
+    cwd: typeof record.cwd === 'string' ? record.cwd : '',
+    monoNs: typeof record.monoNs === 'string' ? record.monoNs : '0',
+    capturedAt: record.capturedAt,
+    sessionId: typeof record.sessionId === 'string' ? record.sessionId : null,
+    source: 'kernel',
     captureSchemaVersion: 3,
   };
 }

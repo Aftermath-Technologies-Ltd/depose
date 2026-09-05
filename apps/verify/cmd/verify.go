@@ -51,6 +51,8 @@ var checkOrder = []checkStep{
 	{checkSignerIdentity, false},
 	{checkSignatureVerify, true},
 	{checkChain, false},
+	{checkIntentEffect, false},
+	{checkFileContinuity, false},
 	{checkMerkleRoot, false},
 	{checkCommitments, false},
 	{checkTimestamps, false},

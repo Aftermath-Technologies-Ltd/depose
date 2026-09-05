@@ -1,0 +1,30 @@
+{
+  "argv": [
+    "bash",
+    "-c",
+    "rm -rf /srv/pocketos/data"
+  ],
+  "cwd": "/tmp/depose-golden-intent-effect",
+  "envHash": "4f39f6fc7bc9cea5c7dbecf83a404abe4e264a47ed2e1135ced2267804715d85",
+  "envSubset": {
+    "AWS_REGION": "us-east-1"
+  },
+  "ttyId": "/dev/pts/3",
+  "user": "depose",
+  "hostname": "evidence-host",
+  "parentProcessTree": [
+    {
+      "pid": 4242,
+      "ppid": 4200,
+      "exe": "/usr/bin/node",
+      "argv0": "node"
+    }
+  ],
+  "fileArgs": [],
+  "source": "claude-pretooluse",
+  "captureSchemaVersion": 3,
+  "inputHash": "efe5849ba4b849c63f1d40566ceb091dad6c2f0b18385581589db143b4dd9380",
+  "capturedAt": "2025-05-18T15:30:09.000Z",
+  "capturedAtSource": "recorded",
+  "sessionId": "sess-intent-effect"
+}

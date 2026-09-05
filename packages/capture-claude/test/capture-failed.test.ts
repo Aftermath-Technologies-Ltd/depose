@@ -42,9 +42,12 @@ function quietDeps(overrides: Partial<HookDeps>): Partial<HookDeps> {
   };
 }
 
+function recordFiles(): string[] {
+  return readdirSync(captureDir).filter((f) => f.endsWith('.json'));
+}
+
 function storedFailures(): CaptureFailedPayload[] {
-  return readdirSync(captureDir)
-    .filter((f) => f.endsWith('.json'))
+  return recordFiles()
     .map((f) => JSON.parse(readFileSync(join(captureDir, f), 'utf-8')) as { kind?: string })
     .filter((r): r is CaptureFailedPayload => r.kind === 'capture_failed');
 }
@@ -73,7 +76,7 @@ describe('runHook leaves a capture_failed record for a failure in each phase', (
 
     const failures = storedFailures();
     expect(failures).toHaveLength(1);
-    expect(readdirSync(captureDir)).toHaveLength(1);
+    expect(recordFiles()).toHaveLength(1);
     const record = failures[0]!;
     expect(record.phase).toBe(phase);
     expect(record.sessionId).toBe(expectedSession);
@@ -87,7 +90,7 @@ describe('runHook leaves a capture_failed record for a failure in each phase', (
     const outcome = await runHook(quietDeps({}));
     expect(outcome.ok).toBe(true);
     expect(storedFailures()).toHaveLength(0);
-    expect(readdirSync(captureDir)).toHaveLength(1);
+    expect(recordFiles()).toHaveLength(1);
   });
 });
 

@@ -11,7 +11,6 @@ export {
   renderMarkdown,
   renderHtml,
   buildNarrativeData,
-  summarizeEvent,
   groupEventsIntoSections,
   type RenderOptions,
 } from './render.js';
@@ -21,3 +20,6 @@ export {
   buildCertDataFromManifest,
   type Rule902CertData,
 } from './rule-902.js';
+
+export { summarizeEvent } from './summarize.js';
+export { MD_TEMPLATE, HTML_TEMPLATE } from './templates.js';

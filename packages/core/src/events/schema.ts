@@ -13,6 +13,7 @@ export type EventType =
   | 'assistant_message'
   | 'tool_call_intent'
   | 'tool_call_executed'
+  | 'tool_call_effect'
   | 'tool_result'
   | 'file_diff'
   | 'shell_command_pre'
@@ -30,14 +31,17 @@ import type {
   ToolCallExecutedPayload,
   ToolResultPayload,
   FileDiffPayload,
-  ShellCommandPrePayload,
-  ShellCommandPostPayload,
   EnvChangePayload,
-  ProcessSpawnPayload,
   ErrorPayload,
   GapPayload,
-  CaptureFailedPayload,
 } from './payloads.js';
+import type {
+  ShellCommandPrePayload,
+  ShellCommandPostPayload,
+  ToolCallEffectPayload,
+  ProcessSpawnPayload,
+  CaptureFailedPayload,
+} from './payloads-capture.js';
 
 export type {
   PromptPayload,
@@ -46,15 +50,21 @@ export type {
   ToolCallExecutedPayload,
   ToolResultPayload,
   FileDiffPayload,
-  ShellCommandPrePayload,
-  ShellCommandPostPayload,
   EnvChangePayload,
-  ProcessSpawnPayload,
   ErrorPayload,
   GapPayload,
+} from './payloads.js';
+
+export type {
+  ShellCommandPrePayload,
+  ShellCommandPostPayload,
+  ToolCallEffectPayload,
+  FileEffect,
+  ExecveRecordPayload,
+  ProcessSpawnPayload,
   CaptureFailedPayload,
   ProcessNode,
-} from './payloads.js';
+} from './payloads-capture.js';
 
 /**
  * Agent source identifiers.
@@ -84,6 +94,15 @@ export type ShellCommandSource = 'claude-pretooluse' | 'shell-shim' | 'reconstru
 export interface EventCorrelation {
   /** Cross-link to a shell_command_pre event matched during merge */
   linkedShellCommandPreId?: string;
+  /**
+   * On an intent (`shell_command_pre`), the `tool_call_effect` that closed
+   * it. The reverse direction lives in the effect's payload, where it is
+   * hashed; this one cannot be, because the effect does not exist when the
+   * intent is written. The verifier requires the two to agree.
+   */
+  linkedEffectId?: string;
+  /** On an effect, the intent it closed, copied out of the payload by the merge. */
+  linkedIntentId?: string;
 }
 
 export interface EventBase {
@@ -126,6 +145,7 @@ export type Event =
   | (EventBase & { type: 'assistant_message'; payload: AssistantMessagePayload })
   | (EventBase & { type: 'tool_call_intent'; payload: ToolCallIntentPayload })
   | (EventBase & { type: 'tool_call_executed'; payload: ToolCallExecutedPayload })
+  | (EventBase & { type: 'tool_call_effect'; payload: ToolCallEffectPayload })
   | (EventBase & { type: 'tool_result'; payload: ToolResultPayload })
   | (EventBase & { type: 'file_diff'; payload: FileDiffPayload })
   | (EventBase & { type: 'shell_command_pre'; payload: ShellCommandPrePayload })

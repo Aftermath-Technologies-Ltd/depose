@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "sha256(jcs([salt, path, value]))",
+  "openings": [
+    {
+      "eventId": "06BE8118R00000000000000000",
+      "path": "/argv",
+      "salt": "ee5c8ba59d16af5ca650abcb1ca7414e980ff31ae8f20789727eccd28d83734e",
+      "value": [
+        "edit",
+        "/tmp/depose-golden-intent-effect/main.tf"
+      ]
+    },
+    {
+      "eventId": "06BE8118R00000000000000000",
+      "path": "/envSubset",
+      "salt": "a25ad62dd2849f2dfa120c6978999ee6c0e14d2e93bc40c40a94e7f291534954",
+      "value": {
+        "AWS_REGION": "us-east-1"
+      }
+    },
+    {
+      "eventId": "06BE8118R83X00000Z800007T0",
+      "path": "/argv",
+      "salt": "08628d0b0ba404ee29f8a3358ca2dda23cccd84d5a7fa9107861d27c0709b4d9",
+      "value": [
+        "bash",
+        "-c",
+        "sudo terraform destroy -auto-approve"
+      ]
+    },
+    {
+      "eventId": "06BE8118R83X00000Z800007T0",
+      "path": "/envSubset",
+      "salt": "03c729d3484e0199b3b27fd3ab555aa646b733b279aab96ca7a802dbd7738372",
+      "value": {
+        "AWS_REGION": "us-east-1"
+      }
+    },
+    {
+      "eventId": "06BE8118RG7T00001YG0000FM0",
+      "path": "/argv",
+      "salt": "adce6a3f1833b5c198f064057aa81ca10b1bcb8f3d45a1e51411c14fec916c94",
+      "value": [
+        "edit",
+        "/tmp/depose-golden-intent-effect/main.tf"
+      ]
+    },
+    {
+      "eventId": "06BE8118RG7T00001YG0000FM0",
+      "path": "/envSubset",
+      "salt": "06f37c35c192b780f34e4f0a38382091bad511d41aff2dd5a95904c52944d9de",
+      "value": {
+        "AWS_REGION": "us-east-1"
+      }
+    },
+    {
+      "eventId": "06BE8118RRBQ00002XR0000QE0",
+      "path": "/argv",
+      "salt": "135b5b5c2c9df5aba1257ae1aa70ba256fa640121cdf4b7b68bfce7d9629c14a",
+      "value": [
+        "edit",
+        "/tmp/depose-golden-intent-effect/main.tf"
+      ]
+    },
+    {
+      "eventId": "06BE8118RRBQ00002XR0000QE0",
+      "path": "/envSubset",
+      "salt": "7dac25d513beae1cca6adfebed4d9ef0520746905e34ec9cf23292d1b226a2f2",
+      "value": {
+        "AWS_REGION": "us-east-1"
+      }
+    },
+    {
+      "eventId": "06BE8118S0FM00003X00000Z80",
+      "path": "/argv",
+      "salt": "ff14cbf36ef2d28bd8b546c62fed7fc1809a187926874a501e6713a6e9a7ff78",
+      "value": [
+        "bash",
+        "-c",
+        "rm -rf /srv/pocketos/data"
+      ]
+    },
+    {
+      "eventId": "06BE8118S0FM00003X00000Z80",
+      "path": "/envSubset",
+      "salt": "709b52eb844dfd33b5733b0f86bef784b70c2497cc0c4d37380365c0ecd0b8c8",
+      "value": {
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  ]
+}

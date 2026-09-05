@@ -1,0 +1,19 @@
+{
+  "kind": "execve",
+  "pid": 5200,
+  "ppid": 4300,
+  "ancestry": [
+    4300,
+    4200,
+    1
+  ],
+  "comm": "curl",
+  "exe": "",
+  "argv": [],
+  "cwd": "",
+  "monoNs": "1747583401000000000",
+  "capturedAt": "2025-05-18T15:30:11.000Z",
+  "sessionId": "sess-kernel",
+  "source": "kernel",
+  "captureSchemaVersion": 3
+}

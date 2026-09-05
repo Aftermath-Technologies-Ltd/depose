@@ -5,7 +5,7 @@
 //
 // Named exports only.
 
-// Hook handler
+// Hook handlers
 export {
   handlePreToolUse,
   runHook,
@@ -13,8 +13,31 @@ export {
   clearProcessTreeCache,
   type HookInput,
   type HookDeps,
+  type HookHalf,
   type HookOutcome,
 } from './hook-entry.js';
+
+export {
+  handlePostToolUse,
+  mergeFileStates,
+  type EffectDeps,
+} from './hook-effect.js';
+
+export {
+  parseHookInput,
+  buildArgv,
+  canonicalInputHash,
+  readExitCode,
+  reduceEnv,
+} from './hook-input.js';
+
+// Intent markers, the pre half's handoff to the post half
+export {
+  getPendingDir,
+  writePendingIntent,
+  takePendingIntent,
+  type PendingIntent,
+} from './pending.js';
 
 // Failure evidence
 export {
@@ -31,6 +54,7 @@ export {
   DEFAULT_CAPTURE_DIR,
   getCaptureDir,
   writeCaptureRecord,
+  writeEffectRecord,
   readCaptureRecords,
 } from './capture-record.js';
 

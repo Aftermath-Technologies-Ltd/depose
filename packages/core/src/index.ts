@@ -23,6 +23,9 @@ export type {
   ErrorPayload,
   GapPayload,
   CaptureFailedPayload,
+  ToolCallEffectPayload,
+  FileEffect,
+  ExecveRecordPayload,
 } from './events/schema.js';
 
 export { isEventType } from './events/schema.js';
@@ -103,6 +106,18 @@ export {
 } from './normalize/merge.js';
 
 export {
+  bindIntentAndEffect,
+  type IntentEffectOptions,
+  type IntentEffectResult,
+} from './normalize/merge-intent-effect.js';
+
+export {
+  correlateKernelExecves,
+  type KernelCorrelationOptions,
+  type KernelCorrelationResult,
+} from './normalize/merge-kernel.js';
+
+export {
   normalizeCaptureRecords,
   DEFAULT_CAPTURE_DIR,
   CAPTURE_FAILED_SIDECAR,
@@ -111,6 +126,12 @@ export {
   type CaptureScope,
   type CaptureExclusionReason,
 } from './normalize/capture.js';
+
+export {
+  readCaptureFailed,
+  readEffectRecord,
+  readExecveRecord,
+} from './normalize/capture-scope.js';
 
 // Reconstruction
 export {

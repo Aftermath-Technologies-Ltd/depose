@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEPOSE Reconstruction: sess-intent-effect</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 2em auto; padding: 0 1em; color: #1a1a1a; line-height: 1.6; }
+  h1 { border-bottom: 2px solid #333; padding-bottom: 0.3em; }
+  h2 { color: #444; margin-top: 2em; }
+  h3 { color: #555; }
+  .meta { background: #f5f5f5; padding: 1em; border-radius: 4px; margin-bottom: 1.5em; font-size: 0.9em; }
+  .destructive { background: #fff3f3; border-left: 4px solid #c00; padding: 0.5em 1em; margin: 0.5em 0; }
+  .gap { background: #fff8e1; border-left: 4px solid #f90; padding: 0.5em 1em; margin: 0.5em 0; }
+  .event-ref { font-family: monospace; font-size: 0.85em; color: #666; }
+  code { background: #f0f0f0; padding: 0.15em 0.3em; border-radius: 3px; font-size: 0.9em; }
+  .warning { color: #c00; font-weight: bold; }
+  .note { font-style: italic; color: #666; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5em; text-align: left; }
+  th { background: #f5f5f5; }
+</style>
+</head>
+<body><div style="background:#7a1f1f;color:#fff;padding:1em 1.5em;border-bottom:4px solid #ff0;font-family:-apple-system,Segoe UI,sans-serif;font-weight:bold"><strong>THIS IS A DEVELOPMENT BUNDLE, NOT EVIDENCE.</strong> mode="dev-unsigned": no signature, no timestamp.</div>
+<h1>DEPOSE Reconstruction Narrative</h1>
+<div class="meta">
+<p><strong>Bundle ID:</strong> sess-intent-effect<br>
+<strong>Produced:</strong> 2025-05-18T16:00:00.000Z<br>
+<strong>Agent:</strong> claude-code<br>
+<strong>Session:</strong> sess-intent-effect</p>
+</div>
+<h2>Summary</h2>
+<p>This bundle reconstructs 22 events from an AI coding agent session
+(claude-code). The session ran from 2025-05-18T15:30:00.000Z to 2025-05-18T15:31:00.000Z UTC.</p>
+<div class="destructive"><strong>WARNING: 2 destructive operation(s) detected.</strong> See Destructive Operations below.</div>
+<div class="destructive"><strong>WARNING: 1 tool call(s) ran with no recorded outcome.</strong> The agent was about to act and nothing in this bundle records what happened next. See Lost Outcomes below.</div>
+<div class="destructive"><strong>WARNING: 1 command(s) ran in the agent's process tree with no hook record.</strong> The kernel witnessed them; the capture surface did not.</div>
+<div class="gap"><strong>NOTE: 8 coverage gap(s) identified.</strong> Gaps indicate events where pre-execution capture was not available. These are disclosed, not hidden.</div>
+<h2>Lost Outcomes</h2>
+<table>
+<tr><th>Time</th><th>Detail</th><th>Event ID</th></tr>
+<tr class="destructive"><td>2025-05-18T15:30:09.000Z</td><td>The agent was about to run bash -c rm -rf /srv/pocketos/data at 2025-05-18T15:30:09.000Z and no post-execution record closed it. The command may have run and its outcome was lost, or the session ended before the tool returned. What happened next is not in this bundle.</td><td class="event-ref"><code>#evt-06BE812BX153G00098W0002A70</code></td></tr>
+</table>
+<h2>Unwitnessed Commands</h2>
+<table>
+<tr><th>Time</th><th>Detail</th><th>Event ID</th></tr>
+<tr class="destructive"><td>2025-05-18T15:30:11.000Z</td><td>The kernel witnessed /usr/local/bin/aws s3 rb s3://pocketos-prod --force (pid 9002, parent 9001) in the agent&#x27;s process tree at 2025-05-18T15:30:11.000Z, and no hook or shim recorded it. This is a command that ran outside the capture surface.</td><td class="event-ref"><code>#evt-06BE812KQ190G000A840002J10</code></td></tr>
+</table>
+<h2>Timeline</h2>
+<h3>2025-05-18 15:00 UTC</h3>
+<table>
+<tr><th>Type</th><th>Time (UTC)</th><th>Summary</th><th>Event ID</th></tr>
+<tr><td>prompt</td><td>2025-05-18T15:30:00.000Z</td><td>User prompt: &quot;Rename the bucket and tear down the old stack.&quot;</td><td class="event-ref"><code>#evt-06BE8118R0NFG0005BW0001AZ0</code></td></tr>
+<tr><td>assistant_message</td><td>2025-05-18T15:30:00.500Z</td><td>Assistant response: &quot;Renaming the bucket, then destroying the stack.&quot;</td><td class="event-ref"><code>#evt-06BE811APGQE00005VG0001EW0</code></td></tr>
+<tr><td>shell_command_pre</td><td>2025-05-18T15:30:01.000Z</td><td>Pre-capture (claude-pretooluse): edit /tmp/depose-golden-intent-effect/main.tf</td><td class="event-ref"><code>#evt-06BE8118R00000000000000000</code></td></tr>
+<tr><td>gap</td><td>2025-05-18T15:30:01.000Z</td><td>Gap: pre capture without tool result</td><td class="event-ref"><code>#evt-06BE811CN0VB00006TR0001PP0</code></td></tr>
+<tr><td>tool_call_effect</td><td>2025-05-18T15:30:02.000Z</td><td>Outcome: Edit in 1000ms</td><td class="event-ref"><code>#evt-06BE8118R41YG0000FM00003X0</code></td></tr>
+<tr><td>shell_command_pre</td><td>2025-05-18T15:30:03.000Z</td><td>Pre-capture (claude-pretooluse): bash -c sudo terraform destroy -auto-approve</td><td class="event-ref"><code>#evt-06BE8118R83X00000Z800007T0</code></td></tr>
+<tr><td>gap</td><td>2025-05-18T15:30:03.000Z</td><td>Gap: pre capture without tool result</td><td class="event-ref"><code>#evt-06BE811MF0X9G0007AC0001TK0</code></td></tr>
+<tr><td>tool_call_effect</td><td>2025-05-18T15:30:04.000Z</td><td>Outcome: Bash (exit 0) in 1000ms</td><td class="event-ref"><code>#evt-06BE8118RC5VG0001EW0000BQ0</code></td></tr>
+<tr><td>shell_command_pre</td><td>2025-05-18T15:30:05.000Z</td><td>Pre-capture (claude-pretooluse): edit /tmp/depose-golden-intent-effect/main.tf</td><td class="event-ref"><code>#evt-06BE8118RG7T00001YG0000FM0</code></td></tr>
+<tr><td>gap</td><td>2025-05-18T15:30:05.000Z</td><td>Gap: pre capture without tool result</td><td class="event-ref"><code>#evt-06BE811W90Z800007T00001YG0</code></td></tr>
+<tr><td>gap</td><td>2025-05-18T15:30:05.000Z</td><td>Gap: unwitnessed file change</td><td class="event-ref"><code>#evt-06BE811W917200009RG0002E40</code></td></tr>
+<tr><td>tool_call_effect</td><td>2025-05-18T15:30:06.000Z</td><td>Outcome: Edit in 1000ms</td><td class="event-ref"><code>#evt-06BE8118RM9RG0002E40000KH0</code></td></tr>
+<tr><td>shell_command_pre</td><td>2025-05-18T15:30:07.000Z</td><td>Pre-capture (claude-pretooluse): edit /tmp/depose-golden-intent-effect/main.tf</td><td class="event-ref"><code>#evt-06BE8118RRBQ00002XR0000QE0</code></td></tr>
+<tr><td>gap</td><td>2025-05-18T15:30:07.000Z</td><td>Gap: pre capture without tool result</td><td class="event-ref"><code>#evt-06BE81243116G00089M00022D0</code></td></tr>
+<tr><td>tool_call_effect</td><td>2025-05-18T15:30:08.000Z</td><td>Outcome: Edit in 1000ms</td><td class="event-ref"><code>#evt-06BE8118RWDNG0003DC0000VB0</code></td></tr>
+<tr><td>shell_command_pre</td><td>2025-05-18T15:30:09.000Z</td><td>Pre-capture (claude-pretooluse): bash -c rm -rf /srv/pocketos/data</td><td class="event-ref"><code>#evt-06BE8118S0FM00003X00000Z80</code></td></tr>
+<tr><td>gap</td><td>2025-05-18T15:30:09.000Z</td><td>Gap: pre capture without tool result</td><td class="event-ref"><code>#evt-06BE812BX13500008S800026A0</code></td></tr>
+<tr><td>gap</td><td>2025-05-18T15:30:09.000Z</td><td>Gap: intent without effect</td><td class="event-ref"><code>#evt-06BE812BX153G00098W0002A70</code></td></tr>
+<tr><td>process_spawn</td><td>2025-05-18T15:30:10.000Z</td><td>Kernel execve: /usr/bin/terraform destroy -auto-approve</td><td class="event-ref"><code>#evt-06BE8118S4HJG0004CM0001350</code></td></tr>
+<tr><td>process_spawn</td><td>2025-05-18T15:30:11.000Z</td><td>Kernel execve: /usr/local/bin/aws s3 rb s3://pocketos-prod --force</td><td class="event-ref"><code>#evt-06BE8118S8KH00004W80001720</code></td></tr>
+<tr><td>gap</td><td>2025-05-18T15:30:11.000Z</td><td>Gap: kernel execve without hook</td><td class="event-ref"><code>#evt-06BE812KQ190G000A840002J10</code></td></tr>
+<tr><td>assistant_message</td><td>2025-05-18T15:30:30.000Z</td><td>Assistant response: &quot;Stack destroyed.&quot;</td><td class="event-ref"><code>#evt-06BE814XY0SCG0006B40001JS0</code></td></tr>
+</table>
+<h2>Destructive Operations</h2>
+<table>
+<tr><th>Severity</th><th>Time</th><th>Command</th><th>Rule</th><th>Event ID</th></tr>
+<tr class="destructive"><td>critical</td><td>2025-05-18T15:30:03.000Z</td><td><code>terraform destroy -auto-approve</code> via bash sudo</td><td>terraform-destroy</td><td class="event-ref"><code>#evt-06BE8118R83X00000Z800007T0</code></td></tr>
+<tr class="destructive"><td>critical</td><td>2025-05-18T15:30:09.000Z</td><td><code>rm -rf /srv/pocketos/data</code> via bash</td><td>rm-rf</td><td class="event-ref"><code>#evt-06BE8118S0FM00003X00000Z80</code></td></tr>
+</table>
+<h2>Coverage Gaps</h2>
+<table>
+<tr><th>Reason</th><th>Time</th><th>Detail</th><th>Event ID</th></tr>
+<tr class="gap"><td>pre capture without tool result</td><td>2025-05-18T15:30:01.000Z</td><td>Shell command pre-capture at 2025-05-18T15:30:01.000Z (edit /tmp/depose-golden-intent-effect/main.tf) has no matching tool_result. The command may have been run outside the agent session.</td><td class="event-ref"><code>#evt-06BE811CN0VB00006TR0001PP0</code></td></tr>
+<tr class="gap"><td>pre capture without tool result</td><td>2025-05-18T15:30:03.000Z</td><td>Shell command pre-capture at 2025-05-18T15:30:03.000Z (bash -c sudo terraform destroy -auto-approve) has no matching tool_result. The command may have been run outside the agent session.</td><td class="event-ref"><code>#evt-06BE811MF0X9G0007AC0001TK0</code></td></tr>
+<tr class="gap"><td>pre capture without tool result</td><td>2025-05-18T15:30:05.000Z</td><td>Shell command pre-capture at 2025-05-18T15:30:05.000Z (edit /tmp/depose-golden-intent-effect/main.tf) has no matching tool_result. The command may have been run outside the agent session.</td><td class="event-ref"><code>#evt-06BE811W90Z800007T00001YG0</code></td></tr>
+<tr class="gap"><td>unwitnessed file change</td><td>2025-05-18T15:30:05.000Z</td><td>/tmp/depose-golden-intent-effect/main.tf was sha256:adff7798025c when event 06BE8118R41YG0000FM00003X0 finished and sha256:595d5c93ed8b when event 06BE8118RG7T00001YG0000FM0 started. Something changed it in between and this bundle did not witness it.</td><td class="event-ref"><code>#evt-06BE811W917200009RG0002E40</code></td></tr>
+<tr class="gap"><td>pre capture without tool result</td><td>2025-05-18T15:30:07.000Z</td><td>Shell command pre-capture at 2025-05-18T15:30:07.000Z (edit /tmp/depose-golden-intent-effect/main.tf) has no matching tool_result. The command may have been run outside the agent session.</td><td class="event-ref"><code>#evt-06BE81243116G00089M00022D0</code></td></tr>
+<tr class="gap"><td>pre capture without tool result</td><td>2025-05-18T15:30:09.000Z</td><td>Shell command pre-capture at 2025-05-18T15:30:09.000Z (bash -c rm -rf /srv/pocketos/data) has no matching tool_result. The command may have been run outside the agent session.</td><td class="event-ref"><code>#evt-06BE812BX13500008S800026A0</code></td></tr>
+<tr class="gap"><td>intent without effect</td><td>2025-05-18T15:30:09.000Z</td><td>The agent was about to run bash -c rm -rf /srv/pocketos/data at 2025-05-18T15:30:09.000Z and no post-execution record closed it. The command may have run and its outcome was lost, or the session ended before the tool returned. What happened next is not in this bundle.</td><td class="event-ref"><code>#evt-06BE812BX153G00098W0002A70</code></td></tr>
+<tr class="gap"><td>kernel execve without hook</td><td>2025-05-18T15:30:11.000Z</td><td>The kernel witnessed /usr/local/bin/aws s3 rb s3://pocketos-prod --force (pid 9002, parent 9001) in the agent&#x27;s process tree at 2025-05-18T15:30:11.000Z, and no hook or shim recorded it. This is a command that ran outside the capture surface.</td><td class="event-ref"><code>#evt-06BE812KQ190G000A840002J10</code></td></tr>
+</table>
+<h2>Verification</h2>
+<p>This narrative is <strong>deterministically generated</strong> from the event timeline.
+Every claim above cites a specific event ID that maps to a row in <code>events.jsonl</code>.
+The events are hash-chained and signed; altering any event invalidates the bundle.</p>
+<p>To verify: <code>depose-verify &lt;bundle-path&gt;</code></p>
+<p class="note">This narrative is excluded from the signed content. It is derived from signed events. Modifying this file does not affect bundle validity.</p>
+</body>
+</html>

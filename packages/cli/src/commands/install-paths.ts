@@ -30,14 +30,17 @@ export const DEFAULT_DEPOSE_BIN_DIR = join(homedir(), '.depose', 'bin');
 export const DEFAULT_CAPTURE_DIR = join(homedir(), '.depose', 'captures');
 
 /**
- * Build the hook command string for Claude Code settings.json.
+ * Build a hook command string for Claude Code settings.json.
  * Resolves an absolute path to the depose-hook binary so the setting
  * survives PATH changes and works regardless of shell configuration.
+ *
+ * @param half - Which half of the tool call the entry captures.
+ * @returns The quoted command line for settings.json.
  */
-export function buildHookCommand(): string {
+export function buildHookCommand(half: 'pre' | 'post' = 'pre'): string {
   const hookBinary = resolveHookBinary();
   const binPath = hookBinary ?? 'depose-hook';
-  return `"${binPath}" pretooluse`;
+  return `"${binPath}" ${half === 'post' ? 'posttooluse' : 'pretooluse'}`;
 }
 
 /**

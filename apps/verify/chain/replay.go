@@ -32,6 +32,18 @@ type Event struct {
 	Payload       json.RawMessage `json:"payload"`
 	PayloadHash   string          `json:"payloadHash"`
 	ChainHash     string          `json:"chainHash,omitempty"`
+	Correlation   *Correlation    `json:"correlation,omitempty"`
+}
+
+// Correlation holds the cross-links the merge writes outside the payload.
+// These are not covered by chainHash, only by the signed files map over
+// events.jsonl, so the verifier treats them as claims to be checked
+// against the signed payload fields rather than as evidence themselves.
+// See docs/bundle-format.md#intent-and-effect.
+type Correlation struct {
+	LinkedShellCommandPreID string `json:"linkedShellCommandPreId,omitempty"`
+	LinkedEffectID          string `json:"linkedEffectId,omitempty"`
+	LinkedIntentID          string `json:"linkedIntentId,omitempty"`
 }
 
 // ReplayResult holds the outcome of chain replay.
@@ -49,6 +61,9 @@ type ReplayResult struct {
 	EventIDs []string
 	// Payloads are the raw payload bytes in file order.
 	Payloads []json.RawMessage
+	// Events are the parsed events in file order, for checks that need
+	// more than the chain fields.
+	Events []Event
 }
 
 // monoNsPattern is the schema 3 wire form: a non-negative decimal
@@ -267,6 +282,7 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 		ChainHashes:       chainHashes,
 		EventIDs:          eventIDs,
 		Payloads:          payloads,
+		Events:            events,
 	}, nil
 }
 

@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Intent and effect are a signed pair.** `depose install --claude` now
+  registers a PostToolUse hook alongside PreToolUse. The pre half records
+  what the agent was about to run and the SHA-256 of every file the call
+  names; the post half records the exit status, the duration, and those
+  same hashes afterwards, carrying the intent's event id inside its own
+  payload so the binding is signed. The verifier gains `intent-effect`
+  (every effect names a real intent, no intent closed twice, the unsigned
+  correlation agrees with the signed payload, every unclosed intent has a
+  gap) and `file-continuity` (a path's recorded outcome matches the next
+  recorded pre-state, or a gap discloses the difference). New gap reasons
+  `intent_without_effect`, `effect_without_intent`, and
+  `unwitnessed_file_change` are required rather than advisory: removing
+  one from `events.jsonl` fails a named check. The narrative gives lost
+  outcomes their own section ahead of the timeline. See
+  `docs/bundle-format.md#intent-and-effect`.
+- **Kernel-witnessed execve (Linux, optional).**
+  `depose-collect-execve` attaches an eBPF program to the
+  `sched:sched_process_exec` tracepoint and records every exec inside the
+  agent's process tree, tagged `source: kernel`. The merge attributes
+  each to a hook intent by process ancestry and time window; one with no
+  matching hook record becomes its own `process_spawn` event plus a
+  `kernel_execve_without_hook` gap, which makes the shim gaps in
+  threat-model §6.1, §6.3, and §6.4 visible instead of silent. Requires
+  `CAP_BPF`; without it the collector writes a `capture_failed` record
+  and exits 0. macOS is documented as not supported, hook only. Measured
+  userspace cost is 8.0 µs per out-of-tree exec and 31.9 µs per recorded
+  one; see `docs/capture-coverage.md`.
 - **Signed files map.** `manifest.files` pins every file in the bundle
   tree (raw JSONL, narrative, verify.txt, artifacts) by SHA-256 and
   length. The verifier's new `files-map` check fails on any added,

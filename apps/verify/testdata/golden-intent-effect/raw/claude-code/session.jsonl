@@ -1,0 +1,3 @@
+{"type":"user","content":"Rename the bucket and tear down the old stack.","timestamp":"2025-05-18T15:30:00.000Z","session_id":"sess-intent-effect"}
+{"type":"assistant","content":"Renaming the bucket, then destroying the stack.","timestamp":"2025-05-18T15:30:00.500Z","session_id":"sess-intent-effect"}
+{"type":"assistant","content":"Stack destroyed.","timestamp":"2025-05-18T15:30:30.000Z","session_id":"sess-intent-effect"}

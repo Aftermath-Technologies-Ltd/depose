@@ -10,9 +10,14 @@
 //   4. Links related events (tool_call_intent → shell_command_pre → tool_result)
 //   5. Emits gap events for unmatched events
 //
-// A capture_failed event (the hook could not write a record) becomes a
+// A capture_failed event (a collector could not write a record) becomes a
 // gap event here, so a lost capture is disclosed in the timeline rather
 // than leaving it looking complete.
+//
+// Two further passes run over the sorted timeline: intent and effect
+// binding (merge-intent-effect.ts) and kernel execve correlation
+// (merge-kernel.ts). Both emit gaps the verifier then requires to be
+// present.
 
 import type {
   AgentId,
@@ -24,6 +29,8 @@ import type {
 } from '../events/schema.js';
 import { findMatchingShellPre } from './merge-correlate.js';
 import { buildEvent, truncateArgv, captureFailedToGap } from './merge-support.js';
+import { bindIntentAndEffect } from './merge-intent-effect.js';
+import { correlateKernelExecves } from './merge-kernel.js';
 import { compareByTime } from '../events/event-io.js';
 
 // ── Merge options ────────────────────────────────────────────────────
@@ -55,6 +62,8 @@ export interface MergeResult {
   gapCount: number;
   /** Count of events that were linked (tool_call_intent → shell_command_pre) */
   linkedCount: number;
+  /** Kernel execves in the agent's process tree that no hook witnessed */
+  unwitnessedExecveCount: number;
 }
 
 // ── Main merge function ──────────────────────────────────────────────
@@ -255,6 +264,14 @@ export function mergeEvents(
     }
   });
 
+  // Bind the two halves of each tool call and attribute kernel execves,
+  // both over the sorted timeline rather than the gap list built above.
+  const pairing = bindIntentAndEffect(deduped, { sessionId, agentId, matchWindowSeconds });
+  const kernel = correlateKernelExecves(deduped, { sessionId, agentId, matchWindowSeconds });
+  allEvents.push(...pairing.gaps, ...kernel.gaps);
+  gapCount += pairing.gaps.length + kernel.gaps.length;
+  linkedCount += pairing.linkedCount + kernel.matchedCount;
+
   // Combine: original events + gap events, re-sorted
   allEvents.push(...deduped);
   allEvents.sort(compareByTime);
@@ -264,6 +281,7 @@ export function mergeEvents(
     warnings,
     gapCount,
     linkedCount,
+    unwitnessedExecveCount: kernel.unwitnessedCount,
   };
 }
 

@@ -96,12 +96,22 @@ func TestGoldenBundlePassesEveryCheck(t *testing.T) {
 	if !res.Pass {
 		t.Fatalf("golden bundle must pass; checks: %+v", res.Checks)
 	}
+	// The golden session predates the PostToolUse hook, so it carries no
+	// effect records and the two pairing checks report SKIPPED rather than
+	// a pass they did not earn. golden-intent-effect covers those.
+	skipped := map[string]bool{"intent-effect": true, "file-continuity": true}
 	for _, c := range res.Checks {
+		if skipped[c.Name] {
+			if c.Status != StatusSkipped {
+				t.Errorf("check %s: status %s, want SKIPPED (%s)", c.Name, c.Status, c.Detail)
+			}
+			continue
+		}
 		if c.Status != StatusPass {
 			t.Errorf("check %s: status %s, want PASS (%s)", c.Name, c.Status, c.Detail)
 		}
 	}
-	want := []string{"manifest-parse", "schema-version", "mode-declaration", "mode-contract", "signature-verify", "payload-hash", "chain-replay", "merkle-root", "commitments", "timestamp-verify", "timestamp-backdating", "artifact-events-jsonl", "ruleset-integrity", "files-map", "attestation-files", "bundle-completeness"}
+	want := []string{"manifest-parse", "schema-version", "mode-declaration", "mode-contract", "signature-verify", "payload-hash", "chain-replay", "intent-effect", "file-continuity", "merkle-root", "commitments", "timestamp-verify", "timestamp-backdating", "artifact-events-jsonl", "ruleset-integrity", "files-map", "attestation-files", "bundle-completeness"}
 	if len(res.Checks) != len(want) {
 		t.Fatalf("got %d checks, want %d", len(res.Checks), len(want))
 	}

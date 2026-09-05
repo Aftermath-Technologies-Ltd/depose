@@ -21,6 +21,7 @@ export type HookPhase =
   | 'file-hash'
   | 'process-tree'
   | 'tty'
+  | 'pending'
   | 'write-record';
 
 /** What the hook knew when it failed. */
@@ -29,6 +30,8 @@ export interface HookFailure {
   error: unknown;
   sessionId: string | null;
   toolName: string | null;
+  /** Which half of the hook failed. Defaults to the pre-execution half. */
+  source?: 'claude-pretooluse' | 'claude-posttooluse';
 }
 
 /** Where the failure record landed, or that it could not be recorded. */
@@ -77,7 +80,7 @@ export function buildCaptureFailedPayload(failure: HookFailure, monoNs: bigint):
     capturedAt: new Date().toISOString(),
     sessionId: failure.sessionId,
     toolName: failure.toolName,
-    source: 'claude-pretooluse',
+    source: failure.source ?? 'claude-pretooluse',
     captureSchemaVersion: 3,
   };
 }
