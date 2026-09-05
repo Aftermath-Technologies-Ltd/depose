@@ -94,6 +94,13 @@ export interface Manifest {
   };
   rootHash: string;
   /**
+   * RFC 6962 Merkle tree head over the per-event chain hashes (lowercase
+   * hex), or '' when no chain was built. Signed and timestamped alongside
+   * rootHash; disclosure proofs verify against it. See
+   * docs/bundle-format.md#merkle-tree.
+   */
+  merkleRoot: string;
+  /**
    * SHA-256 (lowercase hex) of the literal UTF-8 bytes of events.jsonl
    * as embedded in this bundle. The verifier re-reads events.jsonl
    * and compares, adding events, removing events, re-ordering lines,
@@ -191,6 +198,7 @@ export function buildManifest(
     sessionEndedAt: string;
     rulesetHash: string;
     rootHash: string;
+    merkleRoot: string;
     eventsJsonlSha256: string;
     files?: FilesMap;
     keyFingerprint?: string;
@@ -226,6 +234,7 @@ export function buildManifest(
       host: null,
     },
     rootHash: options.rootHash,
+    merkleRoot: options.merkleRoot,
     eventsJsonlSha256: options.eventsJsonlSha256,
     files: options.files ?? {},
     signatures: [],

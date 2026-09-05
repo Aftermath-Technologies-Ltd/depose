@@ -67,7 +67,59 @@ export interface RuleMatch {
   strippedWrappers: string[];
 }
 
+/**
+ * Payload fields committed by default when sealing: tool inputs (including
+ * the copies an assistant message carries in toolCalls), tool outputs,
+ * file contents, environment values. Event ids, timestamps, the tool
+ * name, and gap reasons are never committed. Prompt and assistant text
+ * are not committed by default; add prompt.text and
+ * assistant_message.content to the ruleset's disclosable list when they
+ * are sensitive.
+ */
+export const DEFAULT_DISCLOSABLE: readonly string[] = [
+  'assistant_message.toolCalls',
+  'tool_call_intent.toolInput',
+  'tool_call_executed.toolInput',
+  'shell_command_pre.argv',
+  'shell_command_pre.envSubset',
+  'tool_result.output',
+  'tool_result.error',
+  'file_diff.diff',
+  'file_diff.contentPost',
+];
+
+/** A parsed ruleset: the destructive rules and the disclosable fields. */
+export interface Ruleset {
+  rules: DestructiveRule[];
+  /** `<eventType>.<payloadField>` entries; DEFAULT_DISCLOSABLE when the file has none. */
+  disclosable: string[];
+}
+
 // ── Ruleset loading ──────────────────────────────────────────────────
+
+/**
+ * Parse a full ruleset: rules plus the `disclosable` field list.
+ *
+ * @param yaml - Ruleset YAML text.
+ * @returns Rules and disclosable entries (defaults when the key is absent).
+ * @throws Error when `disclosable` is present but not a list of strings.
+ */
+export function parseRulesetYaml(yaml: string): Ruleset {
+  const parsed = parseYaml(yaml) as { disclosable?: unknown } | null;
+  const rules = parseDestructiveRulesYaml(yaml);
+  const raw = parsed?.disclosable;
+  if (raw === undefined || raw === null) {
+    return { rules, disclosable: [...DEFAULT_DISCLOSABLE] };
+  }
+  if (!Array.isArray(raw) || raw.some((x) => typeof x !== 'string')) {
+    throw new Error(
+      'ruleset "disclosable" must be a list of "<eventType>.<payloadField>" strings; ' +
+      'remove the key to use the defaults'
+    );
+  }
+  return { rules, disclosable: raw as string[] };
+}
+
 
 /**
  * Load destructive rules from a YAML file (absolute path).
@@ -84,6 +136,24 @@ export function loadDestructiveRules(filePath: string): DestructiveRule[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * Load a full ruleset (rules plus disclosable fields) from a YAML file.
+ *
+ * @param filePath - Absolute path to the ruleset YAML.
+ * @returns The ruleset; empty rules and default disclosable fields when
+ *          the file cannot be read.
+ * @throws Error when the file parses but `disclosable` is malformed.
+ */
+export function loadRuleset(filePath: string): Ruleset {
+  let content: string;
+  try {
+    content = readFileSync(filePath, 'utf-8');
+  } catch {
+    return { rules: [], disclosable: [...DEFAULT_DISCLOSABLE] };
+  }
+  return parseRulesetYaml(content);
 }
 
 /**

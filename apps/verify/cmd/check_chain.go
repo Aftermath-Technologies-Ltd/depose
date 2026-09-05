@@ -27,6 +27,7 @@ func checkChain(ctx *checkContext) []CheckResult {
 	if err != nil {
 		return one(CheckResult{Name: "chain-replay", Status: StatusFail, Detail: fmt.Sprintf("Chain replay error: %v", err)})
 	}
+	ctx.replay = replay
 
 	results := []CheckResult{payloadHashResult(replay)}
 	if m.SchemaVersion >= 3 && replay.NumericMonoNs > 0 {

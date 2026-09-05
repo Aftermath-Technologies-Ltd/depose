@@ -83,7 +83,7 @@ describe('files map through depose-verify', () => {
     const bundle = await sealBundle();
     const manifest = JSON.parse(readFileSync(join(bundle, 'manifest.json'), 'utf-8'));
     expect(Object.keys(manifest.files)).toEqual([
-      'events.jsonl', 'narrative.html', 'narrative.md', 'raw/claude-code/session.jsonl',
+      'commitments.json', 'events.jsonl', 'narrative.html', 'narrative.md', 'raw/claude-code/session.jsonl',
       'rules/destructive.yaml', 'verify.txt',
     ]);
     const { stdout } = runVerify(bundle);

@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   TypeScript DER reader. The Go run found a panic in digitorus/pkcs7 on a
   two-byte input; tokens are now strictly DER-validated before the
   library sees them, and the library runs under a recover guard.
+- **RFC 6962 Merkle tree.** `manifest.merkleRoot` is the tree head over
+  the chain hashes (leaf = SHA-256(0x00 || chainHash), node = SHA-256(0x01
+  || l || r)), signed and timestamped alongside `rootHash`. The verifier's
+  `merkle-root` check recomputes it; a bundle without one gets WARN.
+  Vectors match the certificate-transparency test tree heads.
+- **Salted field commitments.** Disclosable payload fields (tool inputs,
+  outputs, file contents, environment values by default; the ruleset's
+  `disclosable` list overrides) are sealed as
+  `{ "$commitment": sha256(jcs([salt, path, value])) }` with the openings in
+  `commitments.json`. The verifier's `commitments` check opens every one.
 - **Conformance vectors** for the hash chain and the files map / manifest
   signing form (`tests/conformance/`), consumed by both the TypeScript and
   Go suites.

@@ -47,6 +47,7 @@ these flags; use `gtar` from Homebrew.
 incident-<ulid>/
   manifest.json                         # Entry point. Schema version, hashes, files map, counts.
   events.jsonl                          # One Event JSON per line, sorted by id (ULID).
+  commitments.json                      # Openings (salt, path, value) for every committed field.
   raw/
     claude-code/<session>.jsonl          # Verbatim Claude Code session transcript.
     shell-history/shell-history.txt     # Shell history at capture time, when supplied.
@@ -204,6 +205,14 @@ The `depose-verify` binary checks, in order:
    ascending id order, every `monoNs` is a decimal string (schema 3),
    and the replayed chain ends at `manifest.rootHash`. SKIPPED in
    dev-unsigned mode when `rootHash` is empty.
+6a. **merkle-root**: the RFC 6962 tree over the replayed chain hashes
+   has head `manifest.merkleRoot` (see [Merkle tree](#merkle-tree)).
+   WARN when the manifest has no root (a bundle sealed before the tree
+   existed cannot support verifiable disclosure).
+6b. **commitments**: every field commitment in the sealed events opens
+   to the (salt, path, value) recorded in `commitments.json`, and every
+   placeholder has an opening (see
+   [field commitments](#field-commitments)).
 7. **timestamp-verify**, **timestamp-backdating**: each RFC 3161 token
    is strictly well-formed DER (definite lengths, minimal length
    encoding, no trailing bytes), parses, uses SHA-256, commits to SHA-256
@@ -330,6 +339,7 @@ interface Manifest {
     } | null;
   };
   rootHash: string;                // Terminal chain hash over events.jsonl
+  merkleRoot: string;              // RFC 6962 tree head over the chain hashes (§7.4)
   eventsJsonlSha256: string;       // SHA-256 of the literal events.jsonl bytes
   files: Record<string, { sha256: string; bytes: number }>;  // see §5
   signatures: SignatureBlock[];
@@ -415,6 +425,68 @@ input that must be rejected) and `tests/conformance/manifest-vectors.json`
 (files maps over given trees, unsigned canonical manifests, and their
 hashes). Both the TypeScript producer and the Go verifier run them.
 
+<a id="merkle-tree"></a>
+### 7.1a Merkle tree
+
+Alongside the linear chain, the producer builds an RFC 6962 Merkle tree
+whose leaves are the chain hashes:
+
+```
+leaf(i)   = SHA-256( 0x00 || chainHash[i] )        chainHash decoded from hex, 32 bytes
+node(l,r) = SHA-256( 0x01 || l || r )
+MTH([])   = SHA-256( "" )
+MTH(D[n]) = node( MTH(D[0:k]), MTH(D[k:n]) )       k = largest power of two < n
+```
+
+`manifest.merkleRoot` is `MTH` over all leaves in file order, lowercase
+hex. It is covered by the signature and the RFC 3161 token exactly as
+`rootHash` is. Inclusion (audit) paths and consistency proofs follow
+RFC 6962 §2.1.1 and §2.1.2 (verification per RFC 9162 §2.1.3.2 and
+§2.1.4.2). A full bundle needs no proofs; a disclosure bundle carries
+them (see [disclosure bundles](#disclosure-bundles)). Shared vectors,
+including the certificate-transparency test tree heads:
+`tests/conformance/merkle-vectors.json`.
+
+<a id="field-commitments"></a>
+### 7.1b Field commitments
+
+Disclosable payload fields are sealed as salted commitments so a later
+disclosure can reveal some and withhold others without re-signing:
+
+```
+salt        = 32 CSPRNG bytes, lowercase hex
+path        = JSON pointer to a top-level payload field, e.g. "/toolInput"
+commitment  = SHA-256( JCS( [salt, path, value] ) )        lowercase hex
+sealed form = { "$commitment": commitment }                 in place of value
+```
+
+`payloadHash`, the chain, the tree, and the signature all cover the
+sealed form. The openings live in `commitments.json`:
+
+```ts
+{
+  schemaVersion: 1,
+  algorithm: "sha256(jcs([salt, path, value]))",
+  openings: [ { eventId, path, salt, value }, ... ]   // event order, then path
+}
+```
+
+Which fields are committed comes from the ruleset's `disclosable` list
+(see [destructive ruleset](#destructive-ruleset)). The default covers
+tool inputs (`assistant_message.toolCalls`, `tool_call_intent.toolInput`,
+`tool_call_executed.toolInput`, `shell_command_pre.argv`), environment
+values (`shell_command_pre.envSubset`), tool outputs (`tool_result.output`,
+`tool_result.error`), and file contents (`file_diff.diff`,
+`file_diff.contentPost`). Event ids, timestamps, `type`, `toolName`, and
+gap reasons are never committed; a `disclosable` entry naming `toolName`
+is rejected. Prompt and assistant text are not committed by default;
+declare `prompt.text` and `assistant_message.content` when they are
+sensitive. Only top-level payload fields are committable. Shared vectors:
+`tests/conformance/commitment-vectors.json`.
+
+Salts are CSPRNG output. Under `--fixed-seed` (reproducibility tests
+only, never production) they derive deterministically from the seed.
+
 <a id="gap-events"></a>
 ### 7.2 Gap events
 
@@ -458,6 +530,15 @@ rules:
     matcher:
       argvHead: ["terraform", "destroy"]
     severity: critical
+```
+
+The optional `disclosable` key lists `<eventType>.<payloadField>`
+entries to seal as commitments (see [field commitments](#field-commitments)):
+
+```yaml
+disclosable:
+  - tool_call_intent.toolInput
+  - prompt.text
 ```
 
 Matcher criteria (all defined criteria must match):

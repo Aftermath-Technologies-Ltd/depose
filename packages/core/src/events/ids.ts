@@ -4,6 +4,8 @@
 // Minimal, dependency-free implementation.
 // See: https://github.com/ulid/spec
 
+import { createHash } from 'node:crypto';
+
 // ── Constants ─────────────────────────────────────────────────────────
 
 /** Crockford Base32 character set (excludes I, L, O, U to avoid ambiguity) */
@@ -25,6 +27,7 @@ let _usingFixed = false;
 export function setFixedUlidSeed(seedMs: number | bigint): void {
   _fixedSeedMs = Number(seedMs);
   _fixedSeedMono = 0;
+  _saltCounter = 0;
   _usingFixed = true;
 }
 
@@ -68,6 +71,26 @@ export function ulidFromTime(timestampMs: number): string {
   writeMsToBytes(bytes, timestampMs);
   return encodeUlid(bytes);
 }
+
+/**
+ * Generate a 32-byte commitment salt as lowercase hex.
+ *
+ * CSPRNG in production. Under a fixed ULID seed (reproducibility tests
+ * only) salts derive deterministically from the seed and a counter, so a
+ * seeded run stays byte-identical; the fixed seed is already documented
+ * as unfit for production.
+ *
+ * @returns 64 hex characters.
+ */
+export function generateSalt(): string {
+  if (_usingFixed) {
+    const material = `depose-salt:${_fixedSeedMs}:${_saltCounter++}`;
+    return createHash('sha256').update(material, 'utf-8').digest('hex');
+  }
+  return Buffer.from(randomBytes(32)).toString('hex');
+}
+
+let _saltCounter = 0;
 
 /** Check if a string is a valid ULID. */
 export function isValidUlid(value: string): boolean {

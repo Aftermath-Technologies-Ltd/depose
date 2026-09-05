@@ -101,7 +101,7 @@ func TestGoldenBundlePassesEveryCheck(t *testing.T) {
 			t.Errorf("check %s: status %s, want PASS (%s)", c.Name, c.Status, c.Detail)
 		}
 	}
-	want := []string{"manifest-parse", "schema-version", "mode-declaration", "mode-contract", "signature-verify", "payload-hash", "chain-replay", "timestamp-verify", "timestamp-backdating", "artifact-events-jsonl", "ruleset-integrity", "files-map", "attestation-files", "bundle-completeness"}
+	want := []string{"manifest-parse", "schema-version", "mode-declaration", "mode-contract", "signature-verify", "payload-hash", "chain-replay", "merkle-root", "commitments", "timestamp-verify", "timestamp-backdating", "artifact-events-jsonl", "ruleset-integrity", "files-map", "attestation-files", "bundle-completeness"}
 	if len(res.Checks) != len(want) {
 		t.Fatalf("got %d checks, want %d", len(res.Checks), len(want))
 	}
@@ -232,10 +232,48 @@ func TestMutationsFailNamedChecks(t *testing.T) {
 			name: "payload rewritten under its hash",
 			mutate: func(t *testing.T, b string) {
 				data := string(readFile(t, b, "events.jsonl"))
-				data = strings.Replace(data, "terraform destroy -auto-approve", "terraform plan -auto-approve   ", 1)
+				if !strings.Contains(data, "fully torn down") {
+					t.Fatal("golden events.jsonl lost the assistant text this mutation targets")
+				}
+				data = strings.Replace(data, "fully torn down", "left untouched", 1)
 				writeFile(t, b, "events.jsonl", []byte(data))
 			},
 			failCheck: "payload-hash",
+		},
+		{
+			name: "commitment opened with the wrong salt",
+			mutate: func(t *testing.T, b string) {
+				data := string(readFile(t, b, "commitments.json"))
+				idx := strings.Index(data, `"salt": "`)
+				if idx < 0 {
+					t.Fatal("golden commitments.json has no salt")
+				}
+				start := idx + len(`"salt": "`)
+				data = data[:start] + flipHexChar(data[start:start+64]) + data[start+64:]
+				writeFile(t, b, "commitments.json", []byte(data))
+			},
+			failCheck: "commitments",
+			detail:    "wrong salt or value",
+		},
+		{
+			name: "committed value rewritten in its opening",
+			mutate: func(t *testing.T, b string) {
+				data := string(readFile(t, b, "commitments.json"))
+				if !strings.Contains(data, "terraform destroy -auto-approve") {
+					t.Fatal("golden commitments.json does not hold the destroy command")
+				}
+				data = strings.Replace(data, "terraform destroy -auto-approve", "terraform plan -auto-approve", 1)
+				writeFile(t, b, "commitments.json", []byte(data))
+			},
+			failCheck: "commitments",
+		},
+		{
+			name: "commitments.json deleted while events still carry placeholders",
+			mutate: func(t *testing.T, b string) {
+				os.Remove(filepath.Join(b, "commitments.json"))
+			},
+			failCheck: "commitments",
+			detail:    "no opening",
 		},
 		{
 			name: "unsupported schema version",
@@ -297,5 +335,33 @@ func TestBackdatingCheckRejectsProducedAtAfterToken(t *testing.T) {
 	}
 	if r := backdatingResult("2025-05-18T16:00:00Z", tokens); r.Status != StatusPass {
 		t.Errorf("producedAt equal to the token must pass, got %s", r.Status)
+	}
+}
+
+// TestMerkleRootCheckRejectsWrongRoot exercises the check in isolation:
+// a manifest tamper would stop the run at signature-verify, so the root
+// comparison is tested through the check function directly.
+func TestMerkleRootCheckRejectsWrongRoot(t *testing.T) {
+	bundle := copyBundle(t)
+	res := VerifyBundle(bundle)
+	if !res.Pass {
+		t.Fatal("golden must pass")
+	}
+	m, raw, parse := checkManifestParse(bundle)
+	if parse.Failed() {
+		t.Fatal(parse.Detail)
+	}
+	ctx := &checkContext{bundlePath: bundle, manifest: m, rawManifest: raw}
+	checkChain(ctx)
+	if r := checkMerkleRoot(ctx); r[0].Status != StatusPass {
+		t.Fatalf("golden root must pass: %s", r[0].Detail)
+	}
+	m.MerkleRoot = strings.Repeat("0", 64)
+	if r := checkMerkleRoot(ctx); r[0].Status != StatusFail {
+		t.Fatalf("wrong root must fail, got %s", r[0].Status)
+	}
+	m.MerkleRoot = ""
+	if r := checkMerkleRoot(ctx); r[0].Status != StatusWarn {
+		t.Fatalf("missing root must be a downgrade warning, got %s", r[0].Status)
 	}
 }

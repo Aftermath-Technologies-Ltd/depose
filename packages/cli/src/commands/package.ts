@@ -15,7 +15,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import {
   buildTimeline,
   formatTimelineSummary,
-  loadDestructiveRules,
+  loadRuleset,
   generateUlid,
   setFixedUlidSeed,
   DEFAULT_CAPTURE_DIR,
@@ -102,7 +102,8 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
   // Load destructive rules. Bytes are passed verbatim to the
   // bundle writer so the verifier can re-hash them against
   // manifest.rulesetHash.
-  const rules = loadDestructiveRules(resolvedRules);
+  const ruleset = loadRuleset(resolvedRules);
+  const rules = ruleset.rules;
   const rulesetBytes = readFileSync(resolvedRules);
 
   console.log('Normalizing session data...');
@@ -171,6 +172,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       sessionEndedAt: sessionEnded,
       rules,
       rulesetBytes,
+      disclosable: ruleset.disclosable,
       outputDir: resolvedOutput,
       mode,
       keyPair,

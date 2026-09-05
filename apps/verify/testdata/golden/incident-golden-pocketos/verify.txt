@@ -2,7 +2,7 @@ DEPOSE Evidence Bundle Verification Instructions
 ═══════════════════════════════════════════════════
 
 Bundle ID: golden-pocketos
-Produced: 2026-09-05T02:29:56.292Z
+Produced: 2026-09-05T02:49:19.814Z
 Session: golden-pocketos
 Agent: claude-code
 
@@ -36,7 +36,7 @@ To verify this bundle:
   4. A PASS result means:
      - Every event in this bundle matches its recorded hash chain
      - The manifest signature is valid
-     - A trusted timestamp authority confirmed this bundle existed at 2026-09-05T02:29:56.292Z
+     - A trusted timestamp authority confirmed this bundle existed at 2026-09-05T02:49:19.814Z
      - Every file in this folder matches the signed files map: nothing
        has been added, removed, or modified since creation
 

@@ -43,6 +43,12 @@ type ReplayResult struct {
 	// NumericMonoNs counts events whose monoNs was written as a JSON
 	// number rather than a decimal string. Schema 3 requires strings.
 	NumericMonoNs int
+	// ChainHashes are the recomputed chain hashes in file order, hex.
+	ChainHashes []string
+	// EventIDs are the event ids in file order.
+	EventIDs []string
+	// Payloads are the raw payload bytes in file order.
+	Payloads []json.RawMessage
 }
 
 // monoNsPattern is the schema 3 wire form: a non-negative decimal
@@ -158,6 +164,9 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 	var mismatches []HashMismatch
 	var payloadMismatches []PayloadMismatch
 	numericMonoNs := 0
+	chainHashes := make([]string, 0, len(events))
+	eventIDs := make([]string, 0, len(events))
+	payloads := make([]json.RawMessage, 0, len(events))
 
 	for i, evt := range events {
 		// ── Recompute payloadHash from the actual payload bytes ──
@@ -242,6 +251,9 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 		}
 
 		copy(prevHash[:], computedHash)
+		chainHashes = append(chainHashes, computedHex)
+		eventIDs = append(eventIDs, evt.ID)
+		payloads = append(payloads, evt.Payload)
 	}
 
 	rootHash := fmt.Sprintf("%x", prevHash)
@@ -252,6 +264,9 @@ func ReplayChain(bundleDir string) (*ReplayResult, error) {
 		HashMismatches:    mismatches,
 		PayloadMismatches: payloadMismatches,
 		NumericMonoNs:     numericMonoNs,
+		ChainHashes:       chainHashes,
+		EventIDs:          eventIDs,
+		Payloads:          payloads,
 	}, nil
 }
 

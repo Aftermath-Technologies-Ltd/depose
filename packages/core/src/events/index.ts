@@ -33,6 +33,7 @@ export {
   ulidToTime,
   setFixedUlidSeed,
   clearFixedUlidSeed,
+  generateSalt,
 } from './ids.js';
 
 export {

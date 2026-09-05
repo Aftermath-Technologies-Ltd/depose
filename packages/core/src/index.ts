@@ -36,7 +36,24 @@ export {
   ulidToTime,
   setFixedUlidSeed,
   clearFixedUlidSeed,
+  generateSalt,
 } from './events/ids.js';
+
+// Field commitments
+export {
+  COMMITMENT_KEY,
+  COMMITMENT_ALGORITHM,
+  computeCommitment,
+  isCommitmentPlaceholder,
+  parseDisclosableSpec,
+  commitEventFields,
+  commitEvents,
+  openCommitment,
+  restoreEvent,
+  type CommitmentOpening,
+  type CommitmentsFile,
+  type CommitmentPlaceholder,
+} from './events/commitments.js';
 
 // Event wire form
 export {
@@ -103,6 +120,10 @@ export {
   type TimelineNode,
   loadDestructiveRules,
   parseDestructiveRulesYaml,
+  parseRulesetYaml,
+  loadRuleset,
+  DEFAULT_DISCLOSABLE,
+  type Ruleset,
   matchDestructiveRules,
   buildDestructiveOpsIndex,
   simpleCommandsForEvent,

@@ -23,6 +23,9 @@ type Manifest struct {
 	Producer      ProducerInfo `json:"producer"`
 	Session       SessionInfo  `json:"session"`
 	RootHash      string       `json:"rootHash"`
+	// MerkleRoot is the RFC 6962 tree head over the chain hashes. Empty
+	// on bundles sealed before the tree existed.
+	MerkleRoot string `json:"merkleRoot,omitempty"`
 	// EventsJsonlSha256 is the SHA-256 (lowercase hex) of the literal
 	// UTF-8 bytes of events.jsonl. Optional on older bundles; verifier
 	// requires it in `signed` mode.

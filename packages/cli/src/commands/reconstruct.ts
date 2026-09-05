@@ -7,7 +7,7 @@
 
 import { resolve } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';
-import { buildTimeline, formatTimelineSummary, loadDestructiveRules, generateUlid, DEFAULT_CAPTURE_DIR, type AgentId } from '@depose/core';
+import { buildTimeline, formatTimelineSummary, loadRuleset, generateUlid, DEFAULT_CAPTURE_DIR, type AgentId } from '@depose/core';
 import { writeBundle } from '@depose/bundle';
 import { DEFAULT_RULES_PATH } from '../rules-default.js';
 import { loadAndMergeEvents } from '../pipeline.js';
@@ -44,7 +44,8 @@ export async function handleReconstruct(args: CliArgs): Promise<void> {
   // Load destructive rules. Bytes are passed verbatim to the
   // bundle writer so the verifier can re-hash them against
   // manifest.rulesetHash.
-  const rules = loadDestructiveRules(resolvedRules);
+  const ruleset = loadRuleset(resolvedRules);
+  const rules = ruleset.rules;
   const rulesetBytes = readFileSync(resolvedRules);
 
   // Load + normalize + merge all sources through the shared pipeline.
@@ -98,6 +99,7 @@ export async function handleReconstruct(args: CliArgs): Promise<void> {
     sessionEndedAt: sessionEnded,
     rules,
     rulesetBytes,
+    disclosable: ruleset.disclosable,
     outputDir: resolvedOutput,
     mode: 'dev-unsigned',
     sourceJsonlPath: resolvedJsonl,

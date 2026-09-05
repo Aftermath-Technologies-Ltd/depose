@@ -1,0 +1,105 @@
+{
+  "description": "Salted field commitment vectors: commitment = sha256(jcs([salt, path, value])). Both packages/core/src/events/commitments.ts and apps/verify/cmd/commitments.go must reproduce every hash, and the committed payload for the event vector (placeholders in place of values, payloadHash over the committed form). See docs/bundle-format.md#field-commitments.",
+  "vectors": [
+    {
+      "name": "string-value",
+      "path": "/output",
+      "value": "Apply complete! Resources: 3 destroyed.",
+      "salt": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expected": "b6cff25ed6c3a69f68af035cc4b6c28857ad25491b3be668511ade051a098687"
+    },
+    {
+      "name": "object-value-keys-sorted",
+      "path": "/toolInput",
+      "value": {
+        "shell": "bash",
+        "command": "rm -rf /data/training",
+        "cwd": "/home/user"
+      },
+      "salt": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expected": "f575e1338b194d3384cdf223b6c5650245c48be45c8556ab2f5c7627e1daec07"
+    },
+    {
+      "name": "array-value",
+      "path": "/argv",
+      "value": [
+        "bash",
+        "-c",
+        "terraform destroy -auto-approve"
+      ],
+      "salt": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expected": "e7d87a819da6dc7f21193edaccd8b6f285980421c0cc2554d625ffda63164909"
+    },
+    {
+      "name": "non-ascii-value",
+      "path": "/output",
+      "value": "café 🚀 tab\tquote \" backslash \\ newline\n",
+      "salt": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expected": "a811d4074644fb325d84567f48ebcdf2d031e09343b650c6daeeb9e6234f1fdb"
+    },
+    {
+      "name": "null-value",
+      "path": "/error",
+      "value": null,
+      "salt": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expected": "c409726e7a32d2db860ecb60f639495bba6a854713d3bd602b406f23f104dd0f"
+    },
+    {
+      "name": "number-value",
+      "path": "/output",
+      "value": 42,
+      "salt": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expected": "5dc032de611abf1b1df783b0a10d7d2269bb7eec6f486f1c620086df92332d52"
+    },
+    {
+      "name": "empty-object-value",
+      "path": "/envSubset",
+      "value": {},
+      "salt": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expected": "65aea02909bdaceabbeab0cf1d7e9ff2991bb488f6c2de74e99a65ed33e58c68"
+    }
+  ],
+  "eventVector": {
+    "plaintextPayload": {
+      "toolName": "Bash",
+      "toolInput": {
+        "command": "rm -rf /data/training"
+      },
+      "toolUseId": "tu_1"
+    },
+    "disclosable": [
+      "tool_call_intent.toolInput",
+      "tool_call_intent.toolUseId"
+    ],
+    "salts": [
+      "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+    ],
+    "committedPayload": {
+      "toolName": "Bash",
+      "toolInput": {
+        "$commitment": "a99aa18741279acaf95951a8b0b3f44cd5daf84b00d6bae819867736d9ce1c25"
+      },
+      "toolUseId": {
+        "$commitment": "97b51ca15a7181257454f1186df32941635d6f00de441c77f054a2248b18c006"
+      }
+    },
+    "committedPayloadHash": "7617d4ff22aacefbb2b2acc2c9ec3a4126d547aecc46c4968cd61be8052669a3",
+    "openings": [
+      {
+        "eventId": "01JCONF0000000000000000001",
+        "path": "/toolInput",
+        "salt": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+        "value": {
+          "command": "rm -rf /data/training"
+        }
+      },
+      {
+        "eventId": "01JCONF0000000000000000001",
+        "path": "/toolUseId",
+        "salt": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "value": "tu_1"
+      }
+    ]
+  }
+}

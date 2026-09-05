@@ -114,15 +114,35 @@ jobs:
             echo "OK, $label tamper rejected (exit $status)"
           }
 
-          # (a) Payload tamper: rewrite a Bash command without
-          # touching payloadHash. This is the attack the README's
-          # "any byte change fails replay" promise is about.
+          # (a) Payload tamper: rewrite a prompt string in events.jsonl
+          # without touching payloadHash. Tool inputs are committed
+          # fields, so the command text lives in commitments.json; that
+          # is tampered in (d) below.
           A=$(mktemp -d); cp -r "$DEPO_DIR"/. "$A"
-          # Pick whichever string is actually in the fixture; sed -i is
-          # a no-op when the pattern is absent, so try both.
-          sed -i 's|rm -rf /data/training|rm -rf /tmp/nothing |g' "$A/events.jsonl" || true
-          sed -i 's|terraform destroy -auto-approve|terraform plan -auto-approve  |g' "$A/events.jsonl" || true
+          python3 -c '
+          import sys, json
+          p = sys.argv[1]
+          lines = open(p).read().split("\n")
+          for i, line in enumerate(lines):
+              if "\"type\":\"prompt\"" in line:
+                  obj = json.loads(line)
+                  obj["payload"]["text"] = "REWRITTEN AFTER SEALING"
+                  lines[i] = json.dumps(obj, separators=(",", ":"))
+                  break
+          else:
+              raise SystemExit("no prompt event in fixture")
+          open(p, "w").write("\n".join(lines))
+          ' "$A/events.jsonl"
           assert_fail "payload-string" "$A"
+
+          # (d) Committed-field tamper: rewrite the destructive command
+          # inside its commitments.json opening. The files map catches the
+          # byte change and the commitments check catches the opening no
+          # longer matching the sealed hash.
+          D=$(mktemp -d); cp -r "$DEPO_DIR"/. "$D"
+          sed -i 's|rm -rf /data/training|rm -rf /tmp/nothing |g' "$D/commitments.json" || true
+          sed -i 's|terraform destroy -auto-approve|terraform plan -auto-approve  |g' "$D/commitments.json" || true
+          assert_fail "committed-field" "$D"
 
           # (b) payloadHash tamper: flip a hex character inside the
           # first payloadHash literal. Verifier should fail on

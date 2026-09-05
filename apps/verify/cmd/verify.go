@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/chain"
 	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/manifest"
 )
 
@@ -25,6 +26,8 @@ type checkContext struct {
 	manifest    *manifest.Manifest
 	rawManifest []byte
 	opts        VerifyOpts
+	// replay is set by checkChain for the checks that build on it.
+	replay *chain.ReplayResult
 }
 
 // checkStep pairs a check with whether its failure ends the run.
@@ -44,6 +47,8 @@ var checkOrder = []checkStep{
 	{checkSignerIdentity, false},
 	{checkSignatureVerify, true},
 	{checkChain, false},
+	{checkMerkleRoot, false},
+	{checkCommitments, false},
 	{checkTimestamps, false},
 	{checkEventsJsonl, false},
 	{checkRuleset, false},

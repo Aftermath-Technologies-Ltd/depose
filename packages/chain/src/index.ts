@@ -11,6 +11,18 @@ export {
   extractEventMetadata,
 } from './hash-chain.js';
 
+// RFC 6962 Merkle tree over chain hashes
+export {
+  leafHash,
+  nodeHash,
+  merkleRoot,
+  inclusionProof,
+  rootFromInclusionProof,
+  verifyInclusion,
+  consistencyProof,
+  verifyConsistency,
+} from './merkle.js';
+
 // Ed25519 signing
 export {
   generateEd25519KeyPair,

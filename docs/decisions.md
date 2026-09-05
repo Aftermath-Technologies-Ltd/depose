@@ -92,3 +92,24 @@ missing narrative, a bad ruleset hash, or a files-map mismatch leaves the
 other checks meaningful, so they still run and the report lists every
 defect. The stop points are: manifest-parse, schema-version,
 mode-declaration, signature-verify.
+
+## D11. Committed fields are sealed in the committed form, and the original bundle keeps the openings
+
+SD-JWT-style selective disclosure only works if the sealed record already
+carries commitments; a disclosure cannot retrofit them. So the producer
+commits every disclosable field at seal time and stores the openings in
+`commitments.json`, pinned by the files map and opened by the verifier
+on every full-bundle run. The narrative and the destructive-rule counts
+are computed from the plaintext before commitment, so nothing a reader
+sees changes; only `events.jsonl` carries placeholders. Recipients who
+want the plaintext read it from the openings, which is what
+`restoreEvent` does.
+
+## D12. Tool inputs inside assistant messages are committed too
+
+`assistant_message.toolCalls` duplicates every tool input in plaintext.
+Leaving it out of the default disclosable list would make committing
+`tool_call_intent.toolInput` decorative. It is committed by default.
+Prompt and assistant text are not, because the task's default names tool
+inputs, tool outputs, file contents, and environment values; the ruleset
+knob is documented for producers whose prompts are sensitive.

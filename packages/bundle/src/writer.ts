@@ -3,7 +3,8 @@
 // Bundle writer for .depo bundles.
 //
 // Order matters, and it is the reverse of what a naive writer does:
-//   1. Hash-chain the events and pin the events.jsonl bytes.
+//   1. Commit disclosable fields, hash-chain the events, build the
+//      Merkle tree, and pin the events.jsonl bytes (writer-seal.ts).
 //   2. Write every content file: events.jsonl, raw/, rules/, narrative,
 //      verify.txt.
 //   3. Walk the tree and build the files map (files-map.ts).
@@ -20,7 +21,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Event, DestructiveRule } from '@depose/core';
-import { buildTimeline, sha256Bytes, serializeEvent } from '@depose/core';
+import { buildTimeline, sha256Bytes, DEFAULT_DISCLOSABLE, COMMITMENT_ALGORITHM, type CommitmentsFile } from '@depose/core';
 import {
   buildManifest,
   serializeManifest,
@@ -33,7 +34,7 @@ import {
 import { buildFilesMap } from './files-map.js';
 import { buildVerifyTxt, wrapHtmlBanner, DEV_UNSIGNED_BANNER } from './verify-txt.js';
 import { copyRawSources, copyCaptureRecords } from './writer-sources.js';
-import { buildHashChain } from '@depose/chain';
+import { sealEvents } from './writer-seal.js';
 import { signManifest as signManifestEd25519, fingerprintPublicKeyPem, type Ed25519KeyPair } from '@depose/chain';
 import { requestTimestamps, type Rfc3161Token as ChainRfc3161Token } from '@depose/chain';
 import { renderMarkdown, renderHtml } from '@depose/narrative';
@@ -47,6 +48,7 @@ const EVENTS_PATH = 'events.jsonl';
 const RAW_DIR = 'raw';
 const ATTESTATIONS_DIR = 'attestations';
 const RULES_DIR = 'rules';
+const COMMITMENTS_PATH = 'commitments.json';
 const NARRATIVE_MD = 'narrative.md';
 const NARRATIVE_HTML = 'narrative.html';
 const VERIFY_TXT = 'verify.txt';
@@ -112,6 +114,15 @@ export interface BundleWriterOptions {
    * that actually entered this bundle are copied into raw/captures/.
    */
   captureSourceDir?: string;
+  /**
+   * Replace disclosable payload fields with salted commitments before
+   * sealing, keeping the openings in commitments.json. On by default;
+   * this is what makes `depose disclose` possible. See
+   * docs/bundle-format.md#field-commitments.
+   */
+  commitFields?: boolean;
+  /** Ruleset `disclosable` entries. Defaults to DEFAULT_DISCLOSABLE. */
+  disclosable?: string[];
 }
 
 // ── Bundle output ────────────────────────────────────────────────────
@@ -121,7 +132,7 @@ export interface BundleOutput {
   depopPath: string;
   /** The manifest that was written */
   manifest: Manifest;
-  /** Events written to events.jsonl (with chainHash populated) */
+  /** Events written to events.jsonl: committed, with chainHash populated */
   events: Event[];
   /** Warnings (non-fatal issues during bundle creation) */
   warnings: string[];
@@ -165,26 +176,22 @@ export async function writeBundle(
   const bundleId = sessionId;
   const isDevUnsigned = mode === 'dev-unsigned';
 
-  // ── Step 1: chain and pin events.jsonl ─────────────────────────────
-  // Sorted once by id; the chain, the file bytes, and the manifest
-  // counts all read from this one ordering.
+  // ── Step 1: commit, chain, tree, and pin events.jsonl ──────────────
+  // Sorted once by id; the seal, the file bytes, and the manifest
+  // counts all read from this one ordering. Counts and the narrative
+  // come from the plaintext events; the seal covers the committed form.
   const sortedEvents = [...events].sort((a, b) => a.id.localeCompare(b.id));
-  let rootHash = '';
-  let chainedEvents = sortedEvents;
-  if (keyPair) {
-    const chainResult = buildHashChain(sortedEvents);
-    chainedEvents = chainResult.chainedEvents;
-    rootHash = chainResult.rootHash;
-  }
-  const eventsJsonlBytes = Buffer.from(
-    chainedEvents.map((e) => serializeEvent(e)).join('\n') + '\n',
-    'utf-8'
-  );
+  const seal = sealEvents(sortedEvents, {
+    keyPair,
+    commitFields: options.commitFields ?? true,
+    disclosable: options.disclosable ?? [...DEFAULT_DISCLOSABLE],
+  });
+  const { sealedEvents, rootHash, eventsJsonlBytes } = seal;
 
   const keyFingerprint = mode === 'signed' && keyPair
     ? fingerprintPublicKeyPem(keyPair.publicKeyPem)
     : undefined;
-  const manifest = buildManifest(chainedEvents, rules, {
+  const manifest = buildManifest(sortedEvents, rules, {
     bundleId,
     producedAt,
     version,
@@ -195,7 +202,8 @@ export async function writeBundle(
     sessionEndedAt,
     rulesetHash: sha256Bytes(rulesetBytes),
     rootHash,
-    eventsJsonlSha256: sha256Bytes(eventsJsonlBytes),
+    merkleRoot: seal.merkleRoot,
+    eventsJsonlSha256: seal.eventsJsonlSha256,
     keyFingerprint,
     capturesAttributed: options.capturesAttributed,
     capturesExcluded: options.capturesExcluded,
@@ -209,20 +217,28 @@ export async function writeBundle(
   mkdirSync(bundleDir, { recursive: true });
 
   writeFileSync(join(bundleDir, EVENTS_PATH), eventsJsonlBytes);
+  if (options.commitFields ?? true) {
+    const commitments: CommitmentsFile = {
+      schemaVersion: 1,
+      algorithm: COMMITMENT_ALGORITHM,
+      openings: seal.openings,
+    };
+    writeFileSync(join(bundleDir, COMMITMENTS_PATH), JSON.stringify(commitments, null, 2) + '\n', 'utf-8');
+  }
 
   const rawDir = join(bundleDir, RAW_DIR);
   if (sourceJsonlPath) {
     copyRawSources(rawDir, sourceJsonlPath);
   }
   if (options.captureSourceDir) {
-    warnings.push(...copyCaptureRecords(rawDir, options.captureSourceDir, chainedEvents));
+    warnings.push(...copyCaptureRecords(rawDir, options.captureSourceDir, sortedEvents));
   }
 
   const rulesDir = join(bundleDir, RULES_DIR);
   mkdirSync(rulesDir, { recursive: true });
   writeFileSync(join(rulesDir, 'destructive.yaml'), rulesetBytes);
 
-  const timeline = buildTimeline(chainedEvents, rules);
+  const timeline = buildTimeline(sortedEvents, rules);
   const narrativeOptions = {
     bundleId,
     producedAt,
@@ -307,7 +323,7 @@ export async function writeBundle(
   return {
     depopPath: bundleDir,
     manifest,
-    events: chainedEvents,
+    events: sealedEvents,
     warnings,
   };
 }

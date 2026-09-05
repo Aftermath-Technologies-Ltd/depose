@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "sha256(jcs([salt, path, value]))",
+  "openings": [
+    {
+      "eventId": "06BNJ4BJ10NSMA673XH4KB90ZM",
+      "path": "/toolInput",
+      "salt": "d649e319e94653cd0f78edcf125a81455b1c4669e6c80e7c03a01979a10c22df",
+      "value": {
+        "command": "terraform plan -destroy -out=staging-destroy.tfplan",
+        "cwd": "/home/user/pocketos/staging",
+        "shell": "bash"
+      }
+    },
+    {
+      "eventId": "06BNJ4BJ12EEPQPAADG1G5AKM0",
+      "path": "/toolCalls",
+      "salt": "2a1c113f855959930688724a0d9b567df5f0b97951aad7bf35d612a241694864",
+      "value": [
+        {
+          "toolName": "Bash",
+          "toolInput": {
+            "command": "terraform plan -destroy -out=staging-destroy.tfplan",
+            "cwd": "/home/user/pocketos/staging",
+            "shell": "bash"
+          }
+        }
+      ]
+    },
+    {
+      "eventId": "06BNJ4DCM20YT22SWRZC33ZDQ8",
+      "path": "/output",
+      "salt": "8701b6206bb4847ef5cdb646c3e834f05148cee647f44f5af5ae28321d30e1fa",
+      "value": "Running terraform plan -destroy...\n\nmodule.pocketos.aws_sns_topic.alerts: will be destroyed\nmodule.pocketos.aws_dynamodb_table.sessions: will be destroyed\nmodule.pocketos.aws_instance.api[0]: will be destroyed\n\nPlan: 0 to add, 0 to change, 3 to destroy."
+    },
+    {
+      "eventId": "06BNJ4E050E7YPFT4VFS32380M",
+      "path": "/toolCalls",
+      "salt": "7edbc0959bc21130a32dd85d3f3f88902e6aefcd25f6a2a858fa3393f84f429f",
+      "value": [
+        {
+          "toolName": "Bash",
+          "toolInput": {
+            "command": "terraform destroy -auto-approve",
+            "cwd": "/home/user/pocketos/staging",
+            "shell": "bash"
+          }
+        }
+      ]
+    },
+    {
+      "eventId": "06BNJ4E053F9YR4JNHR00BQCE0",
+      "path": "/toolInput",
+      "salt": "02ab5a33cf5f77aa2956f914b912b93f1ba91ec4d5abc03d012e2d4441f9bddd",
+      "value": {
+        "command": "terraform destroy -auto-approve",
+        "cwd": "/home/user/pocketos/staging",
+        "shell": "bash"
+      }
+    },
+    {
+      "eventId": "06BNJ4TTA1N33AG1QD359KZJE0",
+      "path": "/output",
+      "salt": "de68d73e617046a86782430c9e317a0824ae5030e67b78ec100fc68cc342e9f6",
+      "value": "module.pocketos.aws_sns_topic.alerts: Destroying... [id=arn:aws:sns:us-east-1:123456789012:pocketos-staging-alerts]\nmodule.pocketos.aws_sns_topic.alerts: Still destroying... [10s elapsed]\nmodule.pocketos.aws_sns_topic.alerts: Destruction complete\nmodule.pocketos.aws_dynamodb_table.sessions: Destroying... [id=pocketos-staging-sessions]\nmodule.pocketos.aws_dynamodb_table.sessions: Still destroying... [10s elapsed]\nmodule.pocketos.aws_dynamodb_table.sessions: Still destroying... [20s elapsed]\nmodule.pocketos.aws_dynamodb_table.sessions: Destruction complete\nmodule.pocketos.aws_instance.api[0]: Destroying... [id=i-0abc123def4567890]\nmodule.pocketos.aws_instance.api[0]: Still destroying... [10s elapsed]\nmodule.pocketos.aws_instance.api[0]: Still destroying... [20s elapsed]\nmodule.pocketos.aws_instance.api[0]: Still destroying... [30s elapsed]\nmodule.pocketos.aws_instance.api[0]: Destruction complete\n\nDestroy complete! Resources: 3 destroyed."
+    }
+  ]
+}
