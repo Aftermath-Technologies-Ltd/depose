@@ -7,7 +7,6 @@
 //  4. RFC 3161 timestamp validity
 //
 // Pure stdlib + minimal deps. No network required for core verification.
-// Rekor verification is optional and skipped gracefully if unavailable.
 package main
 
 import (
@@ -26,7 +25,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fmt.Fprintf(os.Stderr, "  --expected-key-fingerprint <hex>    Reject the bundle if the producer key fingerprint doesn't match.\n")
 		fmt.Fprintf(os.Stderr, "  --revocation-list <path>            Reject if the producer key fingerprint is marked revoked in the catalog.\n")
-		fmt.Fprintf(os.Stderr, "  --signer-identity <regex>           (Future) Sigstore signer identity binding.\n")
 		fmt.Fprintf(os.Stderr, "\n")
 		fmt.Fprintf(os.Stderr, "Commands:\n")
 		fmt.Fprintf(os.Stderr, "  verify        Validate a .depo bundle, or a disclosure bundle (auto-detected).\n")
@@ -39,10 +37,8 @@ func main() {
 	case "verify":
 		// flags: positional bundle path, plus optional pinning flags
 		// for the air-gapped key-fingerprint discipline and the
-		// (future) Sigstore signer-identity binding.
 		var bundlePath string
 		var expectedFingerprint string
-		var signerIdentity string
 		var revocationList string
 		for i := 2; i < len(os.Args); i++ {
 			arg := os.Args[i]
@@ -57,11 +53,7 @@ func main() {
 				i++
 			case strings.HasPrefix(arg, "--revocation-list="):
 				revocationList = strings.TrimPrefix(arg, "--revocation-list=")
-			case arg == "--signer-identity" && i+1 < len(os.Args):
-				signerIdentity = os.Args[i+1]
 				i++
-			case strings.HasPrefix(arg, "--signer-identity="):
-				signerIdentity = strings.TrimPrefix(arg, "--signer-identity=")
 			case strings.HasPrefix(arg, "-"):
 				fmt.Fprintf(os.Stderr, "ERROR: unknown flag %q\n", arg)
 				os.Exit(1)
@@ -75,7 +67,6 @@ func main() {
 		}
 		if bundlePath == "" {
 			fmt.Fprintf(os.Stderr, "ERROR: bundle path required\n")
-			fmt.Fprintf(os.Stderr, "Usage: depose-verify verify [--expected-key-fingerprint <hex>] [--signer-identity <regex>] <path-to-bundle>\n")
 			os.Exit(1)
 		}
 		absPath, err := filepath.Abs(bundlePath)
@@ -85,7 +76,6 @@ func main() {
 		}
 		opts := cmd.VerifyOpts{
 			ExpectedKeyFingerprint: expectedFingerprint,
-			SignerIdentityRegex:    signerIdentity,
 			RevocationListPath:     revocationList,
 		}
 		var result *cmd.VerifyResult

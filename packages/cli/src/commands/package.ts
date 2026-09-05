@@ -6,7 +6,6 @@
 //   - IRONROOT hash chain
 //   - Ed25519 signature
 //   - RFC 3161 timestamps (unless --skip-timestamp)
-//   - Rekor transparency log (deferred)
 //
 // Named exports only.
 
@@ -33,6 +32,7 @@ import { CLI_VERSION } from '../version.js';
 
 export interface PackageCommandArgs {
   'from-claude'?: string;
+  'from-codex'?: string;
   rules?: string;
   ruleset?: string;
   output?: string;
@@ -58,20 +58,24 @@ export interface PackageCommandArgs {
  * signature, and RFC 3161 timestamps.
  */
 export async function handlePackage(args: PackageCommandArgs): Promise<void> {
-  const jsonlPath: string | undefined = typeof args['from-claude'] === 'string' ? args['from-claude'] : undefined;
+  const fromClaude = typeof args['from-claude'] === 'string' ? args['from-claude'] : undefined;
+  const fromCodex = typeof args['from-codex'] === 'string' ? args['from-codex'] : undefined;
+  const jsonlPath: string | undefined = fromClaude ?? fromCodex;
+  const source: 'claude-code' | 'codex' = fromCodex ? 'codex' : 'claude-code';
   const rulesPath = (args['rules'] || args['ruleset']) as string | undefined;
   const outputDir = (args['output'] || args['output-dir']) as string | undefined;
   const sessionId = args['session-id'] as string | undefined;
-  const agentId = (args['agent-id'] || 'claude-code') as string;
+  const agentId = (args['agent-id'] as string | undefined) || (fromCodex ? 'codex' : 'claude-code');
   const skipTimestamp = args['skip-timestamp'] === true;
   const keyDir = args['key-dir'] as string | undefined;
   const fixedSeed = args['fixed-seed'] as string | undefined;
   const producedAtOverride = args['produced-at'] as string | undefined;
 
   if (!jsonlPath) {
-    console.error('ERROR: --from-claude <path> is required.');
+    console.error('ERROR: one of --from-claude <path> or --from-codex <path> is required.');
     console.error('');
     console.error('Usage: depose package --from-claude <path> [options]');
+    console.error('       depose package --from-codex <path> [options]');
     process.exit(1);
     return;
   }
@@ -117,8 +121,10 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
     captureRecordCount,
     captureStoreRecordCount,
     captureExcluded,
+    sourceFormat,
   } = loadAndMergeEvents({
     jsonlPath: resolvedJsonl,
+    source,
     sessionId,
     agentId: agentId as AgentId,
     captureDir: args['capture-dir'] as string | undefined,
@@ -182,6 +188,7 @@ export async function handlePackage(args: PackageCommandArgs): Promise<void> {
       capturesAttributed: captureRecordCount,
       capturesExcluded,
       captureSourceDir: (args['capture-dir'] as string | undefined) ?? DEFAULT_CAPTURE_DIR,
+      ...(sourceFormat ? { sourceFormat } : {}),
       tsaEndpoints: tsaEndpointsFromRuleset(ruleset.tsa),
       requireAnchor: args['require-anchor'] === true,
     });

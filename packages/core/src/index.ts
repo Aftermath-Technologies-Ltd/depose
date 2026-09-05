@@ -88,6 +88,8 @@ export {
   parseShellHistory,
   parseBashHistory,
   parseFishHistory,
+  looksLikeFishHistory,
+  unescapeFishValue,
   tokenize,
   type ShellHistoryCommand,
   type ShellHistoryParser,
@@ -98,6 +100,15 @@ export {
   reflogToEvents,
   type GitReflogEntry,
 } from './normalize/git-reflog.js';
+
+export {
+  normalizeCodexJsonl,
+  detectCodexFormat,
+  CODEX_FORMATS,
+  type CodexFormat,
+  type CodexNormalizeOptions,
+  type CodexNormalizationResult,
+} from './normalize/codex.js';
 
 export {
   mergeEvents,

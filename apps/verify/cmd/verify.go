@@ -48,7 +48,6 @@ var checkOrder = []checkStep{
 	{checkModeContract, false},
 	{checkKeyFingerprintPin, false},
 	{checkRevocationList, false},
-	{checkSignerIdentity, false},
 	{checkSignatureVerify, true},
 	{checkChain, false},
 	{checkIntentEffect, false},
@@ -62,7 +61,6 @@ var checkOrder = []checkStep{
 	{checkFilesMapStep, false},
 	{checkAttestationFilesStep, false},
 	{checkBundleCompleteness, false},
-	{checkRekor, false},
 }
 
 // VerifyBundle runs all verification checks on a .depo bundle directory.

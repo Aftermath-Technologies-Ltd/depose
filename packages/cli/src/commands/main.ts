@@ -4,6 +4,7 @@
 //
 // Commands:
 //   depose record --from-claude <path>     ← canonical production verb
+//   depose record --from-codex <path>      ← the same, for Codex rollouts
 //   depose package --from-claude <path>    ← alias (adds --skip-timestamp for dev)
 //   depose reconstruct --from-claude <session-id>  ← deprecated, use record
 //   depose verify <bundle>
@@ -93,6 +94,7 @@ export async function main(argv: string[]): Promise<void> {
   const addReconstructOpts = (cmd: Command) =>
     cmd
       .option('--from-claude <path>', 'Claude Code JSONL session file')
+      .option('--from-codex <path>', 'OpenAI Codex CLI rollout JSONL file')
       .option('--rules <path>', 'Destructive ruleset YAML')
       .option('--ruleset <path>', 'Alias for --rules')
       .option('--output <dir>', 'Output directory')

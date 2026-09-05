@@ -63,6 +63,11 @@ export interface BundleWriterOptions {
    * than no bundle, and the verifier reports the difference.
    */
   requireAnchor?: boolean;
+  /**
+   * The agent log grammar this session was reconstructed from, when the
+   * agent has more than one. Recorded in the signed manifest.
+   */
+  sourceFormat?: string;
   /** Path to the original JSONL source file. When provided, the
    *  file is copied into raw/claude-code/<filename>.jsonl in the
    *  bundle, along with any shell-history.txt or git-reflog.txt

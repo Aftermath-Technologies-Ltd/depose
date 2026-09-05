@@ -44,10 +44,6 @@ type VerifyOpts struct {
 	// Verification fails if manifest.producer.keyFingerprint
 	// disagrees (or is missing).
 	ExpectedKeyFingerprint string
-	// SignerIdentityRegex, when non-empty, is a regex the Sigstore
-	// signer cert identity must match. Currently a placeholder ,
-	// the Sigstore code path is staged but not yet wired in.
-	SignerIdentityRegex string
 	// RevocationListPath, when non-empty, points at a producer key
 	// catalog (the JSON file emitted by `depose key catalog --export`).
 	// If the manifest's keyFingerprint appears in the catalog with

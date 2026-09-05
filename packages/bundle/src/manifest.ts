@@ -90,6 +90,14 @@ export interface Manifest {
       nodeVersion: string | null;
       kernel: string | null;
     } | null;
+    /**
+     * The log grammar this session was reconstructed from, when the
+     * agent has more than one. Codex has already changed its rollout
+     * format once, and a reader arguing about what the timeline means
+     * needs to know which parser produced it. Absent for agents with a
+     * single format.
+     */
+    sourceFormat?: string;
   };
   rootHash: string;
   /**
@@ -143,7 +151,6 @@ export interface Manifest {
    * See docs/bundle-format.md#anchoring.
    */
   anchorStatus?: 'anchored' | 'pending';
-  rekor?: RekorEntry[];
   counts: {
     events: number;
     destructiveOperations: number;
@@ -170,10 +177,9 @@ export interface Manifest {
 }
 
 export interface SignatureBlock {
-  scheme: 'ed25519' | 'sigstore-fulcio';
+  scheme: 'ed25519';
   signature: string;
   publicKey?: string;
-  fulcioCert?: string;
   signedFields: 'manifest.json';
 }
 
@@ -181,12 +187,6 @@ export interface Rfc3161Token {
   tsa: string;
   timestamp: string;
   tokenBase64: string;
-}
-
-export interface RekorEntry {
-  uuid: string;
-  body: string;
-  integratedTime: number;
 }
 
 // ── Manifest builder ─────────────────────────────────────────────────
@@ -221,6 +221,8 @@ export function buildManifest(
     keyFingerprint?: string;
     capturesAttributed?: number;
     capturesExcluded?: number;
+    /** The agent log grammar this session was reconstructed from. */
+    sourceFormat?: string;
   }
 ): Manifest {
   const destructiveOps = buildDestructiveOpsIndex(events, rules);
@@ -249,6 +251,7 @@ export function buildManifest(
       startedAt: options.sessionStartedAt,
       endedAt: options.sessionEndedAt,
       host: null,
+      ...(options.sourceFormat ? { sourceFormat: options.sourceFormat } : {}),
     },
     rootHash: options.rootHash,
     merkleRoot: options.merkleRoot,

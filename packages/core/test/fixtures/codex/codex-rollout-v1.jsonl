@@ -1,0 +1,5 @@
+{"id": "0199a2f1-dead-7a11-9b2e-000000000001", "timestamp": "2025-05-18T15:30:00.000Z", "cwd": "/srv/datatalks", "instructions": "You are Codex."}
+{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Clear the old training data directory."}]}
+{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Removing /data/training-runs."}]}
+{"type": "function_call", "name": "shell", "arguments": "{\"command\": [\"bash\", \"-lc\", \"rm -rf /data/training-runs\"]}", "call_id": "call_b1"}
+{"type": "function_call_output", "call_id": "call_b1", "output": "removed 4213 files"}

@@ -14,6 +14,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import {
   normalizeClaudeCodeJsonl,
+  normalizeCodexJsonl,
   parseShellHistory,
   parseGitReflog,
   reflogToEvents,
@@ -29,8 +30,13 @@ import {
 } from '@depose/core';
 
 export interface PipelineOptions {
-  /** Absolute path to the Claude Code JSONL session file. */
+  /** Absolute path to the agent's session log. */
   jsonlPath: string;
+  /**
+   * Which agent's log grammar `jsonlPath` is in. Claude Code by default;
+   * `codex` reads an OpenAI Codex CLI rollout file.
+   */
+  source?: 'claude-code' | 'codex';
   /** Optional ULID; auto-generated when missing. */
   sessionId?: string;
   /** Agent identifier (e.g. "claude-code"). */
@@ -63,6 +69,12 @@ export interface PipelineResult {
   captureStoreRecordCount: number;
   /** Records deliberately left out of the bundle, by reason. */
   captureExcluded: Record<CaptureExclusionReason, number>;
+  /**
+   * The log grammar the session file turned out to be, when the source
+   * has more than one. Recorded in the manifest so a reader knows which
+   * parser produced the timeline.
+   */
+  sourceFormat: string | null;
 }
 
 /**
@@ -81,17 +93,26 @@ export function loadAndMergeEvents(opts: PipelineOptions): PipelineResult {
   const { jsonlPath, sessionId, agentId, captureDir, includeUnscopedCaptures } = opts;
   const warnings: string[] = [];
 
-  // 1. Claude Code JSONL (the spine).
+  // 1. The agent's own session log (the spine).
   const jsonl = readFileSync(jsonlPath, 'utf-8');
-  const {
-    events: claudeEvents,
-    warnings: normalizeWarnings,
-    agentSessionId,
-  } = normalizeClaudeCodeJsonl(jsonl, {
-    sessionId,
-    agentId,
-  });
-  warnings.push(...normalizeWarnings);
+  let claudeEvents: Event[];
+  let agentSessionId: string | null;
+  let sourceFormat: string | null = null;
+  if (opts.source === 'codex') {
+    const codex = normalizeCodexJsonl(jsonl, { sessionId, agentId: 'codex' });
+    claudeEvents = codex.events;
+    agentSessionId = codex.agentSessionId;
+    sourceFormat = codex.sourceFormat;
+    warnings.push(...codex.warnings);
+    if (codex.cliVersion) {
+      warnings.push(`Codex CLI ${codex.cliVersion} wrote this rollout (${codex.sourceFormat}).`);
+    }
+  } else {
+    const claude = normalizeClaudeCodeJsonl(jsonl, { sessionId, agentId });
+    claudeEvents = claude.events;
+    agentSessionId = claude.agentSessionId;
+    warnings.push(...claude.warnings);
+  }
 
   // 2. Shell history sibling file (best-effort).
   const sessionRoot = sessionId || claudeEvents[0]?.sessionId || generateUlid();
@@ -181,6 +202,7 @@ export function loadAndMergeEvents(opts: PipelineOptions): PipelineResult {
     gapCount,
     linkedCount,
     unwitnessedExecveCount,
+    sourceFormat,
     captureRecordCount: captureResult.recordCount,
     captureStoreRecordCount: captureResult.storeRecordCount,
     captureExcluded: captureResult.excluded,

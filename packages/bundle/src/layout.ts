@@ -16,7 +16,6 @@ export const ARTIFACTS_POST_DIR = 'files-post';
 export const ATTESTATIONS_DIR = 'attestations';
 export const ATTESTATIONS_SIGNATURES = 'signatures.json';
 export const ATTESTATIONS_TIMESTAMPS_DIR = 'rfc3161-timestamps';
-export const ATTESTATIONS_REKOR = 'rekor-entries.json';
 export const RULES_DIR = 'rules';
 export const RULES_FILENAME = 'destructive.yaml';
 export const NARRATIVE_MD = 'narrative.md';

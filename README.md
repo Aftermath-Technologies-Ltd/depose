@@ -71,7 +71,7 @@ Record a signed bundle from a Claude Code session JSONL:
 ./packages/cli/bin/depose record --from-claude path/to/session.jsonl
 ```
 
-`depose record` always signs (Ed25519 + RFC 3161). For unsigned dev bundles, use `depose package --from-claude <path> --skip-timestamp`.
+`depose record` always signs (Ed25519 + RFC 3161). An OpenAI Codex CLI rollout goes in the same way, with `--from-codex path/to/rollout-*.jsonl`; Codex has two log grammars and the one that was read is recorded in the signed manifest. For unsigned dev bundles, use `depose package --from-claude <path> --skip-timestamp`.
 
 Verify the bundle from any host:
 
@@ -103,7 +103,7 @@ CAPTURE  →  NORMALIZATION  →  RECONSTRUCTION  →  INTEGRITY  →  BUNDLE  �
 | Layer | What it does | Package |
 |---|---|---|
 | **Capture** | Hooks and shims record events at execution time; an optional eBPF collector records what the kernel saw. | `packages/capture-claude`, `apps/capture-shim`, `apps/collect-execve` |
-| **Normalization** | Claude Code JSONL, shell history (bash/zsh/fish), git reflog into a common event schema. | `packages/core` |
+| **Normalization** | Claude Code JSONL, Codex CLI rollouts, shell history (bash/zsh/fish), git reflog into a common event schema. | `packages/core` |
 | **Reconstruction** | Sort, merge across sources, deduplicate, flag gaps, build a causal timeline. | `packages/core/reconstruct` |
 | **Integrity** | IRONROOT hash chain, Ed25519 signing, RFC 3161 timestamping. | `packages/chain` |
 | **Bundle** | Deterministic directory layout (tar packing is future work). | `packages/bundle` |

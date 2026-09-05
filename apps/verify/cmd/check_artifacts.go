@@ -1,5 +1,5 @@
 // Package cmd, artifact checks: events.jsonl byte pin, ruleset hash,
-// required-file presence, and the Rekor placeholder.
+// and required-file presence.
 package cmd
 
 import (
@@ -9,8 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/Aftermath-Technologies-Ltd/depose/apps/verify/timestamp"
 )
 
 // checkEventsJsonl re-hashes the literal bytes of events.jsonl and
@@ -77,25 +75,4 @@ func checkBundleCompleteness(ctx *checkContext) []CheckResult {
 		return one(CheckResult{Name: "bundle-completeness", Status: StatusFail, Detail: fmt.Sprintf("Missing required files: %s", strings.Join(missing, ", "))})
 	}
 	return one(CheckResult{Name: "bundle-completeness", Status: StatusPass, Detail: "All required files present"})
-}
-
-// checkRekor reports Rekor entries as not verified. Full verification
-// needs the log's public key and network access; the bundle's integrity
-// does not depend on it.
-func checkRekor(ctx *checkContext) []CheckResult {
-	m := ctx.manifest
-	if len(m.Rekor) == 0 {
-		return nil
-	}
-	skipped := 0
-	for _, entry := range m.Rekor {
-		if timestamp.VerifyRekorEntry(entry.UUID, entry.Body, entry.IntegratedTime).Skipped {
-			skipped++
-		}
-	}
-	return one(CheckResult{
-		Name:   "rekor-verify",
-		Status: StatusSkipped,
-		Detail: fmt.Sprintf("Rekor verification not performed (%d entries); optional transparency log", skipped),
-	})
 }

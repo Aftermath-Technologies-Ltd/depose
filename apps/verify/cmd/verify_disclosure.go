@@ -18,7 +18,6 @@ var disclosureOrder = []checkStep{
 	{checkModeContract, false},
 	{checkKeyFingerprintPin, false},
 	{checkRevocationList, false},
-	{checkSignerIdentity, false},
 	{checkSignatureVerify, true},
 	{checkDisclosureParse, true},
 	{checkDisclosureInclusion, false},

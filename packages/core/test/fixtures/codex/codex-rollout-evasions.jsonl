@@ -1,0 +1,7 @@
+{"timestamp": "2025-05-18T16:00:00.000Z", "type": "session_meta", "payload": {"id": "0199a2f1-0000-7a11-9b2e-000000000002", "cwd": "/srv", "cli_version": "0.130.0"}}
+{"timestamp": "2025-05-18T16:00:01.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "shell", "arguments": "{\"command\": [\"bash\", \"-lc\", \"sudo rm -rf /srv/prod\"]}", "call_id": "c1"}}
+{"timestamp": "2025-05-18T16:00:02.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "shell", "arguments": "{\"command\": [\"bash\", \"-lc\", \"env TF_LOG=DEBUG terraform destroy -auto-approve\"]}", "call_id": "c2"}}
+{"timestamp": "2025-05-18T16:00:03.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "shell", "arguments": "{\"command\": [\"bash\", \"-lc\", \"cd /prod && rm -rf .\"]}", "call_id": "c3"}}
+{"timestamp": "2025-05-18T16:00:04.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "exec_command", "arguments": "{\"command\": \"(cd /prod && rm -rf .)\"}", "call_id": "c4"}}
+{"timestamp": "2025-05-18T16:00:05.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "shell", "arguments": "{not json", "call_id": "c5"}}
+{"timestamp": "2025-05-18T16:00:06.000Z", "type": "response_item", "payload": {"type": "wormhole", "note": "a type from a newer Codex"}}

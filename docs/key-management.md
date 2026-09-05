@@ -6,39 +6,15 @@ canonical JSON of the manifest. Two questions follow:
 1. Where does the producer's key come from?
 2. How does a recipient know it's the *right* key?
 
-The answers depend on whether the producer has an OIDC identity
-provider available. Today, only the air-gapped local-key flow is
-implemented end to end. The Sigstore keyless path is scaffolded but
-not yet operational (see §6).
+DEPOSE has one key flow: a long-lived local Ed25519 key whose
+fingerprint the producer publishes out of band. There is no keyless
+path; see `docs/decisions.md` D22.
 
 ---
 
-## 1. Two key flows
+## 1. The key flow
 
-### 1.1 Sigstore keyless (preferred for CI, not yet implemented)
-
-A producer running in GitHub Actions, GitLab CI, or any environment
-that can mint an OIDC token would sign with an *ephemeral* private
-key. Its public counterpart would be bound to the OIDC identity via a
-short-lived Fulcio certificate; the binding would be recorded in
-Rekor. No long-lived key would exist afterwards.
-
-Recipients would verify with the Go verifier and an identity
-allowlist:
-
-```
-depose-verify verify --signer-identity '^https://github.com/Aftermath-Technologies-Ltd/depose/' <bundle>
-```
-
-Status today:
-
-- `packages/chain/src/sign-sigstore.ts` is a scaffold; every entry
-  point throws.
-- The verifier accepts `--signer-identity` as a flag, but enforcement
-  is not wired in.
-- Use the air-gapped flow below in the meantime.
-
-### 1.2 Air-gapped local key with published fingerprint
+### 1.1 Air-gapped local key with published fingerprint
 
 For sealed-environment producers, DEPOSE uses a local Ed25519 keypair
 under `~/.depose/keys/`:
@@ -276,10 +252,10 @@ It does not protect against:
   fingerprint published on a hijacked domain). The trust root is
   whatever channel the recipient uses; harden it accordingly.
 
-The Sigstore keyless path, when implemented, will close the
-long-lived-key risk by removing the long-lived key entirely. The
-verifier's `--signer-identity` flag is already parsed; producer-side
-support lands in a follow-up.
+Keyless signing through an OIDC identity provider would close the
+long-lived-key risk by removing the key. DEPOSE does not implement it,
+and does not carry scaffolding that suggests it might: rotation and
+revocation are the mitigations on offer. See `docs/decisions.md` D22.
 
 For the broader threat surface, see `docs/threat-model.md`.
 

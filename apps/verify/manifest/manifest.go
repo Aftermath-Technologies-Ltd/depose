@@ -36,7 +36,6 @@ type Manifest struct {
 	Files       map[string]FileEntry `json:"files,omitempty"`
 	Signatures  []SignatureBlock     `json:"signatures"`
 	Timestamps  []Rfc3161Token       `json:"timestamps"`
-	Rekor       []RekorEntry         `json:"rekor,omitempty"`
 	Counts      Counts               `json:"counts"`
 	RulesetHash string               `json:"rulesetHash"`
 	// AnchorStatus is "anchored" or "pending". Outside the signed form,
@@ -90,7 +89,6 @@ type SignatureBlock struct {
 	Scheme       string `json:"scheme"`
 	Signature    string `json:"signature"`
 	PublicKey    string `json:"publicKey,omitempty"`
-	FulcioCert   string `json:"fulcioCert,omitempty"`
 	SignedFields string `json:"signedFields"`
 }
 
@@ -98,12 +96,6 @@ type Rfc3161Token struct {
 	TSA         string `json:"tsa"`
 	Timestamp   string `json:"timestamp"`
 	TokenBase64 string `json:"tokenBase64"`
-}
-
-type RekorEntry struct {
-	UUID           string `json:"uuid"`
-	Body           string `json:"body"`
-	IntegratedTime int64  `json:"integratedTime"`
 }
 
 type Counts struct {

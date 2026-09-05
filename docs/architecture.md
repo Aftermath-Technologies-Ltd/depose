@@ -20,7 +20,7 @@ DEPOSE ships two binaries with no shared runtime dependency:
 ### 1.1 Why two languages?
 
 The producer (`depose`) needs access to the Node.js ecosystem for Claude Code
-hook integration, npm package reuse (tar, JSONL parsing, sigstore clients), and
+hook integration, npm package reuse (tar, JSONL parsing), and
 developer ergonomics. TypeScript is the right choice for a tool that runs on the
 developer's machine with a full runtime available.
 
@@ -73,7 +73,7 @@ does one thing. Data flows downward; no layer reaches up.
 ┌────────────────▼──────────────────────────────────────────────┐
 │  INTEGRITY                                                     │
 │   Hash chain (IRONROOT construction) → root_hash              │
-│   Sign manifest (Ed25519), Sigstore keyless not yet impl.    │
+│   Sign manifest (Ed25519 over the canonical manifest)        │
 │   RFC 3161 timestamps                                           │
 └────────────────┬──────────────────────────────────────────────┘
                  │
@@ -158,7 +158,7 @@ Integrity is the cryptography layer. It makes the bundle tamper-evident:
   rootHash     = chainHash[N-1]
   ```
 
-- **Signing**: Ed25519 (default, local keypair). Sigstore Fulcio (not yet
+- **Signing**: Ed25519 (local keypair). No keyless path (not yet
   implemented, opt-in, keyless via OIDC). The signature covers `manifest.json`,
   which contains `rootHash`.
 
@@ -167,10 +167,6 @@ Integrity is the cryptography layer. It makes the bundle tamper-evident:
   prove that the bundle existed at a specific time, as certified by a trusted
   third party.
 
-- **Rekor (planned, not on the critical path)**: Transparency-log submission is
-  a scaffold today (`packages/chain/src/rekor.ts` throws on call). The verifier
-  treats `manifest.rekor` as optional. Ed25519 + RFC 3161 is the only signing
-  path today; Rekor will be additive when it lands.
 
 ### 2.5 Layer 5: Bundle
 
@@ -234,7 +230,7 @@ labeled "AI-GENERATED COMMENTARY, NOT EVIDENCE."
                     ┌──────────────▼──────────────────────┐
                     │   INTEGRITY                         │
                     │   Hash chain → rootHash              │
-                    │   Sign manifest (Ed25519/sigstore)  │
+                    │   Sign manifest (Ed25519)           │
                     │   RFC 3161 timestamp                 │
                     └──────────────┬──────────────────────┘
                                    │
@@ -331,7 +327,6 @@ stored in the bundle; a future reader can see exactly which rules flagged what.
 DEPOSE uses:
 - SHA-256 ( hashing everywhere, no exotic hash functions.
 - Ed25519 (established, fast, widely supported).
-- Sigstore Fulcio (not yet implemented; scaffold only).
 - RFC 3161 (established TSA standard).
 
 No custom cryptography. No novel constructions. The IRONROOT hash chain is a
@@ -406,12 +401,12 @@ Developer Machine                          Third Party
 │      ▼                │                  │  No DEPOSE install   │
 │  depose reconstruct   │                  │  No Node.js required │
 │  depose package       │                  │  No network required │
-│      │                │                  │  (except Rekor check)│
+│      │                │                  │                      │
 │      ▼                │                  │                      │
 │  bundle directory     │                  └──────────────────────┘
 └──────────────────────┘
 ```
 
 The verifier runs on a fresh machine with no DEPOSE installation and no network
-access (Rekor check is optional and gracefully skipped). This is the delivery
+access. This is the delivery
 guarantee: a single binary, a single file, a definitive answer.

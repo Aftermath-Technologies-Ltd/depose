@@ -56,18 +56,3 @@ func checkRevocationList(ctx *checkContext) []CheckResult {
 		return one(CheckResult{Name: "revocation-list", Status: StatusPass, Detail: detail})
 	}
 }
-
-// checkSignerIdentity records --signer-identity. No bundle carries a
-// Sigstore signature today, so the pin has nothing to bind to and is
-// reported as skipped rather than passed.
-func checkSignerIdentity(ctx *checkContext) []CheckResult {
-	re := ctx.opts.SignerIdentityRegex
-	if re == "" {
-		return nil
-	}
-	return one(CheckResult{
-		Name:   "signer-identity",
-		Status: StatusSkipped,
-		Detail: fmt.Sprintf("--signer-identity=%q recorded, but this bundle carries no Sigstore signature to bind it to", re),
-	})
-}

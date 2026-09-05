@@ -32,6 +32,39 @@
 
 ‖ The shim captures neither, because it `exec`s the real binary transparently. The PostToolUse hook records both, and the session log carries the exit code too. See `docs/bundle-format.md#intent-and-effect`.
 
+## Agent sources
+
+| Agent | Session log | Reconstructed by |
+|---|---|---|
+| Claude Code | the session JSONL | `depose record --from-claude <path>` |
+| OpenAI Codex CLI | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` | `depose record --from-codex <path>` |
+
+Codex has two rollout grammars in the wild; the normalizer detects which
+one it read and records it in `manifest.session.sourceFormat`. See
+`docs/bundle-format.md#agent-sources` for the per-item mapping and what
+it deliberately leaves out.
+
+Active capture is Claude Code only. The Codex path is passive
+reconstruction: it recovers what the rollout recorded, which is the
+command and its output, and nothing about the environment it ran in.
+
+## Shell history
+
+| Shell | File | Timestamps |
+|---|---|---|
+| bash | `~/.bash_history` | only with `HISTTIMEFORMAT`, as a `#<epoch>` line above each command |
+| zsh | `~/.zsh_history` | with `EXTENDED_HISTORY`, as `: <epoch>:<elapsed>;<command>` |
+| fish | `~/.local/share/fish/fish_history` | always, as a `when:` line |
+
+`parseShellHistory` picks the parser from the file's own shape: a
+`- cmd:` line at the start of a line is fish's entry marker and appears
+in neither of the others.
+
+An entry with no recorded time keeps a null timestamp. History files
+also record no working directory, so `cwd` is null for every entry from
+every shell. Filling either from the producer's own process would put an
+unobserved value into signed evidence.
+
 ## Source coverage matrix
 
 | Source | Captures pre-execution? | Captures post-execution? | Gaps visible? |

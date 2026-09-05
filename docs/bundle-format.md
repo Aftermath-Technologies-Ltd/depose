@@ -194,9 +194,7 @@ The `depose-verify` binary checks, in order:
    or `dev-unsigned` and the presence of signatures and timestamps
    matches the declared mode.
 4. **key-fingerprint-pin** (when `--expected-key-fingerprint` is given),
-   **revocation-list** (when `--revocation-list` is given),
-   **signer-identity** (when `--signer-identity` is given; SKIPPED until
-   a Sigstore signature exists to bind it to).
+   **revocation-list** (when `--revocation-list` is given).
 5. **signature-verify**: the Ed25519 signature in `manifest.signatures[]`
    verifies against the canonical bytes of `manifest.json` with
    `signatures=[]` and `timestamps=[]`. SKIPPED in dev-unsigned mode.
@@ -250,7 +248,6 @@ The `depose-verify` binary checks, in order:
 12. **bundle-completeness**: `manifest.json`, `events.jsonl`,
     `attestations/signatures.json`, `rules/destructive.yaml`, and
     `verify.txt` are present.
-13. **rekor-verify**: SKIPPED; Rekor entries are not verified offline.
 
 In `signed` mode any FAIL produces `RESULT: FAIL` and a non-zero exit.
 A `dev-unsigned` bundle never prints plain `PASS`; it prints
@@ -362,7 +359,6 @@ interface Manifest {
   files: Record<string, { sha256: string; bytes: number }>;  // see §5
   signatures: SignatureBlock[];
   timestamps: Rfc3161Token[];
-  rekor?: RekorEntry[];
   counts: {
     events: number;
     destructiveOperations: number;
@@ -376,19 +372,21 @@ interface Manifest {
 }
 ```
 
-Full TypeScript definitions for `SignatureBlock`, `Rfc3161Token`, and
-`RekorEntry` are in `packages/bundle/src/manifest.ts`. The Go verifier
+Full TypeScript definitions for `SignatureBlock` and `Rfc3161Token`
+are in `packages/bundle/src/manifest.ts`. The Go verifier
 mirrors them in `apps/verify/manifest/manifest.go`.
 
 ### 6.1 Signing procedure
 
-1. Build the manifest with `signatures: []` and `timestamps: []` and
-   the final `files` map.
+1. Build the manifest with `signatures: []`, `timestamps: []`, no
+   `anchorStatus`, and the final `files` map.
 2. Serialize with RFC 8785 JCS. Sign the bytes with Ed25519 (pure, no
    pre-hash). Put the signature block in `manifest.signatures`.
-3. Serialize the manifest again with `signatures: []` and
-   `timestamps: []` (identical bytes to step 2), SHA-256 it, and send
-   that digest to the TSA. Put the token in `manifest.timestamps`.
+3. Serialize the manifest again the same way (identical bytes to step
+   2), SHA-256 it, and send that digest to the TSA. Put the token in
+   `manifest.timestamps` and set `anchorStatus`. When no authority
+   answers, `anchorStatus` is `pending` and
+   [anchoring](#anchoring) picks it up later.
 4. Write `manifest.json` (JCS), `attestations/signatures.json`, and the
    `.tsr` files.
 
@@ -428,6 +426,48 @@ by the signature, through `manifest.files["events.jsonl"]`. Where a link
 matters as evidence it also lives inside a payload, and the verifier
 requires the two to agree; see
 [intent and effect](#intent-and-effect).
+
+<a id="agent-sources"></a>
+### 7.0 Agent sources
+
+A bundle is reconstructed from one agent's own session log, plus
+whatever the capture layer recorded alongside it.
+
+| Source | Flag | Log |
+|---|---|---|
+| Claude Code | `--from-claude <path>` | the session JSONL; two grammars, detected per line |
+| OpenAI Codex CLI | `--from-codex <path>` | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` |
+
+Codex has changed its rollout format at least once, so the normalizer
+detects which grammar it is reading and records the answer in
+`manifest.session.sourceFormat`:
+
+| Value | Shape |
+|---|---|
+| `codex-rollout-v2` | every line is `{timestamp, type, payload}`; the conversation is in `response_item` payloads and the session facts in a `session_meta` payload |
+| `codex-rollout-v1` | the first line is a bare session-meta object and every later line is a bare response item, with no envelope and no per-line timestamp |
+
+A reader arguing about what a timeline means needs to know which parser
+produced it, so the detection result is in the signed manifest rather
+than in a log line. The field is absent for agents with a single format.
+
+The Codex mapping:
+
+| Codex response item | DEPOSE events |
+|---|---|
+| `message` role=user | `prompt` |
+| `message` role=assistant | `assistant_message` |
+| `function_call` on a shell tool | `tool_call_intent` and a reconstructed `shell_command_pre`, so destructive-rule matching sees the same shape it sees from the Claude hook |
+| `function_call` on any other tool | `tool_call_intent` |
+| `function_call_output` | `tool_result`, with the exit code when the output envelope carries one |
+| `reasoning` | nothing; a reasoning trace is neither an action nor a message the user saw |
+| `message` role=system or developer | nothing; Codex repeats the instruction block on every turn |
+| anything else | nothing, plus a warning naming the type |
+
+A `shell_command_pre` rebuilt from a rollout line is marked
+`source: reconstructed` and `capturedAtSource: reconstructed`, because
+nothing observed it at the time. Only the hook and the shim produce
+`recorded` captures.
 
 <a id="hash-chain"></a>
 ### 7.1 Hash chain
@@ -868,10 +908,12 @@ The narrative renders the matched simple command with its position
 - Public key embedded in the `SignatureBlock` as PEM.
 - Signature is over the JCS bytes of the unsigned manifest (§6.1).
 
-### 9.2 Sigstore Fulcio
+### 9.2 Anything else
 
-Not implemented. `SignatureBlock.scheme` reserves the value
-`sigstore-fulcio`; the verifier rejects any block that is not `ed25519`.
+There is one scheme. `SignatureBlock.scheme` accepts only `ed25519`,
+and the verifier rejects any other value. Keyless signing through an
+OIDC identity provider was scaffolded and removed rather than left in
+place; see `docs/decisions.md` D22.
 
 ---
 

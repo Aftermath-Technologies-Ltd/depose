@@ -149,13 +149,17 @@ export function reflogToEvents(
     const wallTs = entry.timestamp || new Date().toISOString();
     const monoNs = mono++;
 
-    // Process spawn event (best-effort reconstruction)
+    // Rebuilt from a reflog line, which records none of this. The pids
+    // are zero and the cwd is empty because nothing observed them;
+    // filling the cwd with the producer's own would put an unobserved
+    // value into signed evidence.
     const spawnPayload: ProcessSpawnPayload = {
       pid: 0,
       ppid: 0,
       exe: 'git',
       argv: ['git', entry.action, ...entry.description.split(' ')],
-      cwd: process.cwd(),
+      cwd: '',
+      source: 'reconstructed',
     };
     const spawnEvent = buildEvent({
       sessionId,

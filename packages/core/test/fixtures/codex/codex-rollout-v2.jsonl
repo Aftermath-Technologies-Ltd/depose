@@ -1,0 +1,11 @@
+{"timestamp": "2025-05-18T15:30:00.000Z", "type": "session_meta", "payload": {"id": "0199a2f1-4c3b-7a11-9b2e-5f6d7c8e9a0b", "timestamp": "2025-05-18T15:30:00.000Z", "cwd": "/srv/pocketos", "originator": "codex_cli_rs", "cli_version": "0.130.0", "instructions": null}}
+{"timestamp": "2025-05-18T15:30:01.000Z", "type": "turn_context", "payload": {"cwd": "/srv/pocketos", "approval_policy": "on-request", "sandbox_policy": {"mode": "workspace-write"}, "model": "gpt-5"}}
+{"timestamp": "2025-05-18T15:30:02.000Z", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "The staging stack is stale. Tear it down and rebuild."}]}}
+{"timestamp": "2025-05-18T15:30:04.000Z", "type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "I'll destroy the stack, then re-apply."}]}}
+{"timestamp": "2025-05-18T15:30:05.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "shell", "arguments": "{\"command\": [\"bash\", \"-lc\", \"terraform destroy -auto-approve\"], \"workdir\": \"/srv/pocketos\"}", "call_id": "call_a1"}}
+{"timestamp": "2025-05-18T15:30:41.000Z", "type": "response_item", "payload": {"type": "function_call_output", "call_id": "call_a1", "output": "{\"output\": \"Destroy complete! Resources: 14 destroyed.\", \"metadata\": {\"exit_code\": 0, \"duration_seconds\": 36}}"}}
+{"timestamp": "2025-05-18T15:30:42.000Z", "type": "event_msg", "payload": {"type": "agent_message", "message": "I'll destroy the stack, then re-apply."}}
+{"timestamp": "2025-05-18T15:30:43.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "shell", "arguments": "{\"command\": [\"bash\", \"-lc\", \"sudo rm -rf /srv/pocketos/.terraform\"]}", "call_id": "call_a2"}}
+{"timestamp": "2025-05-18T15:30:44.000Z", "type": "response_item", "payload": {"type": "function_call_output", "call_id": "call_a2", "output": "{\"output\": \"\", \"metadata\": {\"exit_code\": 0}}"}}
+{"timestamp": "2025-05-18T15:30:45.000Z", "type": "response_item", "payload": {"type": "reasoning", "summary": []}}
+{"timestamp": "2025-05-18T15:30:50.000Z", "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 1200}}}}

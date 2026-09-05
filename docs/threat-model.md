@@ -263,13 +263,16 @@ hashes.
 - **Air-gapped (today).** The producer publishes their key
   fingerprint out-of-band; recipients pin it with
   `--expected-key-fingerprint`. See `docs/key-management.md`.
-- **Sigstore keyless (preferred, not yet implemented).** A producer
-  running under OIDC (CI, federated identity) will be able to sign with an
-  ephemeral key bound to a short-lived Fulcio cert. There is no
-  long-lived key to compromise. The producer-side path is
-  scaffolded in `packages/chain/src/sign-sigstore.ts`; it currently
-  throws on every call. Ed25519 + RFC 3161 is the only signing path
-  today. The verifier already accepts `--signer-identity <regex>`.
+- **Key rotation and revocation.** A compromised key is published as
+  revoked in the producer's key catalog; the verifier's
+  `revocation-list` check fails a bundle signed by a revoked key. See
+  `docs/key-management.md`.
+
+DEPOSE offers one signing scheme: Ed25519 over the canonical manifest,
+anchored with RFC 3161. Keyless signing through an OIDC identity
+provider would remove the long-lived key, and DEPOSE does not implement
+it; see `docs/decisions.md` D22 for why the scaffolding was removed
+rather than left in place.
 
 ### 3.4 Attacker who can modify the verifier binary
 

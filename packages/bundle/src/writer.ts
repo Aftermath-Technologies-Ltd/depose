@@ -123,6 +123,7 @@ export async function writeBundle(
     keyFingerprint,
     capturesAttributed: options.capturesAttributed,
     capturesExcluded: options.capturesExcluded,
+    sourceFormat: options.sourceFormat,
   });
 
   // ── Step 2: write every content file ───────────────────────────────

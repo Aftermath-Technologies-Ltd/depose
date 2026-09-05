@@ -11,6 +11,9 @@
 //
 // See docs/bundle-format.md#event-schema.
 
+import { parseFishHistory } from './shell-history-fish.js';
+import { tokenize } from './shell-tokenize.js';
+
 // ── Shell history line formats ──────────────────────────────────────
 
 /**
@@ -55,8 +58,9 @@ export type ShellHistoryParser = (content: string) => ShellHistoryCommand[];
 //   With history file markers (zsh):
 //     : 1684417200:0;ls -la
 //
-//   With fish history (XML-like or plain):
-//     fish records timestamped history in a different format
+//   With fish history (~/.local/share/fish/fish_history):
+//     - cmd: terraform destroy -auto-approve
+//       when: 1747583400
 
 /**
  * Parse bash/zsh history (plain or timestamped with epoch seconds).
@@ -65,19 +69,37 @@ export type ShellHistoryParser = (content: string) => ShellHistoryCommand[];
  *   - Plain: "command\n"
  *   - Epoch timestamped: "1684417200  command\n"
  *   - Colon-prefixed (zsh): ": 1684417200:0;command\n"
+ *   - HISTTIMEFORMAT comment lines: "#1684417200\ncommand\n", where the
+ *     time is on its own line above the command it belongs to
  *
  * Compound commands separated by |, &&, ||, or ; produce one
  * ShellHistoryCommand per stage, each sharing the same timestamp.
+ *
+ * `cwd` is always null. History files record no working directory, and
+ * filling it with the producer's own would put an unobserved value into
+ * signed evidence.
+ *
+ * @param content - The history file contents.
+ * @returns One entry per command stage, in file order.
  */
 export function parseBashHistory(content: string): ShellHistoryCommand[] {
   const lines = content.split('\n').filter((l) => l.trim().length > 0);
   const commands: ShellHistoryCommand[] = [];
-  const cwd = process.cwd();
+  let pendingTimestamp: string | null = null;
 
   for (const line of lines) {
     const trimmed = line.trim();
-    let timestamp: string | null = null;
+    let timestamp: string | null = pendingTimestamp;
     let commandStr = trimmed;
+    pendingTimestamp = null;
+
+    // A bare "#<epoch>" line is bash's HISTTIMEFORMAT marker for the
+    // command on the next line, not a command of its own.
+    const marker = trimmed.match(/^#(\d{9,11})$/);
+    if (marker) {
+      pendingTimestamp = new Date(Number(marker[1]) * 1000).toISOString();
+      continue;
+    }
 
     // Try zsh format: : EPOCH:SECONDS;command
     const zshMatch = trimmed.match(/^:\s*(\d+):\d+;(.+)$/);
@@ -107,7 +129,7 @@ export function parseBashHistory(content: string): ShellHistoryCommand[] {
         timestamp,
         command: stageCommand,
         argv: stageArgv,
-        cwd,
+        cwd: null,
         exitCode: null,
         durationMs: null,
       });
@@ -133,200 +155,25 @@ function reconstructCommand(argv: string[]): string {
 }
 
 /**
- * Parse fish shell history.
- *
- * Fish uses a YAML-like format in ~/.local/share/fish/fish_history
- * that is fundamentally different from bash/zsh line-oriented history.
- * This parser does not yet support the fish format; calling it will
- * throw an informative error so callers know they need to implement
- * or delegate fish history parsing rather than silently producing
- * wrong results.
- *
- * To add fish support, implement the actual fish YAML history parser
- * here and remove this throw.
- */
-export function parseFishHistory(_content: string): ShellHistoryCommand[] {
-  throw new Error(
-    'Fish history parsing is not yet implemented. ' +
-    'Fish uses a YAML-like history format that differs from bash/zsh. ' +
-    'Please use parseBashHistory() directly if you have bash-compatible history, ' +
-    'or contribute a fish history parser to DEPOSE.'
-  );
-}
-
-// ── Tokenizer ────────────────────────────────────────────────────────
-//
-// Shell command tokenizer that respects quotes and splits on
-// command separators (|, &&, ||, ;).
-//
-// This is a best-effort tokenizer, not a full shell parser.
-// It handles:
-//   - Double-quoted strings (with basic escape handling)
-//   - Single-quoted strings (no escape handling, per POSIX)
-//   - Unquoted words (split on whitespace)
-//   - Backslash escapes
-//   - Command separators: |, &&, ||, ;
-//
-// Returns string[][]; one inner array per command stage.
-// E.g. "echo foo | grep bar" → [["echo", "foo"], ["grep", "bar"]]
-// E.g. "a && b" → [["a"], ["b"]]
-
-/**
- * Tokenize a shell command string into argv stages (respecting quotes).
- *
- * Splits on command separators (|, &&, ||, ;) to produce one argv
- * array per pipeline stage. Each inner array is the argv for one
- * stage.
- *
- * @returns Array of argv arrays. Simple commands yield a single-element
- *          outer array. Pipelined commands yield one element per stage.
- */
-export function tokenize(command: string): string[][] {
-  const stages: string[][] = [];
-  let currentTokens: string[] = [];
-  let current = '';
-  let inDoubleQuote = false;
-  let inSingleQuote = false;
-  let escaped = false;
-  let i = 0;
-
-  const chars = command.split('');
-
-  // Flush the current token into currentTokens
-  const flushToken = () => {
-    if (current.length > 0) {
-      currentTokens.push(current);
-      current = '';
-    }
-  };
-
-  // Flush currentTokens into stages and start a new stage
-  const flushStage = () => {
-    flushToken();
-    if (currentTokens.length > 0) {
-      stages.push(currentTokens);
-    }
-    currentTokens = [];
-  };
-
-  while (i < chars.length) {
-    const ch = chars[i];
-
-    // Handle escape sequences
-    if (escaped) {
-      current += ch;
-      escaped = false;
-      i++;
-      continue;
-    }
-
-    if (ch === '\\' && !inSingleQuote) {
-      escaped = true;
-      i++;
-      continue;
-    }
-
-    // Quotes, only when not inside the other kind
-    if (ch === '"' && !inSingleQuote) {
-      inDoubleQuote = !inDoubleQuote;
-      i++;
-      continue;
-    }
-
-    if (ch === "'" && !inDoubleQuote) {
-      inSingleQuote = !inSingleQuote;
-      i++;
-      continue;
-    }
-
-    // Inside quotes, everything is literal
-    if (inDoubleQuote || inSingleQuote) {
-      current += ch;
-      i++;
-      continue;
-    }
-
-    // ── Command separators (unquoted) ─────────────────────────────
-
-    // && (AND operator)
-    if (ch === '&' && i + 1 < chars.length && chars[i + 1] === '&') {
-      flushStage();
-      i += 2;
-      // Skip whitespace after separator
-      while (i < chars.length && (chars[i] === ' ' || chars[i] === '\t')) {
-        i++;
-      }
-      continue;
-    }
-
-    // || (OR operator)
-    if (ch === '|' && i + 1 < chars.length && chars[i + 1] === '|') {
-      flushStage();
-      i += 2;
-      // Skip whitespace after separator
-      while (i < chars.length && (chars[i] === ' ' || chars[i] === '\t')) {
-        i++;
-      }
-      continue;
-    }
-
-    // | (pipe)
-    if (ch === '|') {
-      flushStage();
-      i++;
-      // Skip whitespace after pipe
-      while (i < chars.length && (chars[i] === ' ' || chars[i] === '\t')) {
-        i++;
-      }
-      continue;
-    }
-
-    // ; (semicolon)
-    if (ch === ';') {
-      flushStage();
-      i++;
-      // Skip whitespace after semicolon
-      while (i < chars.length && (chars[i] === ' ' || chars[i] === '\t')) {
-        i++;
-      }
-      continue;
-    }
-
-    // ── Whitespace ─────────────────────────────────────────────────
-
-    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
-      flushToken();
-      i++;
-      continue;
-    }
-
-    // ── Regular character ──────────────────────────────────────────
-
-    current += ch;
-    i++;
-  }
-
-  // Flush remaining
-  flushStage();
-
-  // If no stages were produced (e.g., empty string), return empty outer array
-  if (stages.length === 0 && currentTokens.length === 0) {
-    // Even empty input yields at most one stage with zero tokens,
-    // but for backward compat, return [[]] only if there was content
-    // Actually: empty input should return empty array of stages
-    return [];
-  }
-
-  // Don't include empty stages at the end (e.g. trailing ;)
-  return stages.filter((s) => s.length > 0);
-}
-
-// ── Public API ───────────────────────────────────────────────────────
-
-/**
  * Parse shell history content (auto-detects format).
  * Tries zsh format first, then epoch timestamp, then plain.
  */
 export function parseShellHistory(content: string): ShellHistoryCommand[] {
-  return parseBashHistory(content);
+  return looksLikeFishHistory(content) ? parseFishHistory(content) : parseBashHistory(content);
 }
+
+/**
+ * Whether a history file is fish's format.
+ *
+ * A `- cmd:` line at the start of a line is the entry marker and appears
+ * in no bash or zsh history, so one is enough to tell the two apart.
+ *
+ * @param content - The history file contents.
+ * @returns True when the file is fish history.
+ */
+export function looksLikeFishHistory(content: string): boolean {
+  return /^- cmd:/m.test(content);
+}
+
+export { parseFishHistory, unescapeFishValue } from './shell-history-fish.js';
+export { tokenize } from './shell-tokenize.js';

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Codex CLI normalizer.** `depose record --from-codex <path>` reads an
+  OpenAI Codex rollout log. Both grammars in the wild are supported and
+  the normalizer records which one it read in
+  `manifest.session.sourceFormat`, because Codex carries no version
+  marker and a wrong guess yields an empty timeline that looks like a
+  session where nothing happened. A shell tool call is rebuilt into a
+  `shell_command_pre` so destructive-rule matching sees the same shape it
+  sees from the Claude hook; the same four evasion shapes are regression
+  fixtures on both paths. See `docs/bundle-format.md#agent-sources`.
+- **fish history parsing.** `parseShellHistory` now recognizes
+  `~/.local/share/fish/fish_history` by its `- cmd:` entry marker and
+  reads it line by line, undoing fish's own escaping rather than handing
+  it to a YAML reader that would mangle a multi-line command.
 - **Sealed pending anchor, and `depose anchor <bundle>`.** A bundle whose
   timestamp authorities all fail is now signed and written with
   `anchorStatus: "pending"` instead of not produced at all;
@@ -146,6 +159,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `depose package` against a synthetic JSONL, verifies the bundle with
   `depose-verify`, and smoke-tests `depose-hook` for module-resolution
   regressions.
+
+### Removed
+
+- **Sigstore and Rekor scaffolding.** `sign-sigstore.ts`, `rekor.ts`,
+  `rekor.go`, the `rekor-verify` check, the `--signer-identity` flag, the
+  manifest's `rekor` field, and `SignatureBlock.scheme:
+  "sigstore-fulcio"` are gone, along with every doc mention. Every entry
+  point threw and nothing enforced the flag; scaffolding for an
+  unimplemented security feature reads as capability to someone deciding
+  whether to trust a bundle. DEPOSE signs with Ed25519 and anchors with
+  RFC 3161. See `docs/decisions.md` D22.
+
+### Fixed
+
+- **Shell history no longer invents what it did not observe.**
+  `parseBashHistory` filled `cwd` with the producer's own working
+  directory for every entry; it is now null, like the timestamp on an
+  undated entry. A bare `#<epoch>` HISTTIMEFORMAT line is now read as the
+  timestamp of the command below it instead of as a command of its own.
 
 ### Changed
 

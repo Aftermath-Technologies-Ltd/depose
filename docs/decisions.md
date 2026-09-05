@@ -256,3 +256,41 @@ Each run shuffles the list and retries each endpoint with an exponential
 backoff before moving on. `preserveOrder` exists for the case where a
 producer's policy genuinely ranks its authorities, and the ruleset's
 `tsa` list is where that ranking is written down.
+
+## D22. Sigstore and Rekor were removed, not finished
+
+`sign-sigstore.ts`, `rekor.ts`, and `rekor.go` were scaffolds: every
+entry point threw, `shouldUseSigstore()` returned a decision nothing
+acted on, the verifier's `--signer-identity` flag was parsed and never
+enforced, and `rekor-verify` printed a check name for a thing that had
+never run. Four documents described the feature as forthcoming.
+
+The choice was to wire it up with sigstore-js or to take it out.
+Wiring it up means a new runtime dependency in the CLI, which the
+project's own rules forbid, and it means a second signing scheme to
+maintain on the trust boundary for a benefit (no long-lived key) that
+matters mainly to CI producers.
+
+Taking it out costs nothing that existed. Scaffolding for an
+unimplemented security feature is worse than its absence: it puts a
+name in the manifest schema, a flag in the verifier's help text, and a
+row in the docs, all of which read as capability to someone deciding
+whether to trust a bundle. `SignatureBlock.scheme` now accepts only
+`ed25519`, and the manifest has no `rekor` field.
+
+## D23. Codex rollout format detection is recorded, not assumed
+
+Codex has changed its session log format at least once and carries no
+version marker, so the normalizer decides which grammar it is reading by
+looking for the `{timestamp, type, payload}` envelope. A guess that
+silently produced an empty timeline would look identical to a session
+where the agent did nothing.
+
+The detected grammar goes into `manifest.session.sourceFormat`, inside
+the signed form. A reader arguing about what a timeline means needs to
+know which parser produced it, and that is a claim the producer should
+have to sign rather than one a reader has to reconstruct.
+
+When a rollout parses and yields no conversation turn at all, the
+normalizer says so in a warning that names the detected format, because
+that is the shape a third format drift will take.

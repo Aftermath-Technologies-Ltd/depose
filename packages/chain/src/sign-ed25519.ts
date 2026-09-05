@@ -5,7 +5,6 @@
 // Key management story (docs/key-management.md):
 //   - Default: project-local Ed25519 keypair at ~/.depose/keys/signing.key
 //   - Key stored with 0600 permissions, never logged
-//   - Optional: sigstore keyless if SIGSTORE_OIDC=1 or CI with OIDC (deferred)
 //
 // Signature is over the canonical JSON bytes of the unsigned manifest.
 // We sign the bytes directly, not a hex-encoded SHA-256, Ed25519

@@ -10,7 +10,6 @@ export {
   type Manifest,
   type SignatureBlock,
   type Rfc3161Token,
-  type RekorEntry,
 } from './manifest.js';
 
 export {
@@ -40,7 +39,6 @@ export {
   ATTESTATIONS_DIR,
   ATTESTATIONS_SIGNATURES,
   ATTESTATIONS_TIMESTAMPS_DIR,
-  ATTESTATIONS_REKOR,
   RULES_DIR,
   RULES_FILENAME,
   NARRATIVE_MD,
