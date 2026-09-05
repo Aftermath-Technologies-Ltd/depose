@@ -13,6 +13,7 @@ depose-output/
 depose-shim
 depose-verify-*
 apps/verify/build/
+apps/collect-execve/build/
 # `go build ./...` inside apps/capture-shim names its output after the
 # directory rather than the Makefile's BINARY, so it lands here uninvited.
 apps/capture-shim/capture-shim

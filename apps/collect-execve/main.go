@@ -28,12 +28,23 @@ import (
 	"github.com/Aftermath-Technologies-Ltd/depose/apps/collect-execve/probe"
 )
 
+// version is set at build time with -X main.version; see the Makefile.
+// The default is what a `go build` with no ldflags produces, and it says
+// so rather than claiming a release number.
+var version = "dev"
+
 func main() {
+	showVersion := flag.Bool("version", false, "print the collector version and exit")
 	session := flag.String("session", "", "agent session id to stamp on every record (required)")
 	agentPID := flag.Int("pid", 0, "pid of the agent whose process tree is in scope (default: the parent of this process)")
 	captureDir := flag.String("capture-dir", "", "capture store; defaults to $DEPOSE_CAPTURE_DIR then ~/.depose/captures")
 	duration := flag.Duration("duration", 0, "stop after this long; 0 runs until interrupted")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("depose-collect-execve %s\n", version)
+		return
+	}
 
 	dir := resolveCaptureDir(*captureDir)
 	pid := *agentPID

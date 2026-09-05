@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build:
-    name: Cross-compile depose-verify
+    name: Cross-compile the release binaries
     runs-on: ubuntu-latest
     outputs:
       hashes: ${{ steps.hashes.outputs.hashes }}
@@ -27,7 +27,7 @@ jobs:
           # 1.22 emits macOS binaries dyld will not load; see .github/workflows/ci.yml.
           go-version: '1.24'
 
-      - name: Cross-compile (darwin/linux × arm64/amd64)
+      - name: Cross-compile depose-verify (darwin/linux × arm64/amd64)
         env:
           VERSION: ${{ github.ref_name }}
         run: |
@@ -35,15 +35,29 @@ jobs:
           make all VERSION="${VERSION#v}"
           ls -la build/
 
+      - name: Cross-compile depose-collect-execve (linux × arm64/amd64)
+        # Linux only. The collector compiles on darwin but refuses to run
+        # there, and a binary whose only behaviour is to fail is not
+        # something to publish (docs/decisions.md D18).
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          cd apps/collect-execve
+          make all VERSION="${VERSION#v}"
+          cp build/depose-collect-execve-* ../verify/build/
+          ls -la ../verify/build/
+
       - name: Generate SHA256SUMS
         id: hashes
+        # One SHA256SUMS over both binaries, so the single cosign
+        # signature below covers everything the release ships.
         run: |
           cd apps/verify/build
-          sha256sum depose-verify-* > SHA256SUMS
+          sha256sum depose-verify-* depose-collect-execve-* > SHA256SUMS
           cat SHA256SUMS
           # base64-encoded hashes for the SLSA provenance generator.
           # The SLSA action expects the SHA256SUMS file as input.
-          echo "hashes=$(sha256sum depose-verify-* | base64 -w0)" >> "$GITHUB_OUTPUT"
+          echo "hashes=$(sha256sum depose-verify-* depose-collect-execve-* | base64 -w0)" >> "$GITHUB_OUTPUT"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
@@ -100,9 +114,30 @@ jobs:
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
           cd release
-          gh release create "${{ github.ref_name }}" \
-            --title "${{ github.ref_name }}" \
-            --notes "depose-verify ${{ github.ref_name }}. Verify with: cosign verify-blob --certificate SHA256SUMS.pem --signature SHA256SUMS.sig --certificate-identity-regexp '^https://github.com/Aftermath-Technologies-Ltd/depose/' --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' SHA256SUMS" \
-            depose-verify-* SHA256SUMS SHA256SUMS.sig SHA256SUMS.pem
+          cat > NOTES.md <<'NOTES'
+          DEPOSE release binaries.
+
+          `depose-verify` (darwin and linux, arm64 and amd64) checks a bundle
+          off-host. It is the only binary a recipient needs.
+
+          `depose-collect-execve` (linux only) is the optional eBPF execve
+          collector, for producers. It needs CAP_BPF. macOS has no supported
+          equivalent and so ships no binary; see docs/capture-coverage.md.
+
+          Verify the download:
+
+              cosign verify-blob \
+                --certificate SHA256SUMS.pem \
+                --signature SHA256SUMS.sig \
+                --certificate-identity-regexp '^https://github.com/Aftermath-Technologies-Ltd/depose/' \
+                --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+                SHA256SUMS
+              sha256sum -c SHA256SUMS
+          NOTES
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file NOTES.md \
+            depose-verify-* depose-collect-execve-* SHA256SUMS SHA256SUMS.sig SHA256SUMS.pem
