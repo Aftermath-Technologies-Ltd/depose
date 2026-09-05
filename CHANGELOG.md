@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Timestamp verification no longer depends on the recipient's trust
+  store.** A DigiCert-anchored bundle verified on Linux and failed on
+  macOS with "certificate signed by unknown authority", because the chain
+  was reaching a root through the host rather than through anything
+  DEPOSE ships. The DigiCert Trusted Root G4 is now embedded alongside
+  FreeTSA's, with the system pool still added underneath for TSAs DEPOSE
+  does not ship a root for. A bundle whose validity depends on who is
+  looking at it is the one property an off-host verifier cannot have.
+  `roots_test.go` pins each embedded root's SHA-256 and proves each
+  chain reaches it with the system pool absent.
+
 ### Added
 
 - **`docs/compliance-mapping.md`.** One table per regime mapping bundle

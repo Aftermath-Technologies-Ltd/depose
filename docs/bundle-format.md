@@ -227,7 +227,8 @@ The `depose-verify` binary checks, in order:
    is strictly well-formed DER (definite lengths, minimal length
    encoding, no trailing bytes), parses, uses SHA-256, commits to SHA-256
    of the unsigned manifest, and carries a valid TSA signature chaining
-   to the embedded FreeTSA root or the system pool; `manifest.producedAt`
+   to a root the verifier embeds (FreeTSA's self-signed CA and DigiCert
+   Trusted Root G4, the two default authorities) or to the system pool; `manifest.producedAt`
    is not after any token's time (1 s tolerance for whole-second TSAs).
    SKIPPED in dev-unsigned mode, and on a bundle sealed pending an anchor
    that has no token yet.
@@ -848,6 +849,13 @@ tsa:
 producer expects of the TSA signing certificate; DEPOSE carries it
 through so the expectation is visible, and certificate-chain verification
 itself is the verifier's `timestamp-verify` check.
+
+The verifier embeds the roots of the two default authorities, so a
+bundle anchored to either verifies the same way on every host. A
+configured authority that chains elsewhere is verified against the
+recipient's system trust store, which means the answer can differ
+between recipients. If that matters for your regime, anchor to one of
+the defaults as well.
 
 The order given is the order tried, after a per-run shuffle: without one,
 the first authority in the list witnesses nearly every bundle a producer

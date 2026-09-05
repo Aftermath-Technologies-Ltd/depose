@@ -136,13 +136,33 @@ jobs:
           ' "$A/events.jsonl"
           assert_fail "payload-string" "$A"
 
-          # (d) Committed-field tamper: rewrite the destructive command
-          # inside its commitments.json opening. The files map catches the
-          # byte change and the commitments check catches the opening no
-          # longer matching the sealed hash.
+          # (d) Committed-field tamper: rewrite the value inside the
+          # first commitments.json opening. The files map catches the byte
+          # change and the commitments check catches the opening no longer
+          # matching the sealed hash.
+          #
+          # Done structurally rather than by sed on a known command
+          # string: a sed that matches nothing is a silent no-op, and the
+          # bundle then passes an assertion that it must fail.
           D=$(mktemp -d); cp -r "$DEPO_DIR"/. "$D"
-          sed -i 's|rm -rf /data/training|rm -rf /tmp/nothing |g' "$D/commitments.json" || true
-          sed -i 's|terraform destroy -auto-approve|terraform plan -auto-approve  |g' "$D/commitments.json" || true
+          python3 -c '
+          import sys, json
+          p = sys.argv[1]
+          doc = json.load(open(p))
+          openings = doc.get("openings") or []
+          if not openings:
+              raise SystemExit("no commitment openings in fixture")
+          value = openings[0]["value"]
+          if isinstance(value, str):
+              openings[0]["value"] = value + " REWRITTEN"
+          elif isinstance(value, dict):
+              value["depose_tamper"] = "REWRITTEN"
+          elif isinstance(value, list):
+              value.append("REWRITTEN")
+          else:
+              openings[0]["value"] = "REWRITTEN"
+          json.dump(doc, open(p, "w"), indent=2)
+          ' "$D/commitments.json"
           assert_fail "committed-field" "$D"
 
           # (b) payloadHash tamper: flip a hex character inside the

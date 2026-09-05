@@ -63,9 +63,10 @@ func getTrustPool() *x509.CertPool {
 	if err != nil || pool == nil {
 		pool = x509.NewCertPool()
 	}
-	// Embedded RFC 3161 root: FreeTSA's self-signed CA. DigiCert
-	// and Sectigo chain to public roots in the system pool.
+	// The roots of the TSAs DEPOSE anchors to, embedded so the answer
+	// does not depend on the recipient's trust store. See roots.go.
 	pool.AppendCertsFromPEM(FreeTSACARootPEM)
+	pool.AppendCertsFromPEM(DigiCertTrustedRootG4PEM)
 	for _, extra := range extraTestRoots {
 		pool.AppendCertsFromPEM(extra)
 	}
