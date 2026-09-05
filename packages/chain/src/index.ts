@@ -38,6 +38,32 @@ export {
   type Ed25519SignatureResult,
 } from './sign-ed25519.js';
 
+// Deterministic CBOR and COSE_Sign1, for SCITT Signed Statements
+export {
+  encodeCbor,
+  isCborTagged,
+  type CborValue,
+  type CborTagged,
+} from './cbor.js';
+
+export {
+  signCoseSign1,
+  verifyCoseSign1,
+  rawEd25519PublicKey,
+  COSE_HEADER,
+  CWT_CLAIM,
+  COSE_ALG_EDDSA,
+  COSE_SIGN1_TAG,
+  type CoseSign1Input,
+} from './cose-sign1.js';
+
+// did:key identifiers for the Ed25519 signer
+export {
+  base58btcEncode,
+  didKeyFromEd25519Pem,
+  bareDidKeyFromEd25519Pem,
+} from './did-key.js';
+
 // Key fingerprint helpers
 export {
   fingerprintPublicKeyPem,

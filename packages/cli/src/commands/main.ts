@@ -29,6 +29,7 @@ import {
 import { VERIFIER_DOWNLOAD_URL } from '@depose/bundle';
 import { handleReconstruct } from './reconstruct.js';
 import { handleDisclose, type DiscloseCommandArgs } from './disclose.js';
+import { handleExport, EXPORT_FORMATS, type ExportCommandArgs } from './export.js';
 import { handleInstall, handleUninstall } from './install-uninstall-handlers.js';
 import { optsToArgs } from './cli-args.js';
 import { CLI_VERSION } from '../version.js';
@@ -151,6 +152,17 @@ export async function main(argv: string[]): Promise<void> {
     .option('--consistent-with <dir>', 'Earlier disclosure to prove consistency with')
     .action(async function (this: Command, bundle: string) {
       await handleDisclose(bundle, optsToArgs(this.opts()) as unknown as DiscloseCommandArgs);
+    });
+
+  program
+    .command('export <bundle>')
+    .description('Export a sealed bundle to an IETF interchange format')
+    .option('--format <name>', `One of ${EXPORT_FORMATS.join(', ')}`)
+    .option('--out <file>', 'Output file (default: <bundleId>-<format> next to the bundle)')
+    .option('--key-dir <dir>', 'Signing key directory for the formats that sign their output')
+    .option('--allow-key-mismatch', 'Sign the export with a key that did not seal the bundle')
+    .action(async function (this: Command, bundle: string) {
+      await handleExport(bundle, optsToArgs(this.opts()) as unknown as ExportCommandArgs);
     });
 
   program

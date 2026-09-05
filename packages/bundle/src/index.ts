@@ -63,3 +63,52 @@ export {
   type FileEntry,
   type FilesMap,
 } from './files-map.js';
+
+// IETF export targets. See docs/export-mapping.md.
+export {
+  loadBundle,
+  timestampTokens,
+  type LoadedBundle,
+} from './export/read-bundle.js';
+
+export {
+  exportAat,
+  aatRecords,
+  DEPOSE_TRUST_LEVEL,
+  type AatRecord,
+} from './export/aat.js';
+
+export {
+  aatAction,
+  aatOutcome,
+  actionDetail,
+  uuidFromUlid,
+  UUID_NAMESPACE_EVENT,
+  UUID_NAMESPACE_SESSION,
+} from './export/aat-map.js';
+
+export {
+  exportAsqavReceipts,
+  asqavReceipts,
+  isReceiptable,
+  GENESIS_PREVIOUS_HASH,
+  type AsqavReceipt,
+  type AsqavSignature,
+} from './export/asqav.js';
+
+export {
+  receiptPayload,
+  toolName,
+  type AsqavPayload,
+  type ReceiptContext,
+} from './export/asqav-map.js';
+
+export {
+  exportScittStatement,
+  buildCapsule,
+  capsuleId,
+  CAPSULE_CONTENT_TYPE,
+  CAPSULE_SPEC_VERSION,
+  CAPSULE_FORMAT_VERSION,
+  type Capsule,
+} from './export/capsule.js';

@@ -90,7 +90,7 @@ Hand a regulator part of the record without re-signing or exposing the rest:
 
 The disclosure carries the original signature and timestamp, the chosen events byte for byte, RFC 6962 audit paths against the sealed Merkle root for every position, and commitment openings for the chosen fields only. Withheld events reveal their count and positions, nothing else.
 
-Full command surface (`depose --help`): `record`, `package`, `disclose`, `reconstruct`, `verify`, `explain`, `install --claude|--shell`, `uninstall --claude|--shell`, `key {fingerprint,rotate,revoke,catalog}`.
+Full command surface (`depose --help`): `record`, `package`, `disclose`, `export`, `reconstruct`, `verify`, `explain`, `install --claude|--shell`, `uninstall --claude|--shell`, `key {fingerprint,rotate,revoke,catalog}`.
 
 ## How it works
 
@@ -152,6 +152,24 @@ It attaches to the `sched:sched_process_exec` tracepoint and records every exec 
 
 Coverage matrix and threat-vs-coverage tradeoffs: [docs/capture-coverage.md](docs/capture-coverage.md). Install details: [docs/hook-installation.md](docs/hook-installation.md), [docs/shim-installation.md](docs/shim-installation.md).
 
+## Exporting to IETF formats
+
+A sealed bundle renders into three interchange formats, each a pure
+function of the bundle:
+
+```bash
+depose export incident-01JABC... --format aat              # draft-sharif-agent-audit-trail JSON Lines
+depose export incident-01JABC... --format asqav-receipt    # draft-marques-asqav signed compliance receipts
+depose export incident-01JABC... --format scitt-statement  # COSE_Sign1 SCITT Signed Statement, ready to register
+```
+
+The two signed formats refuse to run with a key that did not seal the
+bundle. Every field mapping, and every DEPOSE field the target format has
+no home for, is in [docs/export-mapping.md](docs/export-mapping.md),
+including the three places where a draft was ambiguous and DEPOSE chose
+the reading that says less rather than the one that would assert
+something it cannot prove.
+
 ## Examples
 
 Two synthetic reconstructions are checked in. Each ships a Claude Code JSONL and a `produce.sh` that runs the full pipeline:
@@ -207,6 +225,7 @@ Build internals, the full CI matrix, and source-tree invariants: [docs/developme
 | [canonical-json.md](docs/canonical-json.md) | RFC 8785 JCS rules used by both producer and verifier. |
 | [threat-model.md](docs/threat-model.md) | What DEPOSE defends against, what it doesn't. |
 | [capture-coverage.md](docs/capture-coverage.md) | Coverage matrix per capture mode. |
+| [export-mapping.md](docs/export-mapping.md) | `depose export` field mappings for AAT, ASQAV receipts, and SCITT statements, and what each format cannot carry. |
 | [hook-installation.md](docs/hook-installation.md) | Claude Code capture hook setup, both halves. |
 | [shim-installation.md](docs/shim-installation.md) | Shell shim setup. |
 | [key-management.md](docs/key-management.md) | Signing-key flows, fingerprints, rotation/revocation. |

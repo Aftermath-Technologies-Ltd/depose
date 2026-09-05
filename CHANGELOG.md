@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`depose export --format aat|asqav-receipt|scitt-statement`.** Three
+  IETF interchange views of a sealed bundle:
+  draft-sharif-agent-audit-trail-00 as JSON Lines with its own recomputed
+  hash chain, draft-marques-asqav-compliance-receipts-08 as one signed
+  receipt per action with JCS canonicalization and a
+  `previousReceiptHash` chain, and a COSE_Sign1 SCITT Signed Statement
+  carrying a draft-mih-scitt-agent-action-capsule-04 capsule, ready to
+  register with a transparency service. Each exporter is a pure function
+  from the bundle (and key) to bytes, with byte-for-byte golden outputs
+  for both example incidents and conformance tests written against the
+  drafts rather than against the exporter. Deterministic CBOR (RFC 8949
+  §4.2.1), COSE_Sign1, and did:key are implemented in `@depose/chain`
+  with RFC 8949 Appendix A vectors, so the CLI gains no dependency.
+  Every mapping choice, and every DEPOSE field the target format has no
+  home for, is in `docs/export-mapping.md`.
+
 - **Intent and effect are a signed pair.** `depose install --claude` now
   registers a PostToolUse hook alongside PreToolUse. The pre half records
   what the agent was about to run and the SHA-256 of every file the call
