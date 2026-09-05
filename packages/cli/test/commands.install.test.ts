@@ -1,7 +1,7 @@
 // packages/cli/test/commands.install.test.ts
 //
 // Phase 3 tests for `depose install --claude | --shell` and uninstall.
-// See BUILD_PLAN.md §6 (Phase 3) for acceptance criteria.
+// Acceptance criteria: docs/hook-installation.md and docs/shim-installation.md.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';

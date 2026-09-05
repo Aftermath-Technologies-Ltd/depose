@@ -1,7 +1,7 @@
 // packages/capture-claude/test/hook-entry.test.ts
 //
 // Tests for the Claude Code PreToolUse hook handler.
-// See BUILD_PLAN.md §6 (Phase 3) for acceptance criteria.
+// Acceptance criteria: docs/hook-installation.md.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';

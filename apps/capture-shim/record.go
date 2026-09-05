@@ -33,7 +33,7 @@ func getCaptureDir() string {
 	return defaultCaptureDir()
 }
 
-// Env allowlist prefixes (BUILD_PLAN.md §7.2)
+// Env allowlist prefixes (docs/threat-model.md §4)
 var envAllowPrefixes = []string{
 	"AWS_",
 	"GH_",
@@ -42,7 +42,7 @@ var envAllowPrefixes = []string{
 	"RAILWAY_",
 }
 
-// ShellCommandPrePayload matches the TypeScript schema (BUILD_PLAN.md §4.2)
+// ShellCommandPrePayload matches the TypeScript schema (docs/bundle-format.md#event-schema)
 type ShellCommandPrePayload struct {
 	Argv               []string                   `json:"argv"`
 	Cwd                string                     `json:"cwd"`

@@ -4,7 +4,7 @@
 // destructive binary on PATH, writes a capture record then execs
 // through to the real binary with full stdio/signal/exit-code passthrough.
 //
-// BUILD_PLAN.md §6 (Phase 3): "single binary symlinked under multiple names"
+// One binary symlinked under multiple names (docs/shim-installation.md).
 //
 // Behavior:
 //   1. Determine real binary by walking PATH and skipping the shim directory.

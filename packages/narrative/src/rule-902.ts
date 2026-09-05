@@ -2,9 +2,8 @@
 //
 // FRE 902(13) and 902(14) self-authenticating certification template.
 //
-// BUILD_PLAN.md §6 Phase 4:
-//   "Optional 902(13)/(14) certification template signed by
-//    the bundle producer."
+// Optional 902(13)/(14) certification template signed by the bundle
+// producer.
 //
 // This template generates a certification statement that a human
 // bundle producer can sign, asserting that the bundle meets the

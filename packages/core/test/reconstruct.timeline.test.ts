@@ -1,7 +1,7 @@
 // packages/core/test/reconstruct.timeline.test.ts
 //
 // Tests for timeline reconstruction.
-// BUILD_PLAN.md §5 (Phase 1): deterministic timeline, parent-child
+// Deterministic timeline, parent-child
 // causal graph, destructive-operations index.
 //
 // Tests exercise:

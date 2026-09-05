@@ -1,0 +1,187 @@
+{
+  "description": "Files map and manifest signing vectors. For each tree (relative path to UTF-8 content), the files map must equal expectedFilesMap; the manifest (with any signatures/timestamps present) must canonicalize for signing to expectedUnsignedCanonical, whose SHA-256 is expectedManifestHash. See docs/bundle-format.md#files-map and #manifest-schema.",
+  "vectors": [
+    {
+      "name": "flat-and-nested-tree",
+      "tree": {
+        "events.jsonl": "{\"id\":\"x\"}\n",
+        "rules/destructive.yaml": "version: 1\nrules: []\n",
+        "raw/claude-code/session.jsonl": "{\"type\":\"user\"}\n",
+        "narrative.md": "# Narrative\n",
+        "verify.txt": "verify\n"
+      },
+      "expectedFilesMap": {
+        "events.jsonl": {
+          "sha256": "551dd78288bd82f529e1697be1f74b91d5ae2278319f014218a93b2a997ca0f7",
+          "bytes": 11
+        },
+        "narrative.md": {
+          "sha256": "d17b73adeef881cbd4dfc63b617cf25bef4873ea1c8167c80a65bbe6c95a0bc4",
+          "bytes": 12
+        },
+        "raw/claude-code/session.jsonl": {
+          "sha256": "9848ab0b020271bde26d2924202ad1f04d81b0866c0bc20653a11d2c90d2db91",
+          "bytes": 16
+        },
+        "rules/destructive.yaml": {
+          "sha256": "7f2c43106364d8112fcc3060e4ab8b20f5d1a17d9cbf3c2540529663004adff8",
+          "bytes": 21
+        },
+        "verify.txt": {
+          "sha256": "b749d167d8e0f38416943430adfa89509826c07b8e95d43f0f3bea9294362ebf",
+          "bytes": 7
+        }
+      },
+      "manifest": {
+        "schemaVersion": 3,
+        "bundleId": "conformance-bundle",
+        "producedAt": "2025-05-18T16:00:00.000Z",
+        "producer": {
+          "tool": "depose",
+          "version": "0.1.0",
+          "mode": "signed",
+          "keyFingerprint": "abababababababababababababababababababababababababababababababab",
+          "host": {
+            "os": "linux",
+            "arch": "x64",
+            "nodeVersion": "v20.0.0",
+            "kernel": "6.0"
+          }
+        },
+        "session": {
+          "agentId": "claude-code",
+          "sessionId": "conformance-bundle",
+          "startedAt": "2025-05-18T15:30:00.000Z",
+          "endedAt": "2025-05-18T15:31:00.000Z",
+          "host": null
+        },
+        "rootHash": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "eventsJsonlSha256": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+        "files": {
+          "events.jsonl": {
+            "sha256": "551dd78288bd82f529e1697be1f74b91d5ae2278319f014218a93b2a997ca0f7",
+            "bytes": 11
+          },
+          "narrative.md": {
+            "sha256": "d17b73adeef881cbd4dfc63b617cf25bef4873ea1c8167c80a65bbe6c95a0bc4",
+            "bytes": 12
+          },
+          "raw/claude-code/session.jsonl": {
+            "sha256": "9848ab0b020271bde26d2924202ad1f04d81b0866c0bc20653a11d2c90d2db91",
+            "bytes": 16
+          },
+          "rules/destructive.yaml": {
+            "sha256": "7f2c43106364d8112fcc3060e4ab8b20f5d1a17d9cbf3c2540529663004adff8",
+            "bytes": 21
+          },
+          "verify.txt": {
+            "sha256": "b749d167d8e0f38416943430adfa89509826c07b8e95d43f0f3bea9294362ebf",
+            "bytes": 7
+          }
+        },
+        "signatures": [],
+        "timestamps": [],
+        "counts": {
+          "events": 3,
+          "destructiveOperations": 1,
+          "gaps": 0,
+          "artifactsPre": 0,
+          "artifactsPost": 0,
+          "capturesAttributed": 0,
+          "capturesExcluded": 0
+        },
+        "rulesetHash": "0101010101010101010101010101010101010101010101010101010101010101"
+      },
+      "expectedUnsignedCanonical": "{\"bundleId\":\"conformance-bundle\",\"counts\":{\"artifactsPost\":0,\"artifactsPre\":0,\"capturesAttributed\":0,\"capturesExcluded\":0,\"destructiveOperations\":1,\"events\":3,\"gaps\":0},\"eventsJsonlSha256\":\"efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef\",\"files\":{\"events.jsonl\":{\"bytes\":11,\"sha256\":\"551dd78288bd82f529e1697be1f74b91d5ae2278319f014218a93b2a997ca0f7\"},\"narrative.md\":{\"bytes\":12,\"sha256\":\"d17b73adeef881cbd4dfc63b617cf25bef4873ea1c8167c80a65bbe6c95a0bc4\"},\"raw/claude-code/session.jsonl\":{\"bytes\":16,\"sha256\":\"9848ab0b020271bde26d2924202ad1f04d81b0866c0bc20653a11d2c90d2db91\"},\"rules/destructive.yaml\":{\"bytes\":21,\"sha256\":\"7f2c43106364d8112fcc3060e4ab8b20f5d1a17d9cbf3c2540529663004adff8\"},\"verify.txt\":{\"bytes\":7,\"sha256\":\"b749d167d8e0f38416943430adfa89509826c07b8e95d43f0f3bea9294362ebf\"}},\"producedAt\":\"2025-05-18T16:00:00.000Z\",\"producer\":{\"host\":{\"arch\":\"x64\",\"kernel\":\"6.0\",\"nodeVersion\":\"v20.0.0\",\"os\":\"linux\"},\"keyFingerprint\":\"abababababababababababababababababababababababababababababababab\",\"mode\":\"signed\",\"tool\":\"depose\",\"version\":\"0.1.0\"},\"rootHash\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"rulesetHash\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"schemaVersion\":3,\"session\":{\"agentId\":\"claude-code\",\"endedAt\":\"2025-05-18T15:31:00.000Z\",\"host\":null,\"sessionId\":\"conformance-bundle\",\"startedAt\":\"2025-05-18T15:30:00.000Z\"},\"signatures\":[],\"timestamps\":[]}",
+      "expectedManifestHash": "93d0401efe435f1116f14199dcf14575be5abc7b1bb8dc5c4b89cb392defb325"
+    },
+    {
+      "name": "excluded-paths-present-and-non-ascii-name",
+      "tree": {
+        "events.jsonl": "",
+        "manifest.json": "{\"ignored\":true}",
+        "attestations/signatures.json": "{\"blocks\":[]}",
+        "attestations/rfc3161-timestamps/0.tsr": "TSR",
+        "raw/captures/01JCAPTURÉ0000000000000001.json": "{\"argv\":[\"rm\"]}",
+        "raw/zzz.txt": "z",
+        "raw/aaa.txt": "a"
+      },
+      "expectedFilesMap": {
+        "events.jsonl": {
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "raw/aaa.txt": {
+          "sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+          "bytes": 1
+        },
+        "raw/captures/01JCAPTURÉ0000000000000001.json": {
+          "sha256": "82f1bc67faed9d524c5583f584dead53a4685a7d2c038711c4b49d739b3dcfa9",
+          "bytes": 15
+        },
+        "raw/zzz.txt": {
+          "sha256": "594e519ae499312b29433b7dd8a97ff068defcba9755b6d5d00e84c524d67b06",
+          "bytes": 1
+        }
+      },
+      "manifest": {
+        "schemaVersion": 3,
+        "bundleId": "conformance-bundle",
+        "producedAt": "2025-05-18T16:00:00.000Z",
+        "producer": {
+          "tool": "depose",
+          "version": "0.1.0",
+          "mode": "signed",
+          "keyFingerprint": "abababababababababababababababababababababababababababababababab",
+          "host": {
+            "os": "linux",
+            "arch": "x64",
+            "nodeVersion": "v20.0.0",
+            "kernel": "6.0"
+          }
+        },
+        "session": {
+          "agentId": "claude-code",
+          "sessionId": "conformance-bundle",
+          "startedAt": "2025-05-18T15:30:00.000Z",
+          "endedAt": "2025-05-18T15:31:00.000Z",
+          "host": null
+        },
+        "rootHash": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "eventsJsonlSha256": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+        "files": {
+          "events.jsonl": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0
+          },
+          "raw/aaa.txt": {
+            "sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+            "bytes": 1
+          },
+          "raw/captures/01JCAPTURÉ0000000000000001.json": {
+            "sha256": "82f1bc67faed9d524c5583f584dead53a4685a7d2c038711c4b49d739b3dcfa9",
+            "bytes": 15
+          },
+          "raw/zzz.txt": {
+            "sha256": "594e519ae499312b29433b7dd8a97ff068defcba9755b6d5d00e84c524d67b06",
+            "bytes": 1
+          }
+        },
+        "signatures": [],
+        "timestamps": [],
+        "counts": {
+          "events": 3,
+          "destructiveOperations": 1,
+          "gaps": 0,
+          "artifactsPre": 0,
+          "artifactsPost": 0,
+          "capturesAttributed": 0,
+          "capturesExcluded": 0
+        },
+        "rulesetHash": "0101010101010101010101010101010101010101010101010101010101010101"
+      },
+      "expectedUnsignedCanonical": "{\"bundleId\":\"conformance-bundle\",\"counts\":{\"artifactsPost\":0,\"artifactsPre\":0,\"capturesAttributed\":0,\"capturesExcluded\":0,\"destructiveOperations\":1,\"events\":3,\"gaps\":0},\"eventsJsonlSha256\":\"efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef\",\"files\":{\"events.jsonl\":{\"bytes\":0,\"sha256\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"},\"raw/aaa.txt\":{\"bytes\":1,\"sha256\":\"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb\"},\"raw/captures/01JCAPTURÉ0000000000000001.json\":{\"bytes\":15,\"sha256\":\"82f1bc67faed9d524c5583f584dead53a4685a7d2c038711c4b49d739b3dcfa9\"},\"raw/zzz.txt\":{\"bytes\":1,\"sha256\":\"594e519ae499312b29433b7dd8a97ff068defcba9755b6d5d00e84c524d67b06\"}},\"producedAt\":\"2025-05-18T16:00:00.000Z\",\"producer\":{\"host\":{\"arch\":\"x64\",\"kernel\":\"6.0\",\"nodeVersion\":\"v20.0.0\",\"os\":\"linux\"},\"keyFingerprint\":\"abababababababababababababababababababababababababababababababab\",\"mode\":\"signed\",\"tool\":\"depose\",\"version\":\"0.1.0\"},\"rootHash\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"rulesetHash\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"schemaVersion\":3,\"session\":{\"agentId\":\"claude-code\",\"endedAt\":\"2025-05-18T15:31:00.000Z\",\"host\":null,\"sessionId\":\"conformance-bundle\",\"startedAt\":\"2025-05-18T15:30:00.000Z\"},\"signatures\":[],\"timestamps\":[]}",
+      "expectedManifestHash": "0b7b00cb4883816e3277c2634729d3e0c17a415ce5560271ce192dc898f31411"
+    }
+  ]
+}

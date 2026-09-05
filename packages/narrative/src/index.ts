@@ -2,11 +2,10 @@
 //
 // @depose/narrative, Deterministic narrative renderer for DEPOSE bundles.
 //
-// BUILD_PLAN.md §6 Phase 4:
-//   "Template-driven, deterministic, every claim cites event ID.
-//    No LLM in signed path."
+// Template-driven, deterministic, every claim cites an event ID.
+// No LLM in the signed path.
 //
-// Named exports only (BUILD_PLAN.md §3.1).
+// Named exports only.
 
 export {
   renderMarkdown,

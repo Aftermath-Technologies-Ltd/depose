@@ -1,0 +1,212 @@
+{
+  "description": "IRONROOT hash chain vectors. Both packages/chain/src/hash-chain.ts and apps/verify/chain/replay.go must produce these chainHash values and rootHash for the given events, and must reject the unsorted vector. monoNs is the schema 3 wire form: a decimal string. See docs/bundle-format.md#hash-chain.",
+  "vectors": [
+    {
+      "name": "single-prompt-event",
+      "events": [
+        {
+          "id": "01JCONF0000000000000000001",
+          "wallTs": "2025-05-18T15:30:00.000Z",
+          "monoNs": "0",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": null,
+          "type": "prompt",
+          "payload": {
+            "text": "hello"
+          },
+          "payloadHash": "cbbbdcd27692344de5dbab3abcaba413fb0f45307267de7081401576df1cb176"
+        }
+      ],
+      "expected": {
+        "chainHashes": [
+          "b983912861aad9c2be49348d11a6e1bed22348f843d7bce532fef400a695c1a0"
+        ],
+        "rootHash": "b983912861aad9c2be49348d11a6e1bed22348f843d7bce532fef400a695c1a0"
+      }
+    },
+    {
+      "name": "three-events-with-parent-links",
+      "events": [
+        {
+          "id": "01JCONF0000000000000000001",
+          "wallTs": "2025-05-18T15:30:00.000Z",
+          "monoNs": "0",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": null,
+          "type": "prompt",
+          "payload": {
+            "text": "delete the training data"
+          },
+          "payloadHash": "1f87b5a9ddad65c425c8274347fac8f7b1796b24dcd87cc5e8cd6a22f54ee2ae"
+        },
+        {
+          "id": "01JCONF0000000000000000002",
+          "wallTs": "2025-05-18T15:30:05.000Z",
+          "monoNs": "1",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": "01JCONF0000000000000000001",
+          "type": "tool_call_intent",
+          "payload": {
+            "toolName": "Bash",
+            "toolInput": {
+              "command": "rm -rf /data/training"
+            }
+          },
+          "payloadHash": "a788be3f849990d83998fc274cd72e921e2dfc7a6bbcda6dc60c2d1bc3731940"
+        },
+        {
+          "id": "01JCONF0000000000000000003",
+          "wallTs": "2025-05-18T15:30:45.000Z",
+          "monoNs": "2",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": "01JCONF0000000000000000002",
+          "type": "tool_result",
+          "payload": {
+            "toolName": "Bash",
+            "output": "",
+            "exitCode": 0
+          },
+          "payloadHash": "963a2cdf71bcec91b942fe214597336f3d2f6ddc834c8b0343be6ad57e995a70"
+        }
+      ],
+      "expected": {
+        "chainHashes": [
+          "62b082d8282913407c7b56fe31f737f36b0ec232ad3780cf19b67995340eb553",
+          "5916eb2608ced527dbbf16cc354b64de626aa3b37d2a6b8cf8e392c075723666",
+          "563e6aadbfb8675fc62a110048c31db3e7573adc057d88aaddec5981a04a37df"
+        ],
+        "rootHash": "563e6aadbfb8675fc62a110048c31db3e7573adc057d88aaddec5981a04a37df"
+      }
+    },
+    {
+      "name": "monons-above-2-53",
+      "events": [
+        {
+          "id": "01JCONF0000000000000000001",
+          "wallTs": "2025-05-18T15:30:00.000Z",
+          "monoNs": "9007199254740993",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": null,
+          "type": "prompt",
+          "payload": {
+            "text": "a"
+          },
+          "payloadHash": "6193c97585a0f731ce7b500bb69d2476816afb14c8d95ac8e6e865f680e9e438"
+        },
+        {
+          "id": "01JCONF0000000000000000002",
+          "wallTs": "2025-05-18T15:30:00.000Z",
+          "monoNs": "9007199254740994",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": null,
+          "type": "prompt",
+          "payload": {
+            "text": "b"
+          },
+          "payloadHash": "7b8de1c2be81d629aaac41de6be74133f8c90b9747098a3fc1a7adc9274cb35e"
+        }
+      ],
+      "expected": {
+        "chainHashes": [
+          "55c2be2b23ce3aee0f8155af6975b1605ae898044d7649658f31722e9fd9abd5",
+          "db7260a5bdaf32ea1345af2357a8c7c7f51dafa7b3fff9bc3804514eaf4ffbe2"
+        ],
+        "rootHash": "db7260a5bdaf32ea1345af2357a8c7c7f51dafa7b3fff9bc3804514eaf4ffbe2"
+      }
+    },
+    {
+      "name": "monons-int64-max",
+      "events": [
+        {
+          "id": "01JCONF0000000000000000001",
+          "wallTs": "2025-05-18T15:30:00.000Z",
+          "monoNs": "9223372036854775807",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": null,
+          "type": "prompt",
+          "payload": {
+            "text": "max"
+          },
+          "payloadHash": "de25febd6dad8e9e5c6491581d119794025c385e68a69d946055a948636eeacf"
+        }
+      ],
+      "expected": {
+        "chainHashes": [
+          "1cc204b06cbaca2f295108b4e4727606cc8daba2fe1e71450409080cec5c86a8"
+        ],
+        "rootHash": "1cc204b06cbaca2f295108b4e4727606cc8daba2fe1e71450409080cec5c86a8"
+      }
+    },
+    {
+      "name": "non-ascii-and-escapes-in-payload",
+      "events": [
+        {
+          "id": "01JCONF0000000000000000001",
+          "wallTs": "2025-05-18T15:30:00.000Z",
+          "monoNs": "0",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": null,
+          "type": "prompt",
+          "payload": {
+            "text": "café 🚀 \"quoted\" \\ back\nnew",
+            "nested": {
+              "z": 1,
+              "a": [
+                true,
+                null,
+                2.5
+              ]
+            }
+          },
+          "payloadHash": "87d8b6d8e60a4a99c2ab30c2caa90ecf3bee0e16a25cce5b31a59524ef4d37fa"
+        }
+      ],
+      "expected": {
+        "chainHashes": [
+          "a1b380ff244def1d5fb1571e39ecf214d81e46f40e71400ff36e32a930be52dd"
+        ],
+        "rootHash": "a1b380ff244def1d5fb1571e39ecf214d81e46f40e71400ff36e32a930be52dd"
+      }
+    },
+    {
+      "name": "unsorted-input-rejected",
+      "events": [
+        {
+          "id": "01JCONF0000000000000000002",
+          "wallTs": "2025-05-18T15:30:05.000Z",
+          "monoNs": "1",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": null,
+          "type": "prompt",
+          "payload": {
+            "text": "second"
+          },
+          "payloadHash": "94ab7b8dc26a375e3510b6c4b2e0dc4a49336d0cb50c68fd3b47ac8353149a3e"
+        },
+        {
+          "id": "01JCONF0000000000000000001",
+          "wallTs": "2025-05-18T15:30:00.000Z",
+          "monoNs": "0",
+          "sessionId": "sess-conformance",
+          "agentId": "claude-code",
+          "parentEventId": null,
+          "type": "prompt",
+          "payload": {
+            "text": "first"
+          },
+          "payloadHash": "a6ed1c596ebafc4723b8c295c4ebe7e062c014debf0d341251bf5fb92d26b229"
+        }
+      ],
+      "expectedError": "not sorted"
+    }
+  ]
+}

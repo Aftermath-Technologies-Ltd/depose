@@ -94,9 +94,14 @@ no file in the bundle is order-sensitive to verification.
 
 ### 3.1 events.jsonl ordering
 
-Events within `events.jsonl` are sorted by their `id` field (ULID). ULIDs
-encode a millisecond timestamp in their first 48 bits, so this sort is
-also chronological within a session.
+Events within `events.jsonl` MUST be in ascending `id` order (ULID,
+byte-wise). ULIDs encode a millisecond timestamp in their first 48 bits,
+so this order is also chronological within a session. The chain is
+computed over the file in that order; the producer refuses to seal an
+unsorted list and the verifier rejects an unsorted file with
+`events.jsonl is not sorted by id` rather than re-sorting it. Re-sorting
+would let a file that reads one way on disk replay to a root sealed over
+another.
 
 ---
 
@@ -171,6 +176,14 @@ never rendered as PASS:
 | `SKIPPED` | The check did not run, by mode contract or missing input. |
 | `WARN` | The check ran; the bundle is weaker than current producers emit but not invalid (a downgrade, not a tamper). |
 
+The verifier is one function per check
+(`apps/verify/cmd/check_*.go`) run by a driver in the order below. The
+run stops early only after a failure that makes the rest meaningless:
+an unparseable manifest, an unsupported schema, an unrecognized mode, or
+an invalid signature. Any other failure is recorded and the remaining
+checks still run, so the report names every defect. When the run stops
+early a final `remaining-checks: SKIPPED` line says why.
+
 The `depose-verify` binary checks, in order:
 
 1. **manifest-parse**: `manifest.json` parses. Failure stops the run.
@@ -187,14 +200,17 @@ The `depose-verify` binary checks, in order:
    verifies against the canonical bytes of `manifest.json` with
    `signatures=[]` and `timestamps=[]`. SKIPPED in dev-unsigned mode.
 6. **payload-hash**, **chain-replay**: every event's `payload`
-   canonicalizes (RFC 8785 JCS) to its `payloadHash`, and the replayed
-   chain over events sorted by id ends at `manifest.rootHash`. SKIPPED
-   in dev-unsigned mode when `rootHash` is empty.
+   canonicalizes (RFC 8785 JCS) to its `payloadHash`, the file is in
+   ascending id order, every `monoNs` is a decimal string (schema 3),
+   and the replayed chain ends at `manifest.rootHash`. SKIPPED in
+   dev-unsigned mode when `rootHash` is empty.
 7. **timestamp-verify**, **timestamp-backdating**: each RFC 3161 token
-   parses, uses SHA-256, commits to SHA-256 of the unsigned manifest, and
-   carries a valid TSA signature chaining to the embedded FreeTSA root or
-   the system pool; `manifest.producedAt` is not after any token's time
-   (1 s tolerance for whole-second TSAs). SKIPPED in dev-unsigned mode.
+   is strictly well-formed DER (definite lengths, minimal length
+   encoding, no trailing bytes), parses, uses SHA-256, commits to SHA-256
+   of the unsigned manifest, and carries a valid TSA signature chaining
+   to the embedded FreeTSA root or the system pool; `manifest.producedAt`
+   is not after any token's time (1 s tolerance for whole-second TSAs).
+   SKIPPED in dev-unsigned mode.
 8. **artifact-events-jsonl**: SHA-256 of the literal `events.jsonl`
    bytes equals `manifest.eventsJsonlSha256`.
 9. **ruleset-integrity**: SHA-256 of `rules/destructive.yaml` equals
@@ -359,7 +375,7 @@ Each line is a canonical-JSON serialized `Event` object. Fields:
 |------------------|--------------------------|----------------------------------------------|
 | `id`             | string (ULID)            | Sortable unique identifier                   |
 | `wallTs`         | string (ISO 8601 UTC)    | Wall-clock timestamp                         |
-| `monoNs`         | number                   | Monotonic nanoseconds since session start    |
+| `monoNs`         | string (decimal integer) | Monotonic nanoseconds since session start. A decimal string on the wire (`"9007199254740993"`), a 64-bit integer in memory; JSON numbers lose precision past 2^53. Schema 2 wrote a number; the verifier accepts that form only for schema 2 bundles. |
 | `sessionId`      | string                   | Session identifier                           |
 | `agentId`        | string enum              | `claude-code`, `codex`, `cursor`, `shell`, `unknown` |
 | `parentEventId`  | string \| null           | Causal parent in the event graph             |
@@ -388,9 +404,16 @@ rootHash     = chainHash[N-1]
 
 `payloadHash` is fed as its UTF-8 hex string, not decoded bytes.
 `eventMetadata` is the JCS serialization of
-`{ id, wallTs, monoNs, sessionId, agentId, parentEventId, type, payloadHash }`.
-`payloadHash` appears both standalone and inside the metadata; that is
-intentional. Events are chained in `id` order.
+`{ id, wallTs, monoNs, sessionId, agentId, parentEventId, type, payloadHash }`
+with `monoNs` in its wire form (a decimal string). `payloadHash` appears
+both standalone and inside the metadata; that is intentional. Events are
+chained in `id` order.
+
+Shared vectors: `tests/conformance/hash-chain-vectors.json` (per-event
+chain hashes and roots, including monoNs above 2^53 and an unsorted
+input that must be rejected) and `tests/conformance/manifest-vectors.json`
+(files maps over given trees, unsigned canonical manifests, and their
+hashes). Both the TypeScript producer and the Go verifier run them.
 
 <a id="gap-events"></a>
 ### 7.2 Gap events
@@ -409,6 +432,19 @@ A `gap` event is the system's accounting of what it could not observe.
 | `capture_failed` | The capture hook threw and wrote no record. The gap's `id` is the failure record's ULID; its `detail` names the hook phase, error class, and sanitized message. |
 
 ---
+
+<a id="producer-invariants"></a>
+### 7.3 Producer invariants
+
+- **Never silently drop data.** A session-log line that cannot be parsed
+  or recognized becomes a `gap` event; a capture that could not be taken
+  becomes a `capture_failed` record and then a `gap`. The count of gaps
+  is in the signed manifest.
+- **Capture records are written with mode 0600** into a 0700 directory.
+- **Only allowlisted environment variables are stored in plaintext**;
+  the full environment is SHA-256 hashed. See `docs/threat-model.md` §4.
+- **No LLM in the signed path.** Narrative and commentary are templated
+  from signed events.
 
 <a id="destructive-ruleset"></a>
 ## 8. Destructive ruleset

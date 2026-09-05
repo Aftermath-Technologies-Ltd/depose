@@ -1,10 +1,10 @@
 // packages/bundle/test/writer.deterministic.test.ts
 //
 // Tests for deterministic bundle writer.
-// BUILD_PLAN.md §5: deterministic tar (fixed mtime, sorted entries).
+// Deterministic bundle layout (docs/bundle-format.md#directory-layout).
 //
 // Tests exercise:
-//   1. Bundle directory structure matches BUILD_PLAN.md §5
+//   1. Bundle directory structure matches docs/bundle-format.md#directory-layout
 //   2. Manifest is correct (counts, metadata)
 //   3. Events are written to events.jsonl (sorted by id)
 //   4. Root hash is empty for unsigned mode
@@ -41,7 +41,7 @@ describe('writeBundle (unsigned mode)', () => {
   afterEach(cleanup);
 
   describe('directory structure', () => {
-    it('creates correct directory layout (BUILD_PLAN.md §5)', async () => {
+    it('creates correct directory layout', async () => {
       const jsonl = JSON.stringify({
         type: 'user',
         content: 'hello',

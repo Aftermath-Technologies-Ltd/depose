@@ -52,3 +52,43 @@ put an inferred association into signed evidence.
 `PASS`, `FAIL`, `SKIPPED`, `WARN`. A check that did not run is never
 rendered as a pass, and a downgrade (an older schema lacking a newer
 guarantee) is distinguished from a tamper.
+
+## D7. RFC 3161 tokens must be strict DER, on both sides
+
+The Go fuzzer found that digitorus/pkcs7's BER-to-DER converter panics on
+a two-byte input. The verifier now walks every token as strict DER
+(definite lengths, minimal length encoding, bounded nesting, no trailing
+bytes) before handing it to the library, and runs the library under a
+recover guard so a parser panic is an error rather than a crash. The
+producer's own DER reader applies the same rules. RFC 3161 specifies DER,
+so no conforming TSA is rejected; a BER-emitting TSA fails validation on
+the producer, which then tries the next TSA.
+
+## D8. events.jsonl order is verified, not repaired
+
+TypeScript required pre-sorted input and Go re-sorted before replay. Two
+behaviours for one file is a divergence, and the lenient one lets a file
+that reads one way on disk replay to a root sealed over another. Both
+sides now require ascending id order: the producer throws before sealing
+and the verifier fails `chain-replay` on an unsorted file. The
+`unsorted-input-rejected` vector pins this. Replacing the insertion sort
+with a library sort (planned for the performance phase) is moot: there is
+no sort.
+
+## D9. monoNs is a decimal string on the wire
+
+Go read `monoNs` as an int and JavaScript as a double; they diverge past
+2^53, which a nanosecond monotonic clock reaches after 104 days of
+uptime. Schema 3 writes `monoNs` as a decimal string; TypeScript holds a
+bigint and Go an int64. The verifier accepts the numeric form only for
+schema 2 bundles and fails a schema 3 bundle that uses it. The
+`monons-above-2-53` and `monons-int64-max` vectors pin the digits.
+
+## D10. The verifier stops after a bad signature, and nowhere else it need not
+
+A failed signature means nothing the manifest pins can be trusted, so the
+remaining checks would only report consequences of the same defect. A
+missing narrative, a bad ruleset hash, or a files-map mismatch leaves the
+other checks meaningful, so they still run and the report lists every
+defect. The stop points are: manifest-parse, schema-version,
+mode-declaration, signature-verify.

@@ -25,6 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Verifier check statuses.** Every check reports `PASS`, `FAIL`,
   `SKIPPED`, or `WARN`. A skipped check is never printed as a pass.
 - **docs/decisions.md** records design forks and the option taken.
+- **Verifier decomposition and tests.** `apps/verify/cmd` is one function
+  per check with a driver that stops only after a failure that makes the
+  rest meaningless. Table tests run every check against a golden signed
+  bundle and thirteen mutations of it (signature flip, manifest field
+  tamper, mode-contract violation, key-fingerprint mismatch, ruleset
+  tamper, missing file, extra file, files-map mismatch, raw JSONL swap,
+  deleted .tsr, chain break, payload rewrite, bad schema).
+- **Fuzzing on the trust boundary.** `FuzzParseTSR` (Go) seeded with real
+  FreeTSA and DigiCert tokens, plus a seeded mutation loop over the
+  TypeScript DER reader. The Go run found a panic in digitorus/pkcs7 on a
+  two-byte input; tokens are now strictly DER-validated before the
+  library sees them, and the library runs under a recover guard.
+- **Conformance vectors** for the hash chain and the files map / manifest
+  signing form (`tests/conformance/`), consumed by both the TypeScript and
+  Go suites.
 
 - **CLI bundling.** `pnpm build` now emits a single self-contained
   `depose.mjs` and `depose-hook.mjs` under `packages/cli/dist-bundle/`
@@ -52,6 +67,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   regressions.
 
 ### Changed
+
+- **`monoNs` is a decimal string on the wire** (a bigint in TypeScript,
+  an int64 in Go). JSON numbers diverge past 2^53. Schema 3 bundles must
+  use the string form; schema 2 bundles keep the numeric form.
+- **events.jsonl order is enforced, not repaired.** The producer refuses
+  to seal an unsorted event list and the verifier rejects an unsorted
+  file instead of silently re-sorting it.
+- **BUILD_PLAN.md citations removed.** The file never existed in git; the
+  normative content the code relied on now lives in
+  `docs/bundle-format.md` under stable anchors, and every citation points
+  there.
+- **Verifier checks now carry a status** (`PASS`, `FAIL`, `SKIPPED`,
+  `WARN`) in both the report and `--json` output.
 
 - **`VERIFIER_DOWNLOAD_URL`** is now pinned at build time via the
   `DEPOSE_RELEASE_TAG` environment variable. The release workflow sets

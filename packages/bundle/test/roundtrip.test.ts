@@ -1,7 +1,7 @@
 // packages/bundle/test/roundtrip.test.ts
 //
 // Tests for bundle roundtrip (write → read back → verify structure).
-// BUILD_PLAN.md §5 (Phase 2): signed bundles with hash chain.
+// Signed bundles with hash chain (docs/bundle-format.md#hash-chain).
 // Tests use unsigned mode for deterministic fixture testing.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';

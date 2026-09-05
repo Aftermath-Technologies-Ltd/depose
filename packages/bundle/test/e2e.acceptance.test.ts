@@ -1,6 +1,6 @@
 // packages/bundle/test/e2e.acceptance.test.ts
 //
-// End-to-end acceptance tests for Phase 2 (BUILD_PLAN.md §6).
+// End-to-end acceptance tests for the signed bundle pipeline.
 //
 // These tests exercise the full production + verification pipeline:
 //   1. Produce a signed bundle

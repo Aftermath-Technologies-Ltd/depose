@@ -1,7 +1,7 @@
 // packages/cli/test/commands.reconstruct.test.ts
 //
 // Tests for `depose reconstruct` CLI command.
-// BUILD_PLAN.md §6 (Phase 1): `depose reconstruct --from-claude <session-id>`
+// `depose reconstruct --from-claude <session-id>` (deprecated alias of record)
 // produces an unsigned `.depo` directory.
 //
 // Tests exercise:
