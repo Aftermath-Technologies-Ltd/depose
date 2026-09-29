@@ -4,7 +4,7 @@
 // Acceptance criteria: docs/hook-installation.md and docs/shim-installation.md.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -148,11 +148,18 @@ describe('Phase 3: installClaudeHook', () => {
 describe('Phase 3: installShellShims', () => {
   let binDir: string;
   let capDir: string;
+  let shimBinary: string;
 
   beforeEach(() => {
     setup();
     binDir = join(testDir, 'bin');
     capDir = join(testDir, 'captures');
+    // A stand-in for the Go-built depose-shim, passed explicitly. Leaving
+    // shimBinary unset made the installer search the working directory for
+    // apps/capture-shim/depose-shim, so these tests only passed on a tree
+    // where the shim had already been built with Go.
+    shimBinary = join(testDir, 'depose-shim-fixture');
+    writeFileSync(shimBinary, '#!/bin/sh\nexit 0\n', 'utf-8');
   });
 
   afterEach(teardown);
@@ -161,10 +168,12 @@ describe('Phase 3: installShellShims', () => {
     const result = installShellShims({
       binDir,
       captureDir: capDir,
-      shimBinary: null,
+      shimBinary,
     });
 
     expect(existsSync(binDir)).toBe(true);
+    expect(result.installedBinaries).toEqual(Array.from(SHIM_ALLOWLIST));
+    expect(readFileSync(join(binDir, 'depose-shim'), 'utf-8')).toBe('#!/bin/sh\nexit 0\n');
     expect(result.pathInstruction).toContain('export PATH');
     expect(result.pathInstruction).toContain(binDir);
   });
@@ -173,22 +182,26 @@ describe('Phase 3: installShellShims', () => {
     installShellShims({
       binDir,
       captureDir: capDir,
-      shimBinary: null,
+      shimBinary,
     });
 
     expect(existsSync(capDir)).toBe(true);
   });
 
-  it('returns empty installed binaries without real shim binary', () => {
-    // Without a real shim binary, symlinks may be created but point to nothing
-    const result = installShellShims({
-      binDir,
-      captureDir: capDir,
-      shimBinary: null,
-    });
+  it('refuses to install when the shim binary is missing, leaving no symlinks', () => {
+    // Without a real shim binary every symlink would dangle, including "rm",
+    // so the installer fails closed instead of reporting an empty install.
+    expect(() =>
+      installShellShims({
+        binDir,
+        captureDir: capDir,
+        shimBinary: join(testDir, 'no-such-shim'),
+      })
+    ).toThrow(/depose-shim binary not found/);
 
-    expect(result).toBeDefined();
-    expect(result.binDir).toBe(binDir);
+    // readdirSync, not existsSync: existsSync follows a dangling symlink to
+    // nothing and would report it absent.
+    expect(readdirSync(binDir)).toEqual([]);
   });
 });
 
