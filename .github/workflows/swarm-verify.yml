@@ -14,6 +14,6 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: moonrunnerkc/swarm-verify@5abe0fd26e2438564030cbe76de945fedfc308df # v1.1.0
+      - uses: moonrunnerkc/swarm-verify@2c4b6944a6eb757539f13802b1c78b694bfd3831 # v1.2.0
         with:
           install: true
